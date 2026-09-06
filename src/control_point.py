@@ -1,17 +1,24 @@
 # control_point.py
 from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem
 from PySide6.QtGui import QBrush, QPen
-from settings import  POINT_DIAMETER, ENDPOINT_COLOR, ENDPOINT_PEN_COLOR, CONTROL_POINT_COLOR, CONTROL_POINT_PEN_COLOR
+from settings import (
+    POINT_DIAMETER,
+    ENDPOINT_COLOR,
+    ENDPOINT_PEN_COLOR,
+    CONTROL_POINT_COLOR,
+    CONTROL_POINT_PEN_COLOR,
+)
 
 class ControlPoint(QGraphicsEllipseItem):
-    def __init__(self, pos, scene_ref, index):
-        # Circle centered at (0,0) with diameter POINT_DIAMETER
+    def __init__(self, pos, scene_ref, curve_idx, point_idx):
         half = POINT_DIAMETER / 2
         super().__init__(-half, -half, POINT_DIAMETER, POINT_DIAMETER)
         self.setPos(pos)
+        self.scene_ref = scene_ref
+        self.curve_idx = curve_idx
+        self.point_idx = point_idx
 
-        # Assign colors based on index
-        if index == 0 or index == 3:
+        if point_idx == 0 or point_idx == 3:
             self.setBrush(QBrush(ENDPOINT_COLOR))
             self.setPen(QPen(ENDPOINT_PEN_COLOR, 1.5))
         else:
@@ -20,9 +27,8 @@ class ControlPoint(QGraphicsEllipseItem):
 
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
-        self.scene_ref = scene_ref
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
-            self.scene_ref.on_point_moved()
+            self.scene_ref.on_point_moved(self.curve_idx)
         return super().itemChange(change, value)

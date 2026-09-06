@@ -2,9 +2,9 @@
 import sys
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QGraphicsView, QPlainTextEdit,
+    QPlainTextEdit,
     QFileDialog, QMessageBox, QLabel, QDoubleSpinBox,
-    QGroupBox, QGridLayout
+    QGroupBox, QGridLayout, QComboBox
 )
 from PySide6.QtCore import QByteArray, Qt, QPointF
 from PySide6.QtGui import QPainter, QFont, QActionGroup
@@ -26,20 +26,20 @@ class MainWindow(QMainWindow):
         self.resize(CANVAS_WIDTH + PREVIEW_WIDTH,
                     CANVAS_HEIGHT + INFO_HEIGHT + CODE_EDIT_HEIGHT + 50)
 
-        self.updating_spinboxes = False  # flag to avoid feedback loops
+        self.updating_spinboxes = False
+        self.updating_combobox = False
 
-        # Central widget and main layout
+        # Central widget
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
         main_layout.setContentsMargins(5, 5, 5, 5)
         main_layout.setSpacing(5)
 
-        # ---- Top row: Canvas + Preview ----
+        # ---- Top row ----
         top_row = QHBoxLayout()
         top_row.setSpacing(5)
 
-        # Zone 1: Drawing canvas (custom view)
         self.drawing_view = CustomGraphicsView()
         self.drawing_view.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.drawing_view.setFixedSize(CANVAS_WIDTH, CANVAS_HEIGHT)
@@ -47,7 +47,6 @@ class MainWindow(QMainWindow):
         self.drawing_view.setScene(self.scene)
         top_row.addWidget(self.drawing_view)
 
-        # Zone 3: SVG preview
         self.preview_widget = QSvgWidget()
         self.preview_widget.setFixedSize(PREVIEW_WIDTH, PREVIEW_HEIGHT)
         self.preview_widget.setStyleSheet("background-color: white;")
@@ -55,11 +54,11 @@ class MainWindow(QMainWindow):
 
         main_layout.addLayout(top_row)
 
-        # ---- Bottom area: Info zone (top) + Code zone (bottom) ----
+        # ---- Bottom area ----
         bottom_split = QVBoxLayout()
         bottom_split.setSpacing(2)
 
-        # Info zone (editable coordinates for selected curve)
+        # Info zone
         self.info_widget = self.create_info_panel()
         self.info_widget.setFixedHeight(INFO_HEIGHT)
         bottom_split.addWidget(self.info_widget)
@@ -76,7 +75,7 @@ class MainWindow(QMainWindow):
         # ---- Toolbar ----
         self.setup_toolbar()
 
-        # ---- Mouse coordinate label (floating) ----
+        # ---- Mouse coordinate label ----
         self.coord_label = QLabel(self.drawing_view)
         self.coord_label.setStyleSheet(
             "background-color: rgba(0,0,0,180); color: white; "
@@ -85,18 +84,20 @@ class MainWindow(QMainWindow):
         self.coord_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.coord_label.hide()
 
-        # Connect signals
+        # ---- Connect signals ----
         self.scene.svgCodeChanged.connect(self.update_preview_and_code)
         self.scene.pointsChanged.connect(self.update_info_panel)
+        self.scene.curveListChanged.connect(self.update_curve_combobox)
         self.drawing_view.mouseMoved.connect(self.show_mouse_coordinates)
 
         # Initial state
         self.set_mode("create")
         self.scene.emit_svg()
         self.update_info_panel()
+        self.update_curve_combobox()
 
     # ------------------------------------------------------------
-    #  Info panel with spinboxes
+    #  Info panel with combobox and spinboxes
     # ------------------------------------------------------------
     def create_info_panel(self):
         group = QGroupBox("Selected Curve Points")
@@ -104,37 +105,42 @@ class MainWindow(QMainWindow):
         layout.setVerticalSpacing(2)
         layout.setHorizontalSpacing(10)
 
-        # Store spinboxes in a list of tuples (x_spin, y_spin)
+        # Combobox row
+        self.curve_combo = QComboBox()
+        self.curve_combo.currentIndexChanged.connect(self.on_curve_selected)
+        layout.addWidget(QLabel("Curve:"), 0, 0)
+        layout.addWidget(self.curve_combo, 0, 1, 1, 2)
+
+        # Spinboxes for 4 points
         self.point_spinboxes = []
         point_labels = ["P0 (start)", "P1 (control)", "P2 (control)", "P3 (end)"]
 
         for i, label in enumerate(point_labels):
+            row = i + 1
             lbl = QLabel(label)
             lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            layout.addWidget(lbl, i, 0)
+            layout.addWidget(lbl, row, 0)
 
             x_spin = QDoubleSpinBox()
             x_spin.setRange(-9999, 9999)
             x_spin.setDecimals(2)
             x_spin.setSingleStep(1.0)
-            x_spin.setProperty("point_idx", i)   # store point index
-            layout.addWidget(x_spin, i, 1)
+            x_spin.setProperty("point_idx", i)
+            layout.addWidget(x_spin, row, 1)
 
             y_spin = QDoubleSpinBox()
             y_spin.setRange(-9999, 9999)
             y_spin.setDecimals(2)
             y_spin.setSingleStep(1.0)
             y_spin.setProperty("point_idx", i)
-            layout.addWidget(y_spin, i, 2)
+            layout.addWidget(y_spin, row, 2)
 
-            # Connect signals (will be connected later after we have the scene)
             self.point_spinboxes.append((x_spin, y_spin))
 
         group.setLayout(layout)
         return group
 
     def connect_spinboxes(self):
-        """Connect spinbox valueChanged signals to the update method."""
         for i, (x_spin, y_spin) in enumerate(self.point_spinboxes):
             x_spin.valueChanged.connect(lambda val, idx=i: self.on_spinbox_changed(idx, is_x=True))
             y_spin.valueChanged.connect(lambda val, idx=i: self.on_spinbox_changed(idx, is_x=False))
@@ -142,22 +148,30 @@ class MainWindow(QMainWindow):
     def on_spinbox_changed(self, point_idx, is_x):
         if self.updating_spinboxes:
             return
+        curve_idx = self.curve_combo.currentIndex()
+        if curve_idx < 0:
+            return
         x_spin, y_spin = self.point_spinboxes[point_idx]
         new_pos = QPointF(x_spin.value(), y_spin.value())
-        self.scene.move_selected_point(point_idx, new_pos)
+        self.scene.move_selected_point(curve_idx, point_idx, new_pos)
+
+    def on_curve_selected(self, index):
+        if self.updating_combobox:
+            return
+        self.update_info_panel()
 
     def update_info_panel(self):
-        """Populate spinboxes from the selected curve."""
+        """Populate spinboxes from the currently selected curve."""
         if self.updating_spinboxes:
             return
         self.updating_spinboxes = True
 
-        curve = self.scene.get_selected_curve()
-        if curve and len(curve) == 4:
-            for i, pt in enumerate(curve):
+        curve_idx = self.curve_combo.currentIndex()
+        points = self.scene.get_curve_points(curve_idx)
+        if points:
+            for i, pt in enumerate(points):
                 pos = pt.pos()
                 x_spin, y_spin = self.point_spinboxes[i]
-                # Block signals to avoid feedback
                 x_spin.blockSignals(True)
                 y_spin.blockSignals(True)
                 x_spin.setValue(pos.x())
@@ -165,7 +179,6 @@ class MainWindow(QMainWindow):
                 x_spin.blockSignals(False)
                 y_spin.blockSignals(False)
         else:
-            # No curve selected → clear spinboxes
             for x_spin, y_spin in self.point_spinboxes:
                 x_spin.blockSignals(True)
                 y_spin.blockSignals(True)
@@ -176,21 +189,38 @@ class MainWindow(QMainWindow):
 
         self.updating_spinboxes = False
 
+    def update_curve_combobox(self):
+        """Update the combobox with current curve list."""
+        if self.updating_combobox:
+            return
+        self.updating_combobox = True
+        self.curve_combo.blockSignals(True)
+        self.curve_combo.clear()
+        for i in range(len(self.scene.curves)):
+            self.curve_combo.addItem(f"Curve {i+1}")
+        if self.scene.curves:
+            # Select the last one (or the one that was selected before)
+            idx = self.scene.selected_curve_idx
+            if idx < 0 or idx >= len(self.scene.curves):
+                idx = len(self.scene.curves) - 1
+            self.curve_combo.setCurrentIndex(idx)
+        else:
+            # No curves, clear spinboxes
+            self.update_info_panel()
+        self.curve_combo.blockSignals(False)
+        self.updating_combobox = False
+
     # ------------------------------------------------------------
     #  Mouse coordinate label
     # ------------------------------------------------------------
     def show_mouse_coordinates(self, scene_pos: QPointF):
-        # Update the label text and position
         text = f"({scene_pos.x():.1f}, {scene_pos.y():.1f})"
         self.coord_label.setText(text)
         self.coord_label.adjustSize()
 
-        # Get cursor position relative to the view
         cursor_pos = self.drawing_view.mapFromGlobal(self.drawing_view.cursor().pos())
-        # Offset to place bottom‑right of cursor
         x = cursor_pos.x() + 15
         y = cursor_pos.y() - 5
-        # Ensure label stays inside the view
         max_x = self.drawing_view.width() - self.coord_label.width()
         max_y = self.drawing_view.height() - self.coord_label.height()
         x = min(max(x, 0), max_x)
@@ -231,12 +261,11 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------
     def set_mode(self, mode):
         self.scene.mode = mode
+        self.drawing_view.set_mode(mode)
         if mode == "create":
-            self.drawing_view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
             self.statusBar().showMessage("Create mode: click to place points. Drag background to pan.")
         else:
-            self.drawing_view.setDragMode(QGraphicsView.DragMode.NoDrag)
-            self.statusBar().showMessage("Edit mode: drag points or edit coordinates in the info panel.")
+            self.statusBar().showMessage("Edit mode: drag points or edit coordinates. Drag empty space to pan.")
 
     # ------------------------------------------------------------
     #  Update preview & code
@@ -251,6 +280,7 @@ class MainWindow(QMainWindow):
     def clear_scene(self):
         self.scene.clear_all()
         self.update_info_panel()
+        self.update_curve_combobox()
 
     # ------------------------------------------------------------
     #  Export

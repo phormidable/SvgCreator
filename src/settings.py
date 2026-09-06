@@ -14,6 +14,7 @@ WINDOW_HEIGHT = CANVAS_HEIGHT + INFO_HEIGHT + CODE_EDIT_HEIGHT + 50   # 1050
 
 # ---- Scene / viewBox ----
 VIEWBOX_RECT = QRectF(-500, -500, 1000, 1000)
+SCENE_MARGIN = 50
 
 # ---- Point colors ----
 ENDPOINT_COLOR = QColor("blue")
@@ -24,6 +25,8 @@ CONTROL_POINT_PEN_COLOR = QColor("darkgoldenrod")
 # ---- Curve style ----
 CURVE_PEN_COLOR = QColor("blue")
 CURVE_PEN_WIDTH = 2
+CURVE_DRAG_PEN_COLOR = QColor("green")
+CURVE_DRAG_PEN_WIDTH = 2
 
 # ---- Export defaults ----
 SVG_STROKE_COLOR = "black"
@@ -33,3 +36,4 @@ SVG_FILL = "none"
 # ---- Point size ----
 POINT_RADIUS = 6
 POINT_DIAMETER = POINT_RADIUS * 2
+
