@@ -82,7 +82,11 @@ class MainWindow(QMainWindow):
             "padding: 2px 5px; border-radius: 3px; font-weight: bold;"
         )
         self.coord_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.coord_label.hide()
+        self.coord_label.setText("(0.0, 0.0)")  # initial text
+        self.coord_label.adjustSize()
+        self.coord_label.move(10, 10)  # initial position
+        self.coord_label.show()  # show from the start
+        self.coord_label.raise_()  # ensure it's on top
 
         # ---- Connect signals ----
         self.scene.svgCodeChanged.connect(self.update_preview_and_code)
@@ -213,11 +217,15 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------
     #  Mouse coordinate label
     # ------------------------------------------------------------
-    def show_mouse_coordinates(self, scene_pos: QPointF):
+    def show_mouse_coordinates(self, scene_pos):
+        if scene_pos is None:
+            # Mouse left the canvas, hide the label
+            self.coord_label.hide()
+            return
+
         text = f"({scene_pos.x():.1f}, {scene_pos.y():.1f})"
         self.coord_label.setText(text)
         self.coord_label.adjustSize()
-
         cursor_pos = self.drawing_view.mapFromGlobal(self.drawing_view.cursor().pos())
         x = cursor_pos.x() + 15
         y = cursor_pos.y() - 5
@@ -227,6 +235,7 @@ class MainWindow(QMainWindow):
         y = min(max(y, 0), max_y)
         self.coord_label.move(x, y)
         self.coord_label.show()
+        self.coord_label.raise_()
 
     # ------------------------------------------------------------
     #  Toolbar
@@ -260,12 +269,22 @@ class MainWindow(QMainWindow):
     #  Mode switching
     # ------------------------------------------------------------
     def set_mode(self, mode):
+        # If switching to Edit and there are incomplete points, discard them
+        if mode == "edit" and self.scene.current_points:
+            self.scene.discard_current_points()
+            self.statusBar().showMessage("Incomplete curve discarded. Switch to Edit mode.")
+            # Update the UI (info panel, combobox)
+            self.update_info_panel()
+            self.update_curve_combobox()
+
         self.scene.mode = mode
         self.drawing_view.set_mode(mode)
         if mode == "create":
             self.statusBar().showMessage("Create mode: click to place points. Drag background to pan.")
         else:
             self.statusBar().showMessage("Edit mode: drag points or edit coordinates. Drag empty space to pan.")
+
+        self.coord_label.show()
 
     # ------------------------------------------------------------
     #  Update preview & code
