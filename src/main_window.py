@@ -1,20 +1,11 @@
 # main_window.py
-import sys
-from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPlainTextEdit,
-    QFileDialog, QMessageBox, QLabel, QDoubleSpinBox,
-    QGroupBox, QGridLayout, QComboBox
-)
+from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,QPlainTextEdit,
+    QFileDialog, QMessageBox, QLabel, QDoubleSpinBox,QGroupBox, QGridLayout, QComboBox)
 from PySide6.QtCore import QByteArray, Qt, QPointF
 from PySide6.QtGui import QPainter, QFont, QActionGroup
 from PySide6.QtSvgWidgets import QSvgWidget
 
-from settings import (
-    CANVAS_WIDTH, CANVAS_HEIGHT,
-    PREVIEW_WIDTH, PREVIEW_HEIGHT,
-    INFO_HEIGHT, CODE_EDIT_HEIGHT,
-)
+from settings import CANVAS_WIDTH, CANVAS_HEIGHT,PREVIEW_WIDTH, PREVIEW_HEIGHT,INFO_HEIGHT, CODE_EDIT_HEIGHT
 from bezier_scene import BezierScene
 from custom_view import CustomGraphicsView
 
@@ -23,8 +14,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Bézier SVG Creator")
-        self.resize(CANVAS_WIDTH + PREVIEW_WIDTH,
-                    CANVAS_HEIGHT + INFO_HEIGHT + CODE_EDIT_HEIGHT + 50)
+        self.resize(CANVAS_WIDTH + PREVIEW_WIDTH, CANVAS_HEIGHT + INFO_HEIGHT + CODE_EDIT_HEIGHT + 50)
 
         self.updating_spinboxes = False
         self.updating_combobox = False
@@ -61,6 +51,7 @@ class MainWindow(QMainWindow):
         # Info zone
         self.info_widget = self.create_info_panel()
         self.info_widget.setFixedHeight(INFO_HEIGHT)
+        self.connect_spinboxes()
         bottom_split.addWidget(self.info_widget)
 
         # Code zone
@@ -76,7 +67,7 @@ class MainWindow(QMainWindow):
         self.setup_toolbar()
 
         # ---- Mouse coordinate label ----
-        self.coord_label = QLabel(self.drawing_view)
+        self.coord_label = QLabel(self.drawing_view.viewport())
         self.coord_label.setStyleSheet(
             "background-color: rgba(0,0,0,180); color: white; "
             "padding: 2px 5px; border-radius: 3px; font-weight: bold;"
@@ -146,10 +137,10 @@ class MainWindow(QMainWindow):
 
     def connect_spinboxes(self):
         for i, (x_spin, y_spin) in enumerate(self.point_spinboxes):
-            x_spin.valueChanged.connect(lambda val, idx=i: self.on_spinbox_changed(idx, is_x=True))
-            y_spin.valueChanged.connect(lambda val, idx=i: self.on_spinbox_changed(idx, is_x=False))
+            x_spin.valueChanged.connect(lambda val, idx=i: self.on_spinbox_changed(idx))
+            y_spin.valueChanged.connect(lambda val, idx=i: self.on_spinbox_changed(idx))
 
-    def on_spinbox_changed(self, point_idx, is_x):
+    def on_spinbox_changed(self, point_idx):
         if self.updating_spinboxes:
             return
         curve_idx = self.curve_combo.currentIndex()
@@ -162,6 +153,7 @@ class MainWindow(QMainWindow):
     def on_curve_selected(self, index):
         if self.updating_combobox:
             return
+        self.scene.selected_curve_idx = index
         self.update_info_panel()
 
     def update_info_panel(self):
@@ -228,7 +220,7 @@ class MainWindow(QMainWindow):
         self.coord_label.adjustSize()
         cursor_pos = self.drawing_view.mapFromGlobal(self.drawing_view.cursor().pos())
         x = cursor_pos.x() + 15
-        y = cursor_pos.y() - 5
+        y = cursor_pos.y() + 15
         max_x = self.drawing_view.width() - self.coord_label.width()
         max_y = self.drawing_view.height() - self.coord_label.height()
         x = min(max(x, 0), max_x)
@@ -273,16 +265,13 @@ class MainWindow(QMainWindow):
         if mode == "edit" and self.scene.current_points:
             self.scene.discard_current_points()
             self.statusBar().showMessage("Incomplete curve discarded. Switch to Edit mode.")
-            # Update the UI (info panel, combobox)
-            self.update_info_panel()
-            self.update_curve_combobox()
 
         self.scene.mode = mode
         self.drawing_view.set_mode(mode)
         if mode == "create":
-            self.statusBar().showMessage("Create mode: click to place points. Drag background to pan.")
+            self.statusBar().showMessage("Create mode: left-click to place points. Right-drag to pan.")
         else:
-            self.statusBar().showMessage("Edit mode: drag points or edit coordinates. Drag empty space to pan.")
+            self.statusBar().showMessage("Edit mode: drag points or edit coordinates. Right-drag to pan.")
 
         self.coord_label.show()
 
@@ -298,8 +287,6 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------
     def clear_scene(self):
         self.scene.clear_all()
-        self.update_info_panel()
-        self.update_curve_combobox()
 
     # ------------------------------------------------------------
     #  Export

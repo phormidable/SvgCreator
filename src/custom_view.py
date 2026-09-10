@@ -1,11 +1,10 @@
 # custom_view.py
 from PySide6.QtWidgets import QGraphicsView
-from PySide6.QtCore import Signal, QPointF, Qt
-from PySide6.QtGui import QMouseEvent
-from control_point import ControlPoint
+from PySide6.QtCore import Signal, Qt
+
 
 class CustomGraphicsView(QGraphicsView):
-    mouseMoved = Signal(object)   # Can emit QPointF or None
+    mouseMoved = Signal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -18,25 +17,22 @@ class CustomGraphicsView(QGraphicsView):
         self._pan_start_v_scroll = 0
         self.mode = "create"
 
+        # Panning is done manually with the right button; never use a drag mode.
+        self.setDragMode(QGraphicsView.DragMode.NoDrag)
+
     def set_mode(self, mode):
         self.mode = mode
-        if mode == "create":
-            self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
-        else:
-            self.setDragMode(QGraphicsView.DragMode.NoDrag)
+        # Nothing to change here anymore — panning is right-button only.
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton and self.mode == "edit":
-            scene_pos = self.mapToScene(event.pos())
-            item = self.scene().itemAt(scene_pos, self.transform())
-            if not isinstance(item, ControlPoint):
-                self._panning = True
-                self._pan_start = event.pos()
-                self._pan_start_h_scroll = self.horizontalScrollBar().value()
-                self._pan_start_v_scroll = self.verticalScrollBar().value()
-                self.setCursor(Qt.CursorShape.ClosedHandCursor)
-                return
-
+        if event.button() == Qt.MouseButton.RightButton:
+            self._panning = True
+            self._pan_start = event.pos()
+            self._pan_start_h_scroll = self.horizontalScrollBar().value()
+            self._pan_start_v_scroll = self.verticalScrollBar().value()
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            event.accept()
+            return
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
@@ -52,13 +48,13 @@ class CustomGraphicsView(QGraphicsView):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
-        if self._panning and event.button() == Qt.MouseButton.LeftButton:
+        if self._panning and event.button() == Qt.MouseButton.RightButton:
             self._panning = False
             self.setCursor(Qt.CursorShape.ArrowCursor)
+            event.accept()
             return
         super().mouseReleaseEvent(event)
 
     def leaveEvent(self, event):
-        # Emit None when mouse leaves the view
         self.mouseMoved.emit(None)
         super().leaveEvent(event)

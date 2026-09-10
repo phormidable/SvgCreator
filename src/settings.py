@@ -22,6 +22,10 @@ ENDPOINT_PEN_COLOR = QColor("darkblue")
 CONTROL_POINT_COLOR = QColor("yellow")
 CONTROL_POINT_PEN_COLOR = QColor("darkgoldenrod")
 
+# ---- Highlighted point colors (while dragging a curve) ----
+HIGHLIGHT_POINT_COLOR = QColor("green")
+HIGHLIGHT_POINT_PEN_COLOR = QColor("darkgreen")
+
 # ---- Curve style ----
 CURVE_PEN_COLOR = QColor("blue")
 CURVE_PEN_WIDTH = 2
