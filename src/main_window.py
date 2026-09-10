@@ -49,7 +49,7 @@ class MainWindow(QMainWindow):
         bottom_split.setSpacing(2)
 
         # Info zone
-        self.info_widget = self.create_info_panel()
+        self.info_widget = self._create_info_panel()
         self.info_widget.setFixedHeight(INFO_HEIGHT)
         self.connect_spinboxes()
         bottom_split.addWidget(self.info_widget)
@@ -64,7 +64,7 @@ class MainWindow(QMainWindow):
         main_layout.addLayout(bottom_split)
 
         # ---- Toolbar ----
-        self.setup_toolbar()
+        self._setup_toolbar()
 
         # ---- Mouse coordinate label ----
         self.coord_label = QLabel(self.drawing_view.viewport())
@@ -94,7 +94,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------
     #  Info panel with combobox and spinboxes
     # ------------------------------------------------------------
-    def create_info_panel(self):
+    def _create_info_panel(self):
         group = QGroupBox("Selected Curve Points")
         layout = QGridLayout()
         layout.setVerticalSpacing(2)
@@ -232,7 +232,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------
     #  Toolbar
     # ------------------------------------------------------------
-    def setup_toolbar(self):
+    def _setup_toolbar(self):
         toolbar = self.addToolBar("Tools")
 
         self.create_action = toolbar.addAction("✏️ Create")
@@ -262,7 +262,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------
     def set_mode(self, mode):
         # If switching to Edit and there are incomplete points, discard them
-        if mode == "edit" and self.scene.current_points:
+        if mode == "edit" and self.scene.pending_curve is not None:
             self.scene.discard_current_points()
             self.statusBar().showMessage("Incomplete curve discarded. Switch to Edit mode.")
 

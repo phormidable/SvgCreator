@@ -1,32 +1,25 @@
 # bezier_scene.py
-from PySide6.QtWidgets import QGraphicsScene, QGraphicsPathItem, QGraphicsItem
+from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem
 from PySide6.QtCore import Signal, Qt, QRectF
-from PySide6.QtGui import QPainterPath, QPen
-from settings import (VIEWBOX_RECT,SCENE_MARGIN,CURVE_PEN_COLOR,CURVE_PEN_WIDTH,CURVE_DRAG_PEN_COLOR,
-                        CURVE_DRAG_PEN_WIDTH,SVG_STROKE_COLOR,SVG_STROKE_WIDTH,SVG_FILL)
-from control_point import ControlPoint
 
+from settings import VIEWBOX_RECT, SCENE_MARGIN, SVG_STROKE_COLOR, SVG_STROKE_WIDTH, SVG_FILL
+from control_point import ControlPoint
+from bezier_curve import BezierCurve
 
 class BezierScene(QGraphicsScene):
     svgCodeChanged = Signal(str)
     pointsChanged = Signal()
     curveListChanged = Signal()
-    curveHighlighted = Signal(int)
 
     def __init__(self):
         super().__init__()
-        self.curves = []              # list of (points, path_item)
-        self.current_points = []      # points being placed for current curve
+        self.curves = []              # committed BezierCurve objects
+        self.pending_curve = None     # BezierCurve currently being placed
         self.mode = "create"
         self.selected_curve_idx = -1
-
-        # WIP path item for the polyline (segments AB, BC)
-        self.wip_path_item = QGraphicsPathItem()
-        self.wip_path_item.setPen(QPen(CURVE_PEN_COLOR, CURVE_PEN_WIDTH))
-        self.addItem(self.wip_path_item)
+        self.dragging_curve = None    # BezierCurve currently being dragged
 
         self.setSceneRect(VIEWBOX_RECT)
-        self.dragging_curve_idx = -1
 
     # ------------------------------------------------------------
     #  Mouse interaction
@@ -34,122 +27,66 @@ class BezierScene(QGraphicsScene):
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             item = self.itemAt(event.scenePos(), self.views()[0].transform())
+
             if isinstance(item, ControlPoint):
-                if item.curve_idx < len(self.curves):
-                    self.dragging_curve_idx = item.curve_idx
-                    self._set_curve_points_highlighted(item.curve_idx, True)
-                    self.rebuild_curve_path(item.curve_idx)
+                curve = item.curve
+                if curve.committed:
+                    self.dragging_curve = curve
+                    curve.set_highlighted(True)
                 super().mousePressEvent(event)
                 return
 
             if self.mode == "create":
-                pos = event.scenePos()
-                curve_idx = len(self.curves)
-                point_idx = len(self.current_points)
-                pt = ControlPoint(pos, self, curve_idx, point_idx)
-                self.addItem(pt)
-                self.current_points.append(pt)
-
-                if len(self.current_points) == 4:
+                if self.pending_curve is None:
+                    self.pending_curve = BezierCurve(self)
+                self.pending_curve.add_point(event.scenePos())
+                if self.pending_curve.is_complete():
                     self.finalize_curve()
-                else:
-                    self.rebuild_wip_path()
-                    self.emit_svg()
                 return
+
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            if self.dragging_curve_idx != -1:
-                prev = self.dragging_curve_idx
-                self.dragging_curve_idx = -1
-                self._set_curve_points_highlighted(prev, False)
-                self.rebuild_curve_path(prev)
+            if self.dragging_curve is not None:
+                self.dragging_curve.set_highlighted(False)
+                self.dragging_curve = None
         super().mouseReleaseEvent(event)
 
     # ------------------------------------------------------------
     #  Curve finalization
     # ------------------------------------------------------------
     def finalize_curve(self):
-        # Create a path item for this curve
-        for pt in self.current_points:
+        curve = self.pending_curve
+        self.pending_curve = None
+        curve.committed = True
+        for pt in curve.points:
             pt.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
-
-        path_item = QGraphicsPathItem()
-        self.addItem(path_item)
-        self.curves.append((self.current_points, path_item))
+        curve.rebuild_path()
+        self.curves.append(curve)
         self.selected_curve_idx = len(self.curves) - 1
-
-        # Clear the WIP path (remove the temporary polyline)
-        self.wip_path_item.setPath(QPainterPath())
-
-        # Reset current points for the next curve
-        self.current_points = []
-
-        # Rebuild the curve's path
-        self.rebuild_curve_path(self.selected_curve_idx)
-        # Update scene rect
         self.update_scene_rect()
-        # Emit signals
         self.emit_svg()
+        self.pointsChanged.emit()
         self.curveListChanged.emit()
-        self.pointsChanged.emit()
 
     # ------------------------------------------------------------
-    #  Rebuild paths
+    #  Change notification from a curve
     # ------------------------------------------------------------
-    def rebuild_curve_path(self, curve_idx):
-        points, path_item = self.curves[curve_idx]
-        path = QPainterPath()
-        if len(points) == 4:
-            p0, p1, p2, p3 = [p.pos() for p in points]
-            path.moveTo(p0)
-            path.cubicTo(p1, p2, p3)
-        path_item.setPath(path)
-
-        # Set pen color based on drag state
-        if curve_idx == self.dragging_curve_idx:
-            path_item.setPen(QPen(CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH))
-        else:
-            path_item.setPen(QPen(CURVE_PEN_COLOR, CURVE_PEN_WIDTH))
-
-    def rebuild_wip_path(self):
-        path = QPainterPath()
-        if self.current_points:
-            pts = [p.pos() for p in self.current_points]
-            if len(pts) == 1:
-                path.moveTo(pts[0])
-            elif len(pts) == 2:
-                path.moveTo(pts[0])
-                path.lineTo(pts[1])
-            elif len(pts) == 3:
-                path.moveTo(pts[0])
-                path.lineTo(pts[1])
-                path.lineTo(pts[2])
-        self.wip_path_item.setPath(path)
-
-    # ------------------------------------------------------------
-    #  Point moved callback
-    # ------------------------------------------------------------
-    def on_point_moved(self, curve_idx):
-        if curve_idx < len(self.curves):
-            self.rebuild_curve_path(curve_idx)
-        else:
-            self.rebuild_wip_path()
+    def on_curve_changed(self):
         self.update_scene_rect()
         self.emit_svg()
         self.pointsChanged.emit()
-
 
     # ------------------------------------------------------------
     #  Dynamic scene rect
     # ------------------------------------------------------------
     def update_scene_rect(self):
         all_positions = []
-        for points, _ in self.curves:
-            all_positions.extend(p.pos() for p in points)
-        for p in self.current_points:
-            all_positions.append(p.pos())
+        for curve in self.curves:
+            all_positions.extend(curve.positions())
+        if self.pending_curve is not None:
+            all_positions.extend(self.pending_curve.positions())
 
         if not all_positions:
             self.setSceneRect(VIEWBOX_RECT)
@@ -161,7 +98,9 @@ class BezierScene(QGraphicsScene):
         max_x = max(xs) + SCENE_MARGIN
         min_y = min(ys) - SCENE_MARGIN
         max_y = max(ys) + SCENE_MARGIN
+
         rect = QRectF(min_x, min_y, max_x - min_x, max_y - min_y)
+        rect = rect.united(VIEWBOX_RECT)  # never smaller than the default view
         self.setSceneRect(rect)
 
     # ------------------------------------------------------------
@@ -169,39 +108,33 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     def generate_svg(self):
         path_commands = []
-        for points, _ in self.curves:
-            if len(points) == 4:
-                p0, p1, p2, p3 = [p.pos() for p in points]
-                path_commands.append(
-                    f"M {p0.x():.2f},{p0.y():.2f} "
-                    f"C {p1.x():.2f},{p1.y():.2f} "
-                    f"{p2.x():.2f},{p2.y():.2f} "
-                    f"{p3.x():.2f},{p3.y():.2f}"
-                )
+        all_positions = []
+        for curve in self.curves:
+            d = curve.svg_path_string()
+            if d:
+                path_commands.append(d)
+                all_positions.extend(curve.positions())
 
         if not path_commands:
-            return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%"></svg>'
+            return (
+                '<svg xmlns="http://www.w3.org/2000/svg" '
+                'viewBox="0 0 100 100" width="100%" height="100%"></svg>'
+            )
 
-        all_positions = []
-        for points, _ in self.curves:
-            all_positions.extend(p.pos() for p in points)
-
-
-        if all_positions:
-            xs = [p.x() for p in all_positions]
-            ys = [p.y() for p in all_positions]
-            min_x = min(xs) - SCENE_MARGIN
-            max_x = max(xs) + SCENE_MARGIN
-            min_y = min(ys) - SCENE_MARGIN
-            max_y = max(ys) + SCENE_MARGIN
-            viewbox = f"{min_x:.2f} {min_y:.2f} {max_x - min_x:.2f} {max_y - min_y:.2f}"
-        else:
-            viewbox = "0 0 100 100"
+        xs = [p.x() for p in all_positions]
+        ys = [p.y() for p in all_positions]
+        min_x = min(xs) - SCENE_MARGIN
+        max_x = max(xs) + SCENE_MARGIN
+        min_y = min(ys) - SCENE_MARGIN
+        max_y = max(ys) + SCENE_MARGIN
+        viewbox = f"{min_x:.2f} {min_y:.2f} {max_x - min_x:.2f} {max_y - min_y:.2f}"
 
         d_string = " ".join(path_commands)
         return (
-            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{viewbox}" width="100%" height="100%">'
-            f'<path d="{d_string}" fill="{SVG_FILL}" stroke="{SVG_STROKE_COLOR}" stroke-width="{SVG_STROKE_WIDTH}"/>'
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{viewbox}" '
+            f'width="100%" height="100%">'
+            f'<path d="{d_string}" fill="{SVG_FILL}" '
+            f'stroke="{SVG_STROKE_COLOR}" stroke-width="{SVG_STROKE_WIDTH}"/>'
             '</svg>'
         )
 
@@ -209,14 +142,13 @@ class BezierScene(QGraphicsScene):
         self.svgCodeChanged.emit(self.generate_svg())
 
     # ------------------------------------------------------------
-    #  Discard incomplete curves
+    #  Discard incomplete curve
     # ------------------------------------------------------------
     def discard_current_points(self):
-        """Remove all points from the current (incomplete) curve."""
-        for pt in self.current_points:
-            self.removeItem(pt)
-        self.current_points.clear()
-        self.wip_path_item.setPath(QPainterPath())
+        if self.pending_curve is None:
+            return
+        self.pending_curve.dispose()
+        self.pending_curve = None
         self.update_scene_rect()
         self.emit_svg()
         self.pointsChanged.emit()
@@ -225,17 +157,16 @@ class BezierScene(QGraphicsScene):
     #  Clear everything
     # ------------------------------------------------------------
     def clear_all(self):
-        for points, path_item in self.curves:
-            for pt in points:
-                self.removeItem(pt)
-            self.removeItem(path_item)
-        for pt in self.current_points:
-            self.removeItem(pt)
-        self.current_points.clear()
+        if self.pending_curve is not None:
+            self.pending_curve.dispose()
+            self.pending_curve = None
+        for curve in self.curves:
+            curve.dispose()
         self.curves.clear()
+
         self.selected_curve_idx = -1
-        self.dragging_curve_idx = -1
-        self.wip_path_item.setPath(QPainterPath())
+        self.dragging_curve = None
+
         self.update_scene_rect()
         self.emit_svg()
         self.pointsChanged.emit()
@@ -246,17 +177,9 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     def get_curve_points(self, curve_idx):
         if 0 <= curve_idx < len(self.curves):
-            return self.curves[curve_idx][0]
+            return self.curves[curve_idx].points
         return None
 
     def move_selected_point(self, curve_idx, point_idx, pos):
-        points, _ = self.curves[curve_idx]
-        if 0 <= point_idx < len(points):
-            points[point_idx].setPos(pos)
-
-    # bezier_scene.py
-    def _set_curve_points_highlighted(self, curve_idx, highlighted):
         if 0 <= curve_idx < len(self.curves):
-            points, _ = self.curves[curve_idx]
-            for pt in points:
-                pt.set_highlighted(highlighted)
+            self.curves[curve_idx].move_point(point_idx, pos)
