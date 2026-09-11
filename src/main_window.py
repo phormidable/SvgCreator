@@ -5,7 +5,7 @@ from PySide6.QtCore import QByteArray, Qt, QPointF
 from PySide6.QtGui import QPainter, QFont, QActionGroup
 from PySide6.QtSvgWidgets import QSvgWidget
 
-from settings import CANVAS_WIDTH, CANVAS_HEIGHT,PREVIEW_WIDTH, PREVIEW_HEIGHT,INFO_HEIGHT, CODE_EDIT_HEIGHT
+from settings import CANVAS_WIDTH, CANVAS_HEIGHT,PREVIEW_WIDTH, PREVIEW_HEIGHT,INFO_HEIGHT, CODE_EDIT_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
 from bezier_scene import BezierScene
 from custom_view import CustomGraphicsView
 
@@ -14,7 +14,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Bézier SVG Creator")
-        self.resize(CANVAS_WIDTH + PREVIEW_WIDTH, CANVAS_HEIGHT + INFO_HEIGHT + CODE_EDIT_HEIGHT + 50)
+        self.resize(WINDOW_WIDTH, WINDOW_HEIGHT)
 
         self.updating_spinboxes = False
         self.updating_combobox = False
@@ -193,18 +193,16 @@ class MainWindow(QMainWindow):
         self.curve_combo.blockSignals(True)
         self.curve_combo.clear()
         for i in range(len(self.scene.curves)):
-            self.curve_combo.addItem(f"Curve {i+1}")
+            self.curve_combo.addItem(self.scene.curves[i].name)
         if self.scene.curves:
             # Select the last one (or the one that was selected before)
             idx = self.scene.selected_curve_idx
             if idx < 0 or idx >= len(self.scene.curves):
                 idx = len(self.scene.curves) - 1
             self.curve_combo.setCurrentIndex(idx)
-        else:
-            # No curves, clear spinboxes
-            self.update_info_panel()
         self.curve_combo.blockSignals(False)
         self.updating_combobox = False
+        self.update_info_panel()
 
     # ------------------------------------------------------------
     #  Mouse coordinate label

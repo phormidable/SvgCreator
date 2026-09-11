@@ -44,16 +44,15 @@ class BezierCurve:
         self.points[point_idx].setPos(pos)
 
     def rebuild_path(self):
-        path = QPainterPath()
         pts = self.positions()
-        if pts:
+        path = QPainterPath()
+        if len(pts) == 4:
+            path.moveTo(pts[0])
+            path.cubicTo(pts[1], pts[2], pts[3])
+        elif pts:
             path.moveTo(pts[0])
             for p in pts[1:]:
                 path.lineTo(p)
-            if len(pts) == 4:
-                path = QPainterPath()
-                path.moveTo(pts[0])
-                path.cubicTo(pts[1], pts[2], pts[3])
         self.path_item.setPath(path)
         if self.highlighted:
             self.path_item.setPen(QPen(CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH))
