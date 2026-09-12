@@ -1,5 +1,5 @@
 # bezier_scene.py
-from PySide6.QtCore import QRectF, Qt, Signal
+from PySide6.QtCore import QRectF, Qt, Signal, QTimer
 from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem
 
 from settings import (
@@ -28,6 +28,7 @@ class BezierScene(QGraphicsScene):
 
         self.setSceneRect(VIEWBOX_RECT)
         self._ensuring_visible = False
+        self._scene_rect_pending = False
 
     # ------------------------------------------------------------
     #  Mouse interaction
@@ -69,6 +70,16 @@ class BezierScene(QGraphicsScene):
         finally:
             self._ensuring_visible = False
 
+    def _schedule_scene_rect_update(self):
+        if self._scene_rect_pending:
+            return
+        self._scene_rect_pending = True
+        QTimer.singleShot(0, self._do_scene_rect_update)
+
+    def _do_scene_rect_update(self):
+        self._scene_rect_pending = False
+        self.update_scene_rect()
+
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             if self.dragging_curve is not None:
@@ -99,7 +110,7 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     def on_curve_changed(self):
         # Scene rect must grow during a drag so `ensureVisible` can scroll.
-        self.update_scene_rect()
+        self._schedule_scene_rect_update()
         self.emit_svg()
         self.pointsChanged.emit()
 
