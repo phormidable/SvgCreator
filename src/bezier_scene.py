@@ -1,10 +1,14 @@
 # bezier_scene.py
-from PySide6.QtCore import QRectF, Qt, Signal, QTimer
-from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem
+from PySide6.QtCore import QRectF, Qt, Signal
+from PySide6.QtGui import QBrush, QPen
+from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem
 
 from settings import (
+    ARTBOARD_RECT,
     VIEWBOX_RECT,
-    SCENE_MARGIN,
+    VIEWBOX_BACKGROUND_COLOR,
+    VIEWBOX_BORDER_COLOR,
+    VIEWBOX_BORDER_WIDTH,
     SVG_STROKE_COLOR,
     SVG_STROKE_WIDTH,
     SVG_FILL,
@@ -20,15 +24,28 @@ class BezierScene(QGraphicsScene):
 
     def __init__(self):
         super().__init__()
+
+        # ---- Static geometry ----
+        self.artboard = ARTBOARD_RECT   # full working area (scene rect)
+        self.viewbox = VIEWBOX_RECT     # region that gets exported
+
+        # ---- State ----
         self.curves = []              # committed BezierCurve objects
         self.pending_curve = None     # BezierCurve currently being placed
         self.mode = "create"
         self.selected_curve_idx = -1
-        self.dragging_curve = None    # BezierCurve currently being dragged
-
-        self.setSceneRect(VIEWBOX_RECT)
+        self.dragging_curve = None
         self._ensuring_visible = False
-        self._scene_rect_pending = False
+
+        # ---- Scene rect = artboard, never changes during editing ----
+        self.setSceneRect(self.artboard)
+
+        # ---- Viewbox rectangle: white, sits under everything ----
+        self.viewbox_item = QGraphicsRectItem(self.viewbox)
+        self.viewbox_item.setBrush(QBrush(VIEWBOX_BACKGROUND_COLOR))
+        self.viewbox_item.setPen(QPen(VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH))
+        self.viewbox_item.setZValue(-100)
+        self.addItem(self.viewbox_item)
 
     # ------------------------------------------------------------
     #  Mouse interaction
@@ -57,10 +74,8 @@ class BezierScene(QGraphicsScene):
 
     def mouseMoveEvent(self, event):
         super().mouseMoveEvent(event)
-
         if self.dragging_curve is None or self._ensuring_visible:
             return
-
         self._ensuring_visible = True
         try:
             pos = event.scenePos()
@@ -70,22 +85,11 @@ class BezierScene(QGraphicsScene):
         finally:
             self._ensuring_visible = False
 
-    def _schedule_scene_rect_update(self):
-        if self._scene_rect_pending:
-            return
-        self._scene_rect_pending = True
-        QTimer.singleShot(0, self._do_scene_rect_update)
-
-    def _do_scene_rect_update(self):
-        self._scene_rect_pending = False
-        self.update_scene_rect()
-
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             if self.dragging_curve is not None:
                 self.dragging_curve.set_highlighted(False)
                 self.dragging_curve = None
-                self.update_scene_rect()   # catch a point that left the rect
         super().mouseReleaseEvent(event)
 
     # ------------------------------------------------------------
@@ -100,7 +104,6 @@ class BezierScene(QGraphicsScene):
         curve.rebuild_path()
         self.curves.append(curve)
         self.selected_curve_idx = len(self.curves) - 1
-        self.update_scene_rect()
         self.emit_svg()
         self.curveListChanged.emit()
         self.pointsChanged.emit()
@@ -109,74 +112,37 @@ class BezierScene(QGraphicsScene):
     #  Change notification from a curve
     # ------------------------------------------------------------
     def on_curve_changed(self):
-        # Scene rect must grow during a drag so `ensureVisible` can scroll.
-        self._schedule_scene_rect_update()
         self.emit_svg()
         self.pointsChanged.emit()
 
     # ------------------------------------------------------------
-    #  Dynamic scene rect
-    # ------------------------------------------------------------
-    def update_scene_rect(self):
-        current = self.sceneRect()
-
-        all_positions = []
-        for curve in self.curves:
-            all_positions.extend(curve.positions())
-        if self.pending_curve is not None:
-            all_positions.extend(self.pending_curve.positions())
-
-        if not all_positions:
-            if current != VIEWBOX_RECT:
-                self.setSceneRect(VIEWBOX_RECT)
-            return
-
-        xs = [p.x() for p in all_positions]
-        ys = [p.y() for p in all_positions]
-        needed = QRectF(
-            min(xs) - SCENE_MARGIN,
-            min(ys) - SCENE_MARGIN,
-            max(xs) - min(xs) + 2 * SCENE_MARGIN,
-            max(ys) - min(ys) + 2 * SCENE_MARGIN,
-        ).united(VIEWBOX_RECT)
-
-        if needed == current:
-            return
-        self.setSceneRect(needed)
-
-    # ------------------------------------------------------------
-    #  SVG generation
+    #  SVG generation — viewBox is simply self.viewbox
     # ------------------------------------------------------------
     def generate_svg(self):
         path_commands = []
-        all_positions = []
         for curve in self.curves:
             d = curve.svg_path_string()
             if d:
                 path_commands.append(d)
-                all_positions.extend(curve.positions())
+
+        vb = self.viewbox
+        header = (
+            f'<svg xmlns="http://www.w3.org/2000/svg" '
+            f'viewBox="{vb.x():.2f} {vb.y():.2f} '
+            f'{vb.width():.2f} {vb.height():.2f}" '
+            f'width="100%" height="100%">'
+        )
 
         if not path_commands:
-            return (
-                '<svg xmlns="http://www.w3.org/2000/svg" '
-                'viewBox="0 0 100 100" width="100%" height="100%"></svg>'
-            )
-
-        xs = [p.x() for p in all_positions]
-        ys = [p.y() for p in all_positions]
-        min_x = min(xs) - SCENE_MARGIN
-        max_x = max(xs) + SCENE_MARGIN
-        min_y = min(ys) - SCENE_MARGIN
-        max_y = max(ys) + SCENE_MARGIN
-        viewbox = f"{min_x:.2f} {min_y:.2f} {max_x - min_x:.2f} {max_y - min_y:.2f}"
+            return header + '</svg>'
 
         d_string = " ".join(path_commands)
         return (
-            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{viewbox}" '
-            f'width="100%" height="100%">'
-            f'<path d="{d_string}" fill="{SVG_FILL}" '
-            f'stroke="{SVG_STROKE_COLOR}" stroke-width="{SVG_STROKE_WIDTH}"/>'
-            '</svg>'
+            header
+            + f'<path d="{d_string}" fill="{SVG_FILL}" '
+              f'stroke="{SVG_STROKE_COLOR}" '
+              f'stroke-width="{SVG_STROKE_WIDTH}"/>'
+              '</svg>'
         )
 
     def emit_svg(self):
@@ -190,7 +156,6 @@ class BezierScene(QGraphicsScene):
             return
         self.pending_curve.dispose()
         self.pending_curve = None
-        self.update_scene_rect()
         self.emit_svg()
         self.pointsChanged.emit()
 
@@ -208,7 +173,6 @@ class BezierScene(QGraphicsScene):
         self.selected_curve_idx = -1
         self.dragging_curve = None
 
-        self.update_scene_rect()
         self.emit_svg()
         self.pointsChanged.emit()
         self.curveListChanged.emit()

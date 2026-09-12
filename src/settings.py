@@ -13,8 +13,14 @@ WINDOW_WIDTH = CANVAS_WIDTH + PREVIEW_WIDTH          # 1800
 WINDOW_HEIGHT = CANVAS_HEIGHT + INFO_HEIGHT + CODE_EDIT_HEIGHT + 50   # 1050
 
 # ---- Scene / viewBox ----
+ARTBOARD_RECT = QRectF(-1000, -1000, 2000, 2000)
 VIEWBOX_RECT = QRectF(-500, -500, 1000, 1000)
-SCENE_MARGIN = 50
+
+# ---- Canvas colors ----
+CANVAS_BACKGROUND_COLOR = QColor(230, 230, 230)    # light grey: work area
+VIEWBOX_BACKGROUND_COLOR = QColor("white")         # exported area
+VIEWBOX_BORDER_COLOR = QColor(120, 120, 120)
+VIEWBOX_BORDER_WIDTH = 1
 
 # ---- Point colors ----
 ENDPOINT_COLOR = QColor("blue")

@@ -1,9 +1,12 @@
 # control_point.py
 from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem
 from PySide6.QtGui import QBrush, QPen
+from PySide6.QtCore import QPointF
 
-from settings import (POINT_DIAMETER,ENDPOINT_COLOR,ENDPOINT_PEN_COLOR,CONTROL_POINT_COLOR,
-                        CONTROL_POINT_PEN_COLOR,HIGHLIGHT_POINT_COLOR,HIGHLIGHT_POINT_PEN_COLOR)
+from settings import (POINT_DIAMETER, ENDPOINT_COLOR, ENDPOINT_PEN_COLOR,
+                      CONTROL_POINT_COLOR, CONTROL_POINT_PEN_COLOR,
+                      HIGHLIGHT_POINT_COLOR, HIGHLIGHT_POINT_PEN_COLOR)
+
 
 class ControlPoint(QGraphicsEllipseItem):
     def __init__(self, pos, curve, point_idx):
@@ -31,6 +34,12 @@ class ControlPoint(QGraphicsEllipseItem):
             self._apply_default_colors()
 
     def itemChange(self, change, value):
+        if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
+            # Clamp to artboard bounds before the position is committed.
+            artboard = self.curve.scene.artboard
+            x = min(max(value.x(), artboard.left()), artboard.right())
+            y = min(max(value.y(), artboard.top()), artboard.bottom())
+            return QPointF(x, y)
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
             self.curve.on_point_moved()
         return super().itemChange(change, value)
