@@ -22,6 +22,13 @@ VIEWBOX_BACKGROUND_COLOR = QColor("white")         # exported area
 VIEWBOX_BORDER_COLOR = QColor(120, 120, 120)
 VIEWBOX_BORDER_WIDTH = 1
 
+# ---- Hover highlight ----
+HOVER_TOLERANCE = 5
+HOVER_CURVE_COLOR = QColor("red")
+HOVER_POINT_COLOR = QColor("red")
+HOVER_POINT_PEN_COLOR = QColor("darkred")
+
+
 # ---- Point colors ----
 ENDPOINT_COLOR = QColor("blue")
 ENDPOINT_PEN_COLOR = QColor("darkblue")

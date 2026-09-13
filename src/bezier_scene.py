@@ -11,7 +11,7 @@ from settings import (
     VIEWBOX_BORDER_WIDTH,
     SVG_STROKE_COLOR,
     SVG_STROKE_WIDTH,
-    SVG_FILL,
+    SVG_FILL, HOVER_TOLERANCE
 )
 from control_point import ControlPoint
 from bezier_curve import BezierCurve
@@ -35,6 +35,7 @@ class BezierScene(QGraphicsScene):
         self.mode = "create"
         self.selected_curve_idx = -1
         self.dragging_curve = None
+        self._hovered_curve = None
         self._ensuring_visible = False
 
         # ---- Scene rect = artboard, never changes during editing ----
@@ -57,6 +58,7 @@ class BezierScene(QGraphicsScene):
             if isinstance(item, ControlPoint):
                 curve = item.curve
                 if curve.committed:
+                    self._clear_hover()
                     self.dragging_curve = curve
                     curve.set_highlighted(True)
                 super().mousePressEvent(event)
@@ -90,7 +92,38 @@ class BezierScene(QGraphicsScene):
             if self.dragging_curve is not None:
                 self.dragging_curve.set_highlighted(False)
                 self.dragging_curve = None
+                self._update_hover(event.scenePos())
         super().mouseReleaseEvent(event)
+
+    # ------------------------------------------------------------
+    #  Hover tracking
+    # ------------------------------------------------------------
+    def on_mouse_moved(self, scene_pos):
+        """Called by the view's mouseMoved signal (scene_pos or None)."""
+        if self.dragging_curve is not None:
+            return
+        self._update_hover(scene_pos)
+
+    def _update_hover(self, pos):
+        new_hovered = None
+        if pos is not None:
+            for curve in reversed(self.curves):
+                if curve.is_near(pos, HOVER_TOLERANCE):
+                    new_hovered = curve
+                    break
+        if new_hovered is self._hovered_curve:
+            return
+        if self._hovered_curve is not None:
+            self._hovered_curve.set_hovered(False)
+        self._hovered_curve = new_hovered
+        if new_hovered is not None:
+            new_hovered.set_hovered(True)
+
+    def _clear_hover(self):
+        if self._hovered_curve is not None:
+            self._hovered_curve.set_hovered(False)
+            self._hovered_curve = None
+
 
     # ------------------------------------------------------------
     #  Curve finalization
@@ -163,6 +196,7 @@ class BezierScene(QGraphicsScene):
     #  Clear everything
     # ------------------------------------------------------------
     def clear_all(self):
+        self._hovered_curve = None
         if self.pending_curve is not None:
             self.pending_curve.dispose()
             self.pending_curve = None

@@ -84,6 +84,7 @@ class MainWindow(QMainWindow):
         self.scene.pointsChanged.connect(self.update_info_panel)
         self.scene.curveListChanged.connect(self.update_curve_combobox)
         self.drawing_view.mouseMoved.connect(self.show_mouse_coordinates)
+        self.drawing_view.mouseMoved.connect(self.scene.on_mouse_moved)
 
         # Initial state
         self.set_mode("create")

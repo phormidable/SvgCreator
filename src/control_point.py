@@ -5,7 +5,8 @@ from PySide6.QtCore import QPointF
 
 from settings import (POINT_DIAMETER, ENDPOINT_COLOR, ENDPOINT_PEN_COLOR,
                       CONTROL_POINT_COLOR, CONTROL_POINT_PEN_COLOR,
-                      HIGHLIGHT_POINT_COLOR, HIGHLIGHT_POINT_PEN_COLOR)
+                      HIGHLIGHT_POINT_COLOR, HIGHLIGHT_POINT_PEN_COLOR,
+                      HOVER_POINT_COLOR, HOVER_POINT_PEN_COLOR)
 
 
 class ControlPoint(QGraphicsEllipseItem):
@@ -15,27 +16,39 @@ class ControlPoint(QGraphicsEllipseItem):
         self.setPos(pos)
         self.curve = curve
         self.point_idx = point_idx
-        self._apply_default_colors()
+        self.highlighted = False
+        self.hovered = False
+        self._apply_style()
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
 
-    def _apply_default_colors(self):
-        if self.point_idx == 0 or self.point_idx == 3:
+    def _apply_style(self):
+        if self.highlighted:
+            self.setBrush(QBrush(HIGHLIGHT_POINT_COLOR))
+            self.setPen(QPen(HIGHLIGHT_POINT_PEN_COLOR, 1.5))
+        elif self.hovered:
+            self.setBrush(QBrush(HOVER_POINT_COLOR))
+            self.setPen(QPen(HOVER_POINT_PEN_COLOR, 1.5))
+        elif self.point_idx == 0 or self.point_idx == 3:
             self.setBrush(QBrush(ENDPOINT_COLOR))
             self.setPen(QPen(ENDPOINT_PEN_COLOR, 1.5))
         else:
             self.setBrush(QBrush(CONTROL_POINT_COLOR))
             self.setPen(QPen(CONTROL_POINT_PEN_COLOR, 1.5))
 
-    def set_highlighted(self, highlighted):
-        if highlighted:
-            self.setBrush(QBrush(HIGHLIGHT_POINT_COLOR))
-            self.setPen(QPen(HIGHLIGHT_POINT_PEN_COLOR, 1.5))
-        else:
-            self._apply_default_colors()
+    def set_highlighted(self, value):
+        if self.highlighted == value:
+            return
+        self.highlighted = value
+        self._apply_style()
+
+    def set_hovered(self, value):
+        if self.hovered == value:
+            return
+        self.hovered = value
+        self._apply_style()
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
-            # Clamp to artboard bounds before the position is committed.
             artboard = self.curve.scene.artboard
             x = min(max(value.x(), artboard.left()), artboard.right())
             y = min(max(value.y(), artboard.top()), artboard.bottom())

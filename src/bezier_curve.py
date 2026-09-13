@@ -1,7 +1,12 @@
 # bezier_curve.py
 from PySide6.QtWidgets import QGraphicsPathItem, QGraphicsItem
-from PySide6.QtGui import QPainterPath, QPen
-from settings import CURVE_PEN_COLOR, CURVE_PEN_WIDTH, CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH
+from PySide6.QtGui import QPainterPath, QPainterPathStroker, QPen
+
+from settings import (
+    CURVE_PEN_COLOR, CURVE_PEN_WIDTH,
+    CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH,
+    HOVER_CURVE_COLOR, HOVER_TOLERANCE,
+)
 from control_point import ControlPoint
 
 
@@ -20,7 +25,10 @@ class BezierCurve:
         scene.addItem(self.path_item)
 
         self.highlighted = False
-        self.committed = False   # True once it belongs to scene.curves
+        self.hovered = False
+        self.committed = False
+
+        self._hit_path = QPainterPath()
 
     # ---- construction ----
     def add_point(self, pos):
@@ -54,19 +62,50 @@ class BezierCurve:
             for p in pts[1:]:
                 path.lineTo(p)
         self.path_item.setPath(path)
+        self._apply_path_style()
+        self._update_hit_path()
+
+    def _apply_path_style(self):
         if self.highlighted:
             self.path_item.setPen(QPen(CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH))
+        elif self.hovered:
+            self.path_item.setPen(QPen(HOVER_CURVE_COLOR, CURVE_PEN_WIDTH))
         else:
             self.path_item.setPen(QPen(CURVE_PEN_COLOR, CURVE_PEN_WIDTH))
 
-    # ---- highlight ----
+    def _update_hit_path(self):
+        stroker = QPainterPathStroker()
+        stroker.setWidth(2 * HOVER_TOLERANCE)
+        self._hit_path = stroker.createStroke(self.path_item.path())
+
+    # ---- highlight / hover ----
     def set_highlighted(self, value):
         if self.highlighted == value:
             return
         self.highlighted = value
+        self._apply_path_style()
         for pt in self.points:
             pt.set_highlighted(value)
-        self.rebuild_path()
+
+    def set_hovered(self, value):
+        if self.hovered == value:
+            return
+        self.hovered = value
+        self._apply_path_style()
+        for pt in self.points:
+            pt.set_hovered(value)
+
+    def is_near(self, pos, tolerance):
+        if self._hit_path.contains(pos):
+            return True
+        r2 = tolerance * tolerance
+        for pt in self.points:
+            p = pt.pos()
+            dx = p.x() - pos.x()
+            dy = p.y() - pos.y()
+            if dx * dx + dy * dy <= r2:
+                return True
+        return False
 
     # ---- SVG ----
     def svg_path_string(self):
