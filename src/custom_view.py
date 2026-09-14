@@ -18,6 +18,7 @@ class CustomGraphicsView(QGraphicsView):
         self._pan_start_h_scroll = 0
         self._pan_start_v_scroll = 0
         self.mode = "create"
+        self._zoom_factor = 1.0
 
         # Panning is done manually with the right button; never use a drag mode.
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
@@ -36,6 +37,17 @@ class CustomGraphicsView(QGraphicsView):
             event.accept()
             return
         super().mousePressEvent(event)
+
+    def set_zoom(self, factor):
+        if factor == self._zoom_factor:
+            return
+        # Anchor on the scene point currently at the viewport center,
+        # so zooming in/out keeps the same area roughly under the eye.
+        anchor = self.mapToScene(self.viewport().rect().center())
+        self.resetTransform()
+        self.scale(factor, factor)
+        self.centerOn(anchor)
+        self._zoom_factor = factor
 
     def mouseMoveEvent(self, event):
         scene_pos = self.mapToScene(event.pos())

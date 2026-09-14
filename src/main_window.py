@@ -256,6 +256,30 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
+        # Zoom
+        self.zoom_group = QActionGroup(self)
+        self.zoom_group.setExclusive(True)
+        self.zoom_actions = {}
+
+        zoom_levels = [
+            ("1x", 1.0, "Ctrl+1"),
+            ("2x", 2.0, "Ctrl+2"),
+            ("4x", 4.0, "Ctrl+3"),
+            ("8x", 8.0, "Ctrl+4"),
+            ("16x", 16.0, "Ctrl+5"),
+        ]
+        for label, factor, shortcut in zoom_levels:
+            action = toolbar.addAction(label)
+            action.setCheckable(True)
+            action.setShortcut(shortcut)
+            action.setToolTip(f"Zoom {label}  ({shortcut})")
+            action.triggered.connect(lambda checked=False, f=factor: self.drawing_view.set_zoom(f))
+            self.zoom_group.addAction(action)
+            self.zoom_actions[factor] = action
+        self.zoom_actions[1.0].setChecked(True)
+
+        toolbar.addSeparator()
+
         clear_action = toolbar.addAction("🗑️ Clear All")
         clear_action.triggered.connect(self.clear_scene)
 
