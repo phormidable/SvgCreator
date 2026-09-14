@@ -28,19 +28,15 @@ HOVER_CURVE_COLOR = QColor("red")
 HOVER_POINT_COLOR = QColor("red")
 HOVER_POINT_PEN_COLOR = QColor("darkred")
 
-
-# ---- Point colors ----
-ENDPOINT_COLOR = QColor("blue")
-ENDPOINT_PEN_COLOR = QColor("darkblue")
-CONTROL_POINT_COLOR = QColor("yellow")
-CONTROL_POINT_PEN_COLOR = QColor("darkgoldenrod")
-
 # ---- Highlighted point colors (while dragging a curve) ----
 HIGHLIGHT_POINT_COLOR = QColor("green")
 HIGHLIGHT_POINT_PEN_COLOR = QColor("darkgreen")
 
+# ---- Control point ring ----
+CONTROL_POINT_RING_COLOR = QColor("yellow")
+CONTROL_POINT_RING_PEN_COLOR = QColor("darkgoldenrod")
+
 # ---- Curve style ----
-CURVE_PEN_COLOR = QColor("blue")
 CURVE_PEN_WIDTH = 2
 CURVE_DRAG_PEN_COLOR = QColor("green")
 CURVE_DRAG_PEN_WIDTH = 2
@@ -53,4 +49,4 @@ SVG_FILL = "none"
 # ---- Point size ----
 POINT_RADIUS = 6
 POINT_DIAMETER = POINT_RADIUS * 2
-
+CONTROL_POINT_INNER_RADIUS = 4

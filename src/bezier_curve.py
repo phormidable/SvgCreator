@@ -1,12 +1,14 @@
 # bezier_curve.py
 from PySide6.QtWidgets import QGraphicsPathItem, QGraphicsItem
-from PySide6.QtGui import QPainterPath, QPainterPathStroker, QPen
+from PySide6.QtGui import QPainterPath, QPainterPathStroker, QPen, QColor
 
-from settings import (
-    CURVE_PEN_COLOR, CURVE_PEN_WIDTH,
-    CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH,
-    HOVER_CURVE_COLOR, HOVER_TOLERANCE,
-)
+from settings import (CURVE_PEN_WIDTH, CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH,
+                      HOVER_CURVE_COLOR, HOVER_TOLERANCE)
+
+GOLDEN_RATIO_CONJUGATE = 0.618033988749895
+# Offset the first hue so curve 1 isn't red (which is the hover color).
+FIRST_HUE_OFFSET = 0.55
+
 from control_point import ControlPoint
 
 
@@ -18,6 +20,9 @@ class BezierCurve:
         self.id = BezierCurve._next_id
         BezierCurve._next_id += 1
         self.name = f"Curve {self.id}"
+
+        hue = (FIRST_HUE_OFFSET + (self.id - 1) * GOLDEN_RATIO_CONJUGATE) % 1.0
+        self.color = QColor.fromHsvF(hue, 0.75, 0.85)
 
         self.points: list[ControlPoint] = []
         self.path_item = QGraphicsPathItem()
@@ -71,7 +76,7 @@ class BezierCurve:
         elif self.hovered:
             self.path_item.setPen(QPen(HOVER_CURVE_COLOR, CURVE_PEN_WIDTH))
         else:
-            self.path_item.setPen(QPen(CURVE_PEN_COLOR, CURVE_PEN_WIDTH))
+            self.path_item.setPen(QPen(self.color, CURVE_PEN_WIDTH))
 
     def _update_hit_path(self):
         stroker = QPainterPathStroker()

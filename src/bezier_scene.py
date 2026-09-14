@@ -21,6 +21,7 @@ class BezierScene(QGraphicsScene):
     svgCodeChanged = Signal(str)
     pointsChanged = Signal()
     curveListChanged = Signal()
+    curveSelected = Signal(int)
 
     def __init__(self):
         super().__init__()
@@ -61,6 +62,10 @@ class BezierScene(QGraphicsScene):
                     self._clear_hover()
                     self.dragging_curve = curve
                     curve.set_highlighted(True)
+                    idx = self.curves.index(curve)
+                    if idx != self.selected_curve_idx:
+                        self.selected_curve_idx = idx
+                        self.curveSelected.emit(idx)
                 super().mousePressEvent(event)
                 return
 

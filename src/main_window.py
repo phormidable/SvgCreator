@@ -85,6 +85,7 @@ class MainWindow(QMainWindow):
         self.scene.curveListChanged.connect(self.update_curve_combobox)
         self.drawing_view.mouseMoved.connect(self.show_mouse_coordinates)
         self.drawing_view.mouseMoved.connect(self.scene.on_mouse_moved)
+        self.scene.curveSelected.connect(self.on_scene_curve_selected)
 
         # Initial state
         self.set_mode("create")
@@ -156,6 +157,11 @@ class MainWindow(QMainWindow):
             return
         self.scene.selected_curve_idx = index
         self.update_info_panel()
+
+    def on_scene_curve_selected(self, index):
+        # Setting the combo index fires currentIndexChanged → on_curve_selected,
+        # which updates the info panel. No need to call it manually here.
+        self.curve_combo.setCurrentIndex(index)
 
     def update_info_panel(self):
         """Populate spinboxes from the currently selected curve."""
