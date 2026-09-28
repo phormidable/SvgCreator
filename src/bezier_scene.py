@@ -22,6 +22,7 @@ class BezierScene(QGraphicsScene):
     pointsChanged = Signal()
     curveListChanged = Signal()
     curveSelected = Signal(int)
+    curveDragFinished = Signal()
 
     def __init__(self):
         super().__init__()
@@ -102,6 +103,7 @@ class BezierScene(QGraphicsScene):
                 self.dragging_curve.set_highlighted(False)
                 self.dragging_curve = None
                 self._update_hover(event.scenePos())
+                self.curveDragFinished.emit()
         super().mouseReleaseEvent(event)
 
     # ------------------------------------------------------------
@@ -172,7 +174,7 @@ class BezierScene(QGraphicsScene):
             f'<svg xmlns="http://www.w3.org/2000/svg" '
             f'viewBox="{vb.x():.2f} {vb.y():.2f} '
             f'{vb.width():.2f} {vb.height():.2f}" '
-            f'width="100%" height="100%">'
+            f'width="{vb.width():.2f}" height="{vb.height():.2f}">'
         )
 
         if not path_commands:

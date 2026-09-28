@@ -3,13 +3,11 @@ from PySide6.QtWidgets import QGraphicsItem
 from PySide6.QtGui import QPainterPath, QPainterPathStroker, QPen, QColor, QPainter
 from PySide6.QtCore import QRectF, Qt
 
-from settings import (CURVE_PEN_WIDTH, CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH,
-                      HOVER_CURVE_COLOR, HOVER_TOLERANCE)
+from settings import CURVE_PEN_WIDTH, CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH, HOVER_CURVE_COLOR, HOVER_TOLERANCE, SVG_PRECISION
 from control_point import ControlPoint
 
 GOLDEN_RATIO_CONJUGATE = 0.618033988749895
 FIRST_HUE_OFFSET = 0.55
-
 
 class BezierCurve(QGraphicsItem):
     _next_id = 1
@@ -22,7 +20,9 @@ class BezierCurve(QGraphicsItem):
 
         hue = (FIRST_HUE_OFFSET + (self.id - 1) * GOLDEN_RATIO_CONJUGATE) % 1.0
         self.color = QColor.fromHsvF(hue, 0.75, 0.85)
-
+        self._pen_normal = QPen(self.color, CURVE_PEN_WIDTH)
+        self._pen_hover = QPen(HOVER_CURVE_COLOR, CURVE_PEN_WIDTH)
+        self._pen_highlight = QPen(CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH)
         self.points: list[ControlPoint] = []
         self.highlighted = False
         self.hovered = False
@@ -51,12 +51,11 @@ class BezierCurve(QGraphicsItem):
             return
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         if self.highlighted:
-            pen = QPen(CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH)
+            painter.setPen(self._pen_highlight)
         elif self.hovered:
-            pen = QPen(HOVER_CURVE_COLOR, CURVE_PEN_WIDTH)
+            painter.setPen(self._pen_hover)
         else:
-            pen = QPen(self.color, CURVE_PEN_WIDTH)
-        painter.setPen(pen)
+            painter.setPen(self._pen_normal)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(self._path)
 
@@ -143,11 +142,12 @@ class BezierCurve(QGraphicsItem):
     def svg_path_string(self):
         if not self.is_complete():
             return ""
+        p = SVG_PRECISION
         p0, p1, p2, p3 = self.positions()
-        return (f"M {p0.x():.2f},{p0.y():.2f} "
-                f"C {p1.x():.2f},{p1.y():.2f} "
-                f"{p2.x():.2f},{p2.y():.2f} "
-                f"{p3.x():.2f},{p3.y():.2f}")
+        return (f"M {p0.x():.{p}f},{p0.y():.{p}f} "
+                f"C {p1.x():.{p}f},{p1.y():.{p}f} "
+                f"{p2.x():.{p}f},{p2.y():.{p}f} "
+                f"{p3.x():.{p}f},{p3.y():.{p}f}")
 
     # ---------------------------------------------------------------
     #  Callback from ControlPoint

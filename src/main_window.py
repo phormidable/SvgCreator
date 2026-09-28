@@ -86,6 +86,7 @@ class MainWindow(QMainWindow):
         self.drawing_view.mouseMoved.connect(self.show_mouse_coordinates)
         self.drawing_view.mouseMoved.connect(self.scene.on_mouse_moved)
         self.scene.curveSelected.connect(self.on_scene_curve_selected)
+        self.scene.curveDragFinished.connect(self.update_info_panel)
 
         # Initial state
         self.set_mode("create")
@@ -166,6 +167,8 @@ class MainWindow(QMainWindow):
     def update_info_panel(self):
         """Populate spinboxes from the currently selected curve."""
         if self.updating_spinboxes:
+            return
+        if self.scene.dragging_curve is not None:
             return
         self.updating_spinboxes = True
 
