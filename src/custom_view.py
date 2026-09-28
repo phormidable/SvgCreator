@@ -1,6 +1,7 @@
 # custom_view.py
 from PySide6.QtWidgets import QGraphicsView
 from PySide6.QtCore import Signal, Qt
+from PySide6.QtGui import QTransform
 from settings import CANVAS_BACKGROUND_COLOR
 
 class CustomGraphicsView(QGraphicsView):
@@ -17,15 +18,10 @@ class CustomGraphicsView(QGraphicsView):
         self._pan_start = None
         self._pan_start_h_scroll = 0
         self._pan_start_v_scroll = 0
-        self.mode = "create"
         self._zoom_factor = 1.0
 
         # Panning is done manually with the right button; never use a drag mode.
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
-
-    def set_mode(self, mode):
-        self.mode = mode
-        # Nothing to change here anymore — panning is right-button only.
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.RightButton:
@@ -44,8 +40,7 @@ class CustomGraphicsView(QGraphicsView):
         # Anchor on the scene point currently at the viewport center,
         # so zooming in/out keeps the same area roughly under the eye.
         anchor = self.mapToScene(self.viewport().rect().center())
-        self.resetTransform()
-        self.scale(factor, factor)
+        self.setTransform(QTransform().scale(factor, factor))
         self.centerOn(anchor)
         self._zoom_factor = factor
 

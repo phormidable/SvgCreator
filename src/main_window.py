@@ -216,16 +216,16 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------
     def show_mouse_coordinates(self, scene_pos):
         if scene_pos is None:
-            # Mouse left the canvas, hide the label
             self.coord_label.hide()
             return
 
         text = f"({scene_pos.x():.1f}, {scene_pos.y():.1f})"
         self.coord_label.setText(text)
         self.coord_label.adjustSize()
-        cursor_pos = self.drawing_view.mapFromGlobal(self.drawing_view.cursor().pos())
-        x = cursor_pos.x() + 15
-        y = cursor_pos.y() + 15
+
+        vp = self.drawing_view.mapFromScene(scene_pos)
+        x = vp.x() + 15
+        y = vp.y() + 15
         max_x = self.drawing_view.width() - self.coord_label.width()
         max_y = self.drawing_view.height() - self.coord_label.height()
         x = min(max(x, 0), max_x)
@@ -296,7 +296,6 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Incomplete curve discarded. Switch to Edit mode.")
 
         self.scene.mode = mode
-        self.drawing_view.set_mode(mode)
         if mode == "create":
             self.statusBar().showMessage("Create mode: left-click to place points. Right-drag to pan.")
         else:

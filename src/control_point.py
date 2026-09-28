@@ -15,7 +15,7 @@ class ControlPoint(QGraphicsEllipseItem):
         super().__init__(-half, -half, POINT_DIAMETER, POINT_DIAMETER)
         self.setPos(pos)
         self.curve = curve
-        self.point_idx = point_idx
+        self.point_idx = point_idx # 0..3, fixed for the lifetime of the curve
         self.highlighted = False
         self.hovered = False
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
@@ -67,7 +67,7 @@ class ControlPoint(QGraphicsEllipseItem):
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
-            artboard = self.curve.scene.artboard
+            artboard = self.curve.scene().artboard
             x = min(max(value.x(), artboard.left()), artboard.right())
             y = min(max(value.y(), artboard.top()), artboard.bottom())
             return QPointF(x, y)

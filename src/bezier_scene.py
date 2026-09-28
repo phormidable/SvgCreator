@@ -54,6 +54,10 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
+            views = self.views()
+            if not views:
+                super().mousePressEvent(event)
+                return
             item = self.itemAt(event.scenePos(), self.views()[0].transform())
 
             if isinstance(item, ControlPoint):
@@ -201,7 +205,7 @@ class BezierScene(QGraphicsScene):
     #  Clear everything
     # ------------------------------------------------------------
     def clear_all(self):
-        self._hovered_curve = None
+        self._clear_hover()
         if self.pending_curve is not None:
             self.pending_curve.dispose()
             self.pending_curve = None
@@ -210,6 +214,7 @@ class BezierScene(QGraphicsScene):
         self.curves.clear()
 
         self.selected_curve_idx = -1
+        BezierCurve._next_id = 1 # c'est mieux de repartir à 1.
         self.dragging_curve = None
 
         self.emit_svg()
