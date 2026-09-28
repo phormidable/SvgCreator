@@ -1,11 +1,11 @@
 # main_window.py
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,QPlainTextEdit,
-    QFileDialog, QMessageBox, QLabel, QDoubleSpinBox,QGroupBox, QGridLayout, QComboBox)
+    QFileDialog, QMessageBox, QLabel, QDoubleSpinBox,QGroupBox, QGridLayout, QComboBox, QDialog, QDialogButtonBox)
 from PySide6.QtCore import QByteArray, Qt, QPointF
 from PySide6.QtGui import QPainter, QFont, QActionGroup
 from PySide6.QtSvgWidgets import QSvgWidget
 
-from settings import CANVAS_WIDTH, CANVAS_HEIGHT,PREVIEW_WIDTH, PREVIEW_HEIGHT,INFO_HEIGHT, CODE_EDIT_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
+from settings import CANVAS_WIDTH, CANVAS_HEIGHT,PREVIEW_WIDTH, PREVIEW_HEIGHT,INFO_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
 from bezier_scene import BezierScene
 from custom_view import CustomGraphicsView
 
@@ -52,16 +52,7 @@ class MainWindow(QMainWindow):
         self.info_widget = self._create_info_panel()
         self.info_widget.setFixedHeight(INFO_HEIGHT)
         self.connect_spinboxes()
-        bottom_split.addWidget(self.info_widget)
-
-        # Code zone
-        self.code_edit = QPlainTextEdit()
-        self.code_edit.setFixedHeight(CODE_EDIT_HEIGHT)
-        self.code_edit.setFont(QFont("Courier New", 10))
-        self.code_edit.setReadOnly(True)
-        bottom_split.addWidget(self.code_edit)
-
-        main_layout.addLayout(bottom_split)
+        main_layout.addWidget(self.info_widget)
 
         # ---- Toolbar ----
         self._setup_toolbar()
@@ -80,7 +71,7 @@ class MainWindow(QMainWindow):
         self.coord_label.raise_()  # ensure it's on top
 
         # ---- Connect signals ----
-        self.scene.svgCodeChanged.connect(self.update_preview_and_code)
+        self.scene.svgCodeChanged.connect(self.update_preview)
         self.scene.pointsChanged.connect(self.update_info_panel)
         self.scene.curveListChanged.connect(self.update_curve_combobox)
         self.drawing_view.mouseMoved.connect(self.show_mouse_coordinates)
@@ -286,6 +277,9 @@ class MainWindow(QMainWindow):
         clear_action = toolbar.addAction("🗑️ Clear All")
         clear_action.triggered.connect(self.clear_scene)
 
+        generate_action = toolbar.addAction("📄 Generate SVG code")
+        generate_action.triggered.connect(self.show_svg_code_dialog)
+
         export_action = toolbar.addAction("💾 Export SVG")
         export_action.triggered.connect(self.export_svg)
 
@@ -309,9 +303,8 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------
     #  Update preview & code
     # ------------------------------------------------------------
-    def update_preview_and_code(self, svg_string):
+    def update_preview(self, svg_string):
         self.preview_widget.load(QByteArray(svg_string.encode()))
-        self.code_edit.setPlainText(svg_string)
 
     # ------------------------------------------------------------
     #  Clear scene
@@ -333,3 +326,32 @@ class MainWindow(QMainWindow):
                 self.statusBar().showMessage(f"✅ Exported to {filepath}")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Could not save file:\n{e}")
+
+    # ------------------------------------------------------------
+    #  Show svg code
+    # ------------------------------------------------------------
+    def show_svg_code_dialog(self):
+        svg_string = self.scene.generate_svg()
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("SVG Code")
+        dialog.resize(700, 500)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
+
+        code_edit = QPlainTextEdit()
+        code_edit.setPlainText(svg_string)
+        code_edit.setFont(QFont("Courier New", 10))
+        code_edit.setReadOnly(True)
+        layout.addWidget(code_edit)
+
+        buttons = QDialogButtonBox()
+        copy_btn = buttons.addButton("Copy to clipboard", QDialogButtonBox.ButtonRole.ActionRole)
+        close_btn = buttons.addButton(QDialogButtonBox.StandardButton.Close)
+        copy_btn.clicked.connect(lambda: QApplication.clipboard().setText(svg_string))
+        close_btn.clicked.connect(dialog.accept)
+        layout.addWidget(buttons)
+
+        dialog.exec()
