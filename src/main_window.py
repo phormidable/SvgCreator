@@ -5,7 +5,8 @@ from PySide6.QtCore import QByteArray, Qt, QPointF
 from PySide6.QtGui import QPainter, QFont, QActionGroup
 from PySide6.QtSvgWidgets import QSvgWidget
 
-from settings import CANVAS_WIDTH, CANVAS_HEIGHT,PREVIEW_WIDTH, PREVIEW_HEIGHT,INFO_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
+from settings import (DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, PREVIEW_HEIGHT,
+                      INFO_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT)
 from bezier_scene import BezierScene
 from custom_view import CustomGraphicsView
 
@@ -22,37 +23,35 @@ class MainWindow(QMainWindow):
         # Central widget
         central = QWidget()
         self.setCentralWidget(central)
-        main_layout = QVBoxLayout(central)
+
+        # Main layout: [ drawing ] | [ preview / info ]
+        main_layout = QHBoxLayout(central)
         main_layout.setContentsMargins(5, 5, 5, 5)
         main_layout.setSpacing(5)
 
-        # ---- Top row ----
-        top_row = QHBoxLayout()
-        top_row.setSpacing(5)
-
+        # ---- Left column: drawing view (the main zone) ----
         self.drawing_view = CustomGraphicsView()
         self.drawing_view.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self.drawing_view.setFixedSize(CANVAS_WIDTH, CANVAS_HEIGHT)
+        self.drawing_view.setMinimumSize(DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT)
+        # no setFixedSize — let the layout stretch it
         self.scene = BezierScene()
         self.drawing_view.setScene(self.scene)
-        top_row.addWidget(self.drawing_view)
+        main_layout.addWidget(self.drawing_view, 1)  # stretch = 1, take all the room
+
+        # ---- Right column: preview on top, info below ----
+        right_col = QVBoxLayout()
+        right_col.setSpacing(5)
 
         self.preview_widget = QSvgWidget()
         self.preview_widget.setFixedSize(PREVIEW_WIDTH, PREVIEW_HEIGHT)
         self.preview_widget.setStyleSheet("background-color: white;")
-        top_row.addWidget(self.preview_widget)
+        right_col.addWidget(self.preview_widget)
 
-        main_layout.addLayout(top_row)
-
-        # ---- Bottom area ----
-        bottom_split = QVBoxLayout()
-        bottom_split.setSpacing(2)
-
-        # Info zone
         self.info_widget = self._create_info_panel()
-        self.info_widget.setFixedHeight(INFO_HEIGHT)
         self.connect_spinboxes()
-        main_layout.addWidget(self.info_widget)
+        right_col.addWidget(self.info_widget, 1)  # stretch → fills remaining height
+
+        main_layout.addLayout(right_col)
 
         # ---- Toolbar ----
         self._setup_toolbar()
@@ -256,11 +255,12 @@ class MainWindow(QMainWindow):
         self.zoom_actions = {}
 
         zoom_levels = [
-            ("1x", 1.0, "Ctrl+1"),
-            ("2x", 2.0, "Ctrl+2"),
-            ("4x", 4.0, "Ctrl+3"),
-            ("8x", 8.0, "Ctrl+4"),
-            ("16x", 16.0, "Ctrl+5"),
+            ("0.5x", 0.5, "Ctrl+1"),
+            ("1x", 1.0, "Ctrl+2"),
+            ("2x", 2.0, "Ctrl+3"),
+            ("4x", 4.0, "Ctrl+4"),
+            ("8x", 8.0, "Ctrl+5"),
+            ("16x", 16.0, "Ctrl+6"),
         ]
         for label, factor, shortcut in zoom_levels:
             action = toolbar.addAction(label)

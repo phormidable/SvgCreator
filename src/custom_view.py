@@ -1,7 +1,7 @@
 # custom_view.py
 from PySide6.QtWidgets import QGraphicsView
 from PySide6.QtCore import Signal, Qt
-from PySide6.QtGui import QTransform
+from PySide6.QtGui import QTransform, QBrush
 from settings import CANVAS_BACKGROUND_COLOR
 
 class CustomGraphicsView(QGraphicsView):
@@ -10,9 +10,7 @@ class CustomGraphicsView(QGraphicsView):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMouseTracking(True)
-        self.setStyleSheet(f"background-color: rgb({CANVAS_BACKGROUND_COLOR.red()}, "
-                           f"{CANVAS_BACKGROUND_COLOR.green()}, "
-                           f"{CANVAS_BACKGROUND_COLOR.blue()});")
+        self.setBackgroundBrush(QBrush(CANVAS_BACKGROUND_COLOR))
 
         self._panning = False
         self._pan_start = None
