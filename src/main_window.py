@@ -1,5 +1,5 @@
 # main_window.py
-from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,QPlainTextEdit,
+from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,QPlainTextEdit, QApplication,
     QFileDialog, QMessageBox, QLabel, QDoubleSpinBox,QGroupBox, QGridLayout, QComboBox, QDialog, QDialogButtonBox)
 from PySide6.QtCore import QByteArray, Qt, QPointF
 from PySide6.QtGui import QPainter, QFont, QActionGroup
