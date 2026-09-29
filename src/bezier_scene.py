@@ -1,6 +1,6 @@
 # bezier_scene.py
 from PySide6.QtCore import QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QPen
+from PySide6.QtGui import QPen
 from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem
 
 from settings import (
@@ -45,7 +45,7 @@ class BezierScene(QGraphicsScene):
 
         # ---- Viewbox rectangle: white, sits under everything ----
         self.viewbox_item = QGraphicsRectItem(self.viewbox)
-        self.viewbox_item.setBrush(QBrush(VIEWBOX_BACKGROUND_COLOR))
+        self.viewbox_item.setBrush(VIEWBOX_BACKGROUND_COLOR)
         self.viewbox_item.setPen(QPen(VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH))
         self.viewbox_item.setZValue(-100)
         self.addItem(self.viewbox_item)
