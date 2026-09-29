@@ -273,6 +273,9 @@ class MainWindow(QMainWindow):
         self.zoom_actions[1.0].setChecked(True)
 
         toolbar.addSeparator()
+        bg_action = toolbar.addAction("🖼️ Add Background Image")
+        bg_action.triggered.connect(self.load_background_image)
+        toolbar.addSeparator()
 
         clear_action = toolbar.addAction("🗑️ Clear All")
         clear_action.triggered.connect(self.clear_scene)
@@ -355,3 +358,18 @@ class MainWindow(QMainWindow):
         layout.addWidget(buttons)
 
         dialog.exec()
+
+    def load_background_image(self):
+        filepath, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open Background Image",
+            "",
+            "Images (*.png *.jpg *.jpeg *.svg);;All files (*)"
+        )
+        if not filepath:
+            return
+        if self.scene.load_background_image(filepath):
+            self.statusBar().showMessage(f"🖼️ Loaded background: {filepath}")
+        else:
+            QMessageBox.warning(self, "Could not load",
+                                f"Failed to load image:\n{filepath}")

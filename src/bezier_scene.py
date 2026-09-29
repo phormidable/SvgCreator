@@ -1,7 +1,8 @@
 # bezier_scene.py
-from PySide6.QtCore import QRectF, Qt, Signal
-from PySide6.QtGui import QPen
-from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem
+from PySide6.QtCore import QRectF, Qt, Signal, QSize
+from PySide6.QtGui import QPen, QPixmap, QImage, QPainter
+from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem
+from PySide6.QtSvg import QSvgRenderer
 
 from settings import (
     ARTBOARD_RECT,
@@ -39,6 +40,7 @@ class BezierScene(QGraphicsScene):
         self.dragging_curve = None
         self._hovered_curve = None
         self._ensuring_visible = False
+        self.background_item = None
 
         # ---- Scene rect = artboard, never changes during editing ----
         self.setSceneRect(self.artboard)
@@ -222,6 +224,65 @@ class BezierScene(QGraphicsScene):
         self.emit_svg()
         self.pointsChanged.emit()
         self.curveListChanged.emit()
+        self._remove_background_image()
+
+    # ------------------------------------------------------------
+    #  Background image
+    # ------------------------------------------------------------
+    def load_background_image(self, filepath):
+        pixmap = self._read_image(filepath)
+        if pixmap is None:
+            return False
+
+        self._remove_background_image()
+
+        item = QGraphicsPixmapItem(pixmap)
+        item.setOpacity(0.35)
+        item.setZValue(-50)  # above viewbox (-100), below curves (-1)
+        item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)  # click-through
+        item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False)
+        item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+
+        # Scale to fit inside the viewbox, preserve aspect ratio, center it.
+        vb = self.viewbox
+        pw, ph = pixmap.width(), pixmap.height()
+        scale = min(vb.width() / pw, vb.height() / ph)
+        item.setScale(scale)
+        item.setPos(vb.center().x() - pw * scale / 2,
+                    vb.center().y() - ph * scale / 2)
+
+        self.addItem(item)
+        self.background_item = item
+        return True
+
+    def _remove_background_image(self):
+        if self.background_item is not None:
+            self.removeItem(self.background_item)
+            self.background_item = None
+
+    def _read_image(self, filepath):
+        """Load a raster or SVG file into a QPixmap (or None on failure)."""
+        if filepath.lower().endswith(".svg"):
+            renderer = QSvgRenderer(filepath)
+            if not renderer.isValid():
+                return None
+            # Render at a resolution well above the viewbox so zooming stays crisp.
+            size = renderer.defaultSize()
+            target = int(max(self.viewbox.width(), self.viewbox.height()) * 2)
+            if size.isEmpty():
+                size = QSize(target, target)
+            else:
+                scale = target / max(size.width(), size.height())
+                size = QSize(int(size.width() * scale), int(size.height() * scale))
+            image = QImage(size, QImage.Format.Format_ARGB32_Premultiplied)
+            image.fill(Qt.GlobalColor.transparent)
+            painter = QPainter(image)
+            renderer.render(painter)
+            painter.end()
+            return QPixmap.fromImage(image)
+
+        pixmap = QPixmap(filepath)
+        return pixmap if not pixmap.isNull() else None
 
     # ------------------------------------------------------------
     #  Access to curves for info panel
