@@ -1,7 +1,7 @@
 # bezier_scene.py
 from PySide6.QtCore import QRectF, Qt, Signal, QSize
 from PySide6.QtGui import QPen, QPixmap, QImage, QPainter
-from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem
+from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem, QDialog, QPushButton,  QLabel, QVBoxLayout, QHBoxLayout
 from PySide6.QtSvg import QSvgRenderer
 
 from settings import (
@@ -41,6 +41,7 @@ class BezierScene(QGraphicsScene):
         self._hovered_curve = None
         self._ensuring_visible = False
         self.background_item = None
+        self.selected_point = None
 
         # ---- Scene rect = artboard, never changes during editing ----
         self.setSceneRect(self.artboard)
@@ -66,6 +67,19 @@ class BezierScene(QGraphicsScene):
             if isinstance(item, ControlPoint):
                 curve = item.curve
                 if curve.committed:
+                    shift = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+
+                    # Shift+click on a *different* point while one is selected
+                    # → ask the user how to link them.
+                    if shift and self.selected_point is not None and self.selected_point is not item:
+                        self._prompt_link(self.selected_point, item)
+                        event.accept()
+                        return
+
+                    # Normal click: make this the selected point (deselect the previous one).
+                    self._set_selected_point(item)
+
+                    # Existing drag setup, unchanged.
                     self._clear_hover()
                     self.dragging_curve = curve
                     curve.set_highlighted(True)
@@ -137,6 +151,64 @@ class BezierScene(QGraphicsScene):
             self._hovered_curve.set_hovered(False)
             self._hovered_curve = None
 
+    def _set_selected_point(self, point):
+        if self.selected_point is point:
+            return
+        if self.selected_point is not None:
+            self.selected_point.set_selected(False)
+        self.selected_point = point
+        if point is not None:
+            point.set_selected(True)
+
+    def _prompt_link(self, point_a, point_b):
+        parent = self.views()[0] if self.views() else None
+
+        dialog = QDialog(parent)
+        dialog.setWindowTitle("Link Points")
+
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(10)
+
+        layout.addWidget(QLabel("Do you want to link these 2 points?"))
+
+        info = QLabel(
+            f"1st: ({point_a.pos().x():.2f}, {point_a.pos().y():.2f})\n"
+            f"2nd: ({point_b.pos().x():.2f}, {point_b.pos().y():.2f})"
+        )
+        info.setStyleSheet("color: #555;")
+        layout.addWidget(info)
+
+        btn_row = QHBoxLayout()
+        btn_1st = QPushButton("Yes, 1st")
+        btn_2nd = QPushButton("Yes, 2nd")
+        btn_no = QPushButton("No")
+        btn_row.addWidget(btn_1st)
+        btn_row.addWidget(btn_2nd)
+        btn_row.addWidget(btn_no)
+        layout.addLayout(btn_row)
+
+        # Default to "No" so Enter doesn't accidentally apply a link.
+        btn_no.setDefault(True)
+
+        choice = {"value": None}
+
+        def pick(v):
+            choice["value"] = v
+            dialog.accept()
+
+        btn_1st.clicked.connect(lambda: pick("1st"))
+        btn_2nd.clicked.connect(lambda: pick("2nd"))
+        btn_no.clicked.connect(lambda: pick("no"))
+
+        dialog.exec()
+
+        if choice["value"] == "1st":
+            point_b.setPos(point_a.pos())
+        elif choice["value"] == "2nd":
+            point_a.setPos(point_b.pos())
+        # "no" or closed → nothing
+
+        self._set_selected_point(None)
 
     # ------------------------------------------------------------
     #  Curve finalization
@@ -210,6 +282,7 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     def clear_all(self):
         self._clear_hover()
+        self.selected_point = None
         if self.pending_curve is not None:
             self.pending_curve.dispose()
             self.pending_curve = None

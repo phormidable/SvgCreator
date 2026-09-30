@@ -54,5 +54,8 @@ POINT_RADIUS = 6
 POINT_DIAMETER = POINT_RADIUS * 2
 CONTROL_POINT_INNER_RADIUS = 4
 
+# ---- Selected point (persistent click selection) ----
+SELECTED_POINT_COLOR = QColor("red")
+SELECTED_POINT_PEN_COLOR = QColor("darkred")
 
 SVG_PRECISION = 2

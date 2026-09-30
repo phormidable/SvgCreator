@@ -6,7 +6,8 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from settings import (POINT_DIAMETER, CONTROL_POINT_INNER_RADIUS,
                       CONTROL_POINT_RING_COLOR, CONTROL_POINT_RING_PEN_COLOR,
                       HIGHLIGHT_POINT_COLOR, HIGHLIGHT_POINT_PEN_COLOR,
-                      HOVER_POINT_COLOR, HOVER_POINT_PEN_COLOR)
+                      HOVER_POINT_COLOR, HOVER_POINT_PEN_COLOR,
+                      SELECTED_POINT_COLOR, SELECTED_POINT_PEN_COLOR)
 
 
 class ControlPoint(QGraphicsEllipseItem):
@@ -18,6 +19,7 @@ class ControlPoint(QGraphicsEllipseItem):
         self.point_idx = point_idx # 0..3, fixed for the lifetime of the curve
         self.highlighted = False
         self.hovered = False
+        self.selected = False
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
 
     def _is_endpoint(self):
@@ -27,7 +29,9 @@ class ControlPoint(QGraphicsEllipseItem):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
         # Priority: highlight > hover > per-curve color
-        if self.highlighted:
+        if self.selected:
+            fill, outline, single = SELECTED_POINT_COLOR, SELECTED_POINT_PEN_COLOR, True
+        elif self.highlighted:
             fill, outline, single = HIGHLIGHT_POINT_COLOR, HIGHLIGHT_POINT_PEN_COLOR, True
         elif self.hovered:
             fill, outline, single = HOVER_POINT_COLOR, HOVER_POINT_PEN_COLOR, True
@@ -63,6 +67,12 @@ class ControlPoint(QGraphicsEllipseItem):
         if self.hovered == value:
             return
         self.hovered = value
+        self.update()
+
+    def set_selected(self, value):
+        if self.selected == value:
+            return
+        self.selected = value
         self.update()
 
     def itemChange(self, change, value):
