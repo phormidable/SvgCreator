@@ -18,7 +18,6 @@ WINDOW_HEIGHT = DRAWING_MIN_HEIGHT + 10
 ARTBOARD_RECT = QRectF(0, 0, 2000, 2000)
 VIEWBOX_RECT = QRectF(488, 488, 1024, 1024)
 
-
 # ---- Canvas colors ----
 CANVAS_BACKGROUND_COLOR = QColor(170, 170, 170)    # light grey: work area
 VIEWBOX_BACKGROUND_COLOR = QColor("white")         # exported area

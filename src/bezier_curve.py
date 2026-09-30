@@ -9,6 +9,11 @@ from control_point import ControlPoint
 GOLDEN_RATIO_CONJUGATE = 0.618033988749895
 FIRST_HUE_OFFSET = 0.55
 
+from typing import TYPE_CHECKING, cast
+if TYPE_CHECKING:
+    from bezier_scene import BezierScene
+
+
 class BezierCurve(QGraphicsItem):
     _next_id = 1
 
@@ -33,6 +38,11 @@ class BezierCurve(QGraphicsItem):
 
         self.setZValue(-1)
         scene.addItem(self)          # add *self*, not a child path item
+
+    @property
+    def _scene(self) -> "BezierScene":
+        return cast("BezierScene", super().scene())
+
 
     # ---------------------------------------------------------------
     #  QGraphicsItem API
@@ -64,12 +74,12 @@ class BezierCurve(QGraphicsItem):
     # ---------------------------------------------------------------
     def add_point(self, pos):
         pt = ControlPoint(pos, self, len(self.points))
-        self.scene().addItem(pt)  # ← sibling, not child
+        self._scene.addItem(pt)  # ← sibling, not child
         self.points.append(pt)
         if self.committed:
             pt.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
         self.rebuild_path()
-        self.scene().on_curve_changed()
+        self._scene.on_curve_changed()
         return pt
 
     def is_complete(self):
@@ -154,13 +164,13 @@ class BezierCurve(QGraphicsItem):
     # ---------------------------------------------------------------
     def on_point_moved(self):
         self.rebuild_path()
-        self.scene().on_curve_changed()
+        self._scene.on_curve_changed()
 
     # ---------------------------------------------------------------
     #  Teardown
     # ---------------------------------------------------------------
     def dispose(self):
         for pt in self.points:
-            self.scene().removeItem(pt)
+            self._scene.removeItem(pt)
         self.points.clear()
-        self.scene().removeItem(self)
+        self._scene.removeItem(self)

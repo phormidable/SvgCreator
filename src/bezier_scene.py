@@ -4,16 +4,9 @@ from PySide6.QtGui import QPen, QPixmap, QImage, QPainter
 from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem, QDialog, QPushButton,  QLabel, QVBoxLayout, QHBoxLayout
 from PySide6.QtSvg import QSvgRenderer
 
-from settings import (
-    ARTBOARD_RECT,
-    VIEWBOX_RECT,
-    VIEWBOX_BACKGROUND_COLOR,
-    VIEWBOX_BORDER_COLOR,
-    VIEWBOX_BORDER_WIDTH,
-    SVG_STROKE_COLOR,
-    SVG_STROKE_WIDTH,
-    SVG_FILL, HOVER_TOLERANCE
-)
+from settings import (ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR,
+    VIEWBOX_BORDER_WIDTH, SVG_STROKE_COLOR, SVG_STROKE_WIDTH, SVG_FILL, HOVER_TOLERANCE)
+
 from control_point import ControlPoint
 from bezier_curve import BezierCurve
 
