@@ -5,11 +5,11 @@ from PySide6.QtCore import QByteArray, Qt, QPointF
 from PySide6.QtGui import QPainter, QFont, QActionGroup
 from PySide6.QtSvgWidgets import QSvgWidget
 
-from settings import DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
+import json
 
+from settings import DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
 from bezier_scene import BezierScene
 from custom_view import CustomGraphicsView
-
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -280,6 +280,16 @@ class MainWindow(QMainWindow):
         clear_action = toolbar.addAction("🗑️ Clear All")
         clear_action.triggered.connect(self.clear_scene)
 
+        load_action = toolbar.addAction("📂 Load")
+        load_action.setShortcut("Ctrl+O")
+        load_action.triggered.connect(self.load_project)
+
+        save_action = toolbar.addAction("💾 Save")
+        save_action.setShortcut("Ctrl+S")
+        save_action.triggered.connect(self.save_project)
+
+        toolbar.addSeparator()
+
         generate_action = toolbar.addAction("📄 Generate SVG code")
         generate_action.triggered.connect(self.show_svg_code_dialog)
 
@@ -316,7 +326,7 @@ class MainWindow(QMainWindow):
         self.scene.clear_all()
 
     # ------------------------------------------------------------
-    #  Export
+    #  Export, save, load
     # ------------------------------------------------------------
     def export_svg(self):
         filepath, _ = QFileDialog.getSaveFileName(
@@ -329,6 +339,35 @@ class MainWindow(QMainWindow):
                 self.statusBar().showMessage(f"✅ Exported to {filepath}")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Could not save file:\n{e}")
+
+    def save_project(self):
+        filepath, _ = QFileDialog.getSaveFileName(
+            self, "Save Project", "", "Bezier Project (*.json);;All files (*)"
+        )
+        if not filepath:
+            return
+        if not filepath.lower().endswith(".json"):
+            filepath += ".json"
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(self.scene.save_state(), f, indent=2)
+            self.statusBar().showMessage(f"💾 Saved to {filepath}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Could not save file:\n{e}")
+
+    def load_project(self):
+        filepath, _ = QFileDialog.getOpenFileName(
+            self, "Load Project", "", "Bezier Project (*.json);;All files (*)"
+        )
+        if not filepath:
+            return
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                state = json.load(f)
+            self.scene.load_state(state)
+            self.statusBar().showMessage(f"📂 Loaded from {filepath}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Could not load file:\n{e}")
 
     # ------------------------------------------------------------
     #  Show svg code

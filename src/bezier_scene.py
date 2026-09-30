@@ -1,5 +1,5 @@
 # bezier_scene.py
-from PySide6.QtCore import QRectF, Qt, Signal, QSize
+from PySide6.QtCore import QRectF, Qt, Signal, QSize, QPointF
 from PySide6.QtGui import QPen, QPixmap, QImage, QPainter
 from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem, QDialog, QPushButton,  QLabel, QVBoxLayout, QHBoxLayout
 from PySide6.QtSvg import QSvgRenderer
@@ -35,6 +35,7 @@ class BezierScene(QGraphicsScene):
         self._ensuring_visible = False
         self.background_item = None
         self.selected_point = None
+        self.background_image_path = None
 
         # ---- Scene rect = artboard, never changes during editing ----
         self.setSceneRect(self.artboard)
@@ -293,6 +294,57 @@ class BezierScene(QGraphicsScene):
         self._remove_background_image()
 
     # ------------------------------------------------------------
+    #  Save and Load
+    # ------------------------------------------------------------
+    def save_state(self) -> dict:
+        state = {
+            "version": 1,
+            "curves": [
+                [[round(p.x(), 3), round(p.y(), 3)] for p in curve.points]
+                for curve in self.curves
+            ],
+        }
+        if self.background_image_path:
+            state["background"] = self.background_image_path
+        return state
+
+    def load_state(self, state: dict):
+        curves_data = state.get("curves", [])
+
+        self.blockSignals(True)
+        try:
+            self.clear_all()
+            for points_data in curves_data:
+                curve = self._build_curve_from_points(points_data)
+                self.curves.append(curve)
+            self.selected_curve_idx = len(self.curves) - 1 if self.curves else -1
+
+            bg = state.get("background")
+            if bg:
+                self.load_background_image(bg)
+        finally:
+            self.blockSignals(False)
+
+        # Manually notify listeners now that the batch rebuild is done.
+        self.emit_svg()
+        self.pointsChanged.emit()
+        self.curveListChanged.emit()
+
+    def _build_curve_from_points(self, points_data) -> BezierCurve:
+        if not isinstance(points_data, list) or len(points_data) != 4:
+            raise ValueError(f"Expected 4 points per curve, got {points_data!r}")
+        curve = BezierCurve(self)
+        curve.committed = True
+        for i, coords in enumerate(points_data):
+            try:
+                x, y = float(coords[0]), float(coords[1])
+            except (TypeError, IndexError, ValueError):
+                raise ValueError(f"Invalid point #{i}: {coords!r}")
+            curve.add_point(QPointF(x, y))
+        curve.rebuild_path()
+        return curve
+
+    # ------------------------------------------------------------
     #  Background image
     # ------------------------------------------------------------
     def load_background_image(self, filepath):
@@ -301,6 +353,7 @@ class BezierScene(QGraphicsScene):
             return False
 
         self._remove_background_image()
+        self.background_image_path = filepath
 
         item = QGraphicsPixmapItem(pixmap)
         item.setOpacity(0.35)
@@ -326,6 +379,7 @@ class BezierScene(QGraphicsScene):
         if self.background_item is not None:
             self.removeItem(self.background_item)
             self.background_item = None
+            self.background_image_path = None
 
     def _read_image(self, filepath):
         """Load a raster or SVG file into a QPixmap (or None on failure)."""
