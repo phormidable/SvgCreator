@@ -253,6 +253,7 @@ class BezierScene(QGraphicsScene):
 
         self.addItem(item)
         self.background_item = item
+        print(f"scale = {scale}")
         return True
 
     def _remove_background_image(self):
