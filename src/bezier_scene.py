@@ -10,7 +10,6 @@ from settings import (ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIE
 from control_point import ControlPoint
 from bezier_curve import BezierCurve
 
-
 class BezierScene(QGraphicsScene):
     svgCodeChanged = Signal(str)
     pointsChanged = Signal()

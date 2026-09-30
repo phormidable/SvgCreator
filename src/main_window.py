@@ -109,17 +109,11 @@ class MainWindow(QMainWindow):
             lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             layout.addWidget(lbl, row, 0)
 
-            x_spin = QDoubleSpinBox()
-            x_spin.setRange(-9999, 9999)
-            x_spin.setDecimals(2)
-            x_spin.setSingleStep(1.0)
+            x_spin = QDoubleSpinBox(decimals=2, minimum=-9999, maximum=9999, singleStep=1.0)
             x_spin.setProperty("point_idx", i)
             layout.addWidget(x_spin, row, 1)
 
-            y_spin = QDoubleSpinBox()
-            y_spin.setRange(-9999, 9999)
-            y_spin.setDecimals(2)
-            y_spin.setSingleStep(1.0)
+            y_spin = QDoubleSpinBox(decimals=2, minimum=-9999, maximum=9999, singleStep=1.0)
             y_spin.setProperty("point_idx", i)
             layout.addWidget(y_spin, row, 2)
 
@@ -329,9 +323,7 @@ class MainWindow(QMainWindow):
     #  Export, save, load
     # ------------------------------------------------------------
     def export_svg(self):
-        filepath, _ = QFileDialog.getSaveFileName(
-            self, "Save SVG", "", "SVG files (*.svg)"
-        )
+        filepath, _ = QFileDialog.getSaveFileName(self, "Save SVG", "", "SVG files (*.svg)")
         if filepath:
             try:
                 with open(filepath, "w", encoding="utf-8") as f:
@@ -341,9 +333,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, "Error", f"Could not save file:\n{e}")
 
     def save_project(self):
-        filepath, _ = QFileDialog.getSaveFileName(
-            self, "Save Project", "", "Bezier Project (*.json);;All files (*)"
-        )
+        filepath, _ = QFileDialog.getSaveFileName(self, "Save Project", "", "Bezier Project (*.json);;All files (*)")
         if not filepath:
             return
         if not filepath.lower().endswith(".json"):
@@ -356,9 +346,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Error", f"Could not save file:\n{e}")
 
     def load_project(self):
-        filepath, _ = QFileDialog.getOpenFileName(
-            self, "Load Project", "", "Bezier Project (*.json);;All files (*)"
-        )
+        filepath, _ = QFileDialog.getOpenFileName(self, "Load Project", "", "Bezier Project (*.json);;All files (*)")
         if not filepath:
             return
         try:
@@ -399,16 +387,10 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     def load_background_image(self):
-        filepath, _ = QFileDialog.getOpenFileName(
-            self,
-            "Open Background Image",
-            "",
-            "Images (*.png *.jpg *.jpeg *.svg);;All files (*)"
-        )
+        filepath, _ = QFileDialog.getOpenFileName(self, "Open Background Image", "", "Images (*.png *.jpg *.jpeg *.svg);;All files (*)")
         if not filepath:
             return
         if self.scene.load_background_image(filepath):
             self.statusBar().showMessage(f"🖼️ Loaded background: {filepath}")
         else:
-            QMessageBox.warning(self, "Could not load",
-                                f"Failed to load image:\n{filepath}")
+            QMessageBox.warning(self, "Could not load", f"Failed to load image:\n{filepath}")
