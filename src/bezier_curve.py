@@ -68,6 +68,8 @@ class BezierCurve(QGraphicsItem):
             painter.setPen(self._pen_normal)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(self._path)
+        #painter.setBrush(QColor(255, 0, 0, 60))
+        #painter.drawPath(self._hit_path)
 
     # ---------------------------------------------------------------
     #  Construction
@@ -110,6 +112,8 @@ class BezierCurve(QGraphicsItem):
 
         stroker = QPainterPathStroker()
         stroker.setWidth(2 * HOVER_TOLERANCE)
+        stroker.setCapStyle(Qt.PenCapStyle.RoundCap)  # ← endpoint hit region
+        stroker.setJoinStyle(Qt.PenJoinStyle.RoundJoin)  # ← corner hit region
         self._hit_path = stroker.createStroke(path)
 
         self.update()
@@ -133,18 +137,8 @@ class BezierCurve(QGraphicsItem):
         for pt in self.points:
             pt.set_hovered(value)
 
-    def is_near(self, pos, tolerance):
-        # pos is scene coords; _hit_path is also in scene coords (curve is at origin)
-        if self._hit_path.contains(pos):
-            return True
-        r2 = tolerance * tolerance
-        for pt in self.points:
-            p = pt.pos()  # scene coords (sibling point)
-            dx = p.x() - pos.x()
-            dy = p.y() - pos.y()
-            if dx * dx + dy * dy <= r2:
-                return True
-        return False
+    def is_near(self, pos):
+        return self._hit_path.contains(pos)
 
     # ---------------------------------------------------------------
     #  SVG

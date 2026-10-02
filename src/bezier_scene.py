@@ -128,7 +128,7 @@ class BezierScene(QGraphicsScene):
         new_hovered = None
         if pos is not None:
             for curve in reversed(self.curves):
-                if curve.is_near(pos, HOVER_TOLERANCE):
+                if curve.is_near(pos):
                     new_hovered = curve
                     break
         if new_hovered is self._hovered_curve:
@@ -386,14 +386,21 @@ class BezierScene(QGraphicsScene):
             renderer = QSvgRenderer(filepath)
             if not renderer.isValid():
                 return None
-            # Render at a resolution well above the viewbox so zooming stays crisp.
-            size = renderer.defaultSize()
+
+            # Determine intrinsic size: prefer the SVG's declared width/height,
+            # fall back to the viewBox (which is what width/height usually mirror
+            # anyway), and only as a true last resort use a square target.
             target = int(max(self.viewbox.width(), self.viewbox.height()) * 2)
+            size = renderer.defaultSize()
+            if size.isEmpty():
+                size = renderer.viewBoxF().size().toSize()
             if size.isEmpty():
                 size = QSize(target, target)
-            else:
-                scale = target / max(size.width(), size.height())
-                size = QSize(int(size.width() * scale), int(size.height() * scale))
+
+            # Scale up so the longest side matches `target`, preserving aspect ratio.
+            scale = target / max(size.width(), size.height())
+            size = QSize(int(size.width() * scale), int(size.height() * scale))
+
             image = QImage(size, QImage.Format.Format_ARGB32_Premultiplied)
             image.fill(Qt.GlobalColor.transparent)
             painter = QPainter(image)

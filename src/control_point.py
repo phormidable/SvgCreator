@@ -74,10 +74,14 @@ class ControlPoint(QGraphicsEllipseItem):
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
+            scene = self.curve.scene()
+            if scene is None:
+                return value  # no clamping possible; accept as-is
             artboard = self.curve.scene().artboard
             x = min(max(value.x(), artboard.left()), artboard.right())
             y = min(max(value.y(), artboard.top()), artboard.bottom())
             return QPointF(x, y)
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
-            self.curve.on_point_moved()
+            if self.curve.scene() is not None:  # same reason
+                self.curve.on_point_moved()
         return super().itemChange(change, value)
