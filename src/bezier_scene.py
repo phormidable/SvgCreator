@@ -50,46 +50,53 @@ class BezierScene(QGraphicsScene):
     #  Mouse interaction
     # ------------------------------------------------------------
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            views = self.views()
-            if not views:
-                super().mousePressEvent(event)
-                return
-            item = self.itemAt(event.scenePos(), self.views()[0].transform())
+        if event.button() != Qt.MouseButton.LeftButton:
+            super().mousePressEvent(event)
+            return
 
-            if isinstance(item, ControlPoint):
-                curve = item.curve
-                if curve.committed:
-                    shift = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+        views = self.views()
+        if not views:
+            super().mousePressEvent(event)
+            return
+        item = self.itemAt(event.scenePos(), views[0].transform())
 
-                    # Shift+click on a *different* point while one is selected
-                    # → ask the user how to link them.
-                    if shift and self.selected_point is not None and self.selected_point is not item:
-                        self._prompt_link(self.selected_point, item)
-                        event.accept()
-                        return
+        if isinstance(item, ControlPoint) and item.curve.committed:
+            # --- Existing committed-point logic, unchanged ---
+            curve = item.curve
+            shift = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
 
-                    # Normal click: make this the selected point (deselect the previous one).
-                    self._set_selected_point(item)
-
-                    # Existing drag setup, unchanged.
-                    self._clear_hover()
-                    self.dragging_curve = curve
-                    curve.set_highlighted(True)
-                    idx = self.curves.index(curve)
-                    if idx != self.selected_curve_idx:
-                        self.selected_curve_idx = idx
-                        self.curveSelected.emit(idx)
-                super().mousePressEvent(event)
+            if shift and self.selected_point is not None and self.selected_point is not item:
+                self._prompt_link(self.selected_point, item)
+                event.accept()
                 return
 
-            if self.mode == "create":
-                if self.pending_curve is None:
-                    self.pending_curve = BezierCurve(self)
-                self.pending_curve.add_point(event.scenePos())
-                if self.pending_curve.is_complete():
-                    self.finalize_curve()
-                return
+            self.set_selected_point(item)
+            self._clear_hover()
+            self.dragging_curve = curve
+            curve.set_highlighted(True)
+            idx = self.curves.index(curve)
+            if idx != self.selected_curve_idx:
+                self.selected_curve_idx = idx
+                self.curveSelected.emit(idx)
+            super().mousePressEvent(event)
+            return
+
+        # Not a committed control point → drop any previous selection.
+        self.set_selected_point(None)
+
+        if isinstance(item, ControlPoint):
+            # Pending-curve point (create mode). Let Qt handle it, but don't
+            # fall through to the create branch.
+            super().mousePressEvent(event)
+            return
+
+        if self.mode == "create":
+            if self.pending_curve is None:
+                self.pending_curve = BezierCurve(self)
+            self.pending_curve.add_point(event.scenePos())
+            if self.pending_curve.is_complete():
+                self.finalize_curve()
+            return
 
         super().mousePressEvent(event)
 
@@ -144,7 +151,7 @@ class BezierScene(QGraphicsScene):
             self._hovered_curve.set_hovered(False)
             self._hovered_curve = None
 
-    def _set_selected_point(self, point):
+    def set_selected_point(self, point):
         if self.selected_point is point:
             return
         if self.selected_point is not None:
@@ -201,7 +208,7 @@ class BezierScene(QGraphicsScene):
             point_a.setPos(point_b.pos())
         # "no" or closed → nothing
 
-        self._set_selected_point(None)
+        self.set_selected_point(None)
 
     # ------------------------------------------------------------
     #  Curve finalization
@@ -275,7 +282,7 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     def clear_all(self):
         self._clear_hover()
-        self.selected_point = None
+        self.set_selected_point(None)
         if self.pending_curve is not None:
             self.pending_curve.dispose()
             self.pending_curve = None

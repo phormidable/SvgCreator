@@ -299,6 +299,7 @@ class MainWindow(QMainWindow):
             self.scene.discard_current_points()
             self.statusBar().showMessage("Incomplete curve discarded. Switch to Edit mode.")
 
+        self.scene.set_selected_point(None)
         self.scene.mode = mode
         if mode == "create":
             self.statusBar().showMessage("Create mode: left-click to place points. Right-drag to pan.")
