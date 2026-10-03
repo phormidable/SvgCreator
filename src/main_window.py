@@ -129,7 +129,8 @@ class MainWindow(QMainWindow):
                 return
         super().keyPressEvent(event)
 
-    def _focus_is_in_spinbox(self) -> bool:
+    @staticmethod
+    def _focus_is_in_spinbox() -> bool:
         """True if the focus is on one of our spinboxes (or its internal line edit)."""
         w = QApplication.focusWidget()
         while w is not None:
