@@ -81,7 +81,7 @@ class BezierCurve(QGraphicsItem):
         if self.committed:
             pt.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
         self.rebuild_path()
-        self._scene.on_curve_changed()
+        #self._scene.on_curve_changed()
         return pt
 
     def is_complete(self):
@@ -138,7 +138,16 @@ class BezierCurve(QGraphicsItem):
             pt.set_hovered(value)
 
     def is_near(self, pos):
-        return self._hit_path.contains(pos)
+        if self._hit_path.contains(pos):
+            return True
+
+        for pt in self.points:
+            p = pt.pos()  # scene coords (points are siblings, curve is at origin)
+            dx = p.x() - pos.x()
+            dy = p.y() - pos.y()
+            if dx * dx + dy * dy <= HOVER_TOLERANCE * HOVER_TOLERANCE:
+                return True
+        return False
 
     # ---------------------------------------------------------------
     #  SVG

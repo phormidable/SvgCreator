@@ -353,7 +353,7 @@ class BezierScene(QGraphicsScene):
             except (TypeError, IndexError, ValueError):
                 raise ValueError(f"Invalid point #{i}: {coords!r}")
             curve.add_point(QPointF(x, y))
-        curve.rebuild_path()
+        #curve.rebuild_path()
         return curve
 
     # ------------------------------------------------------------
