@@ -70,3 +70,6 @@ LINK_INDICATOR_RADIUS = 10
 LINK_INDICATOR_COLOR = QColor("orange")
 LINK_INDICATOR_PEN_WIDTH = 2
 LINK_INDICATOR_FLASH_INTERVAL = 300  # ms
+
+# ---- Hidden curve (points hidden) ----
+HIDDEN_CURVE_COLOR = QColor("grey")

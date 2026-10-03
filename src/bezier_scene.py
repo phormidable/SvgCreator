@@ -605,3 +605,19 @@ class BezierScene(QGraphicsScene):
         self.emit_svg()
         self.pointsChanged.emit()
         return True
+
+    def hide_hovered_curve_points(self) -> bool:
+        if self.dragging_point is not None:
+            return False  # don't hide a curve whose point is mid-drag
+        if self._hovered_curve is None:
+            return False
+        self._hovered_curve.set_points_hidden(True)
+        return True
+
+    def show_all_points(self) -> int:
+        n = 0
+        for curve in self.curves:
+            if curve.points_hidden:
+                curve.set_points_hidden(False)
+                n += 1
+        return n

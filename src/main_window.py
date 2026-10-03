@@ -135,6 +135,11 @@ class MainWindow(QMainWindow):
             if self.scene.try_link_proximity():
                 event.accept()
                 return
+        elif event.key() == Qt.Key.Key_H:
+            if self.scene.hide_hovered_curve_points():
+                self.statusBar().showMessage("Curve points hidden. Use 'Show All' to restore.")
+                event.accept()
+                return
 
         super().keyPressEvent(event)
 
@@ -297,6 +302,10 @@ class MainWindow(QMainWindow):
         bg_action.triggered.connect(self.load_background_image)
         toolbar.addSeparator()
 
+        show_all_action = toolbar.addAction("👁️ Show All")
+        show_all_action.setToolTip("Restore all hidden curve points")
+        show_all_action.triggered.connect(self.show_all_points)
+
         clear_action = toolbar.addAction("🗑️ Clear All")
         clear_action.triggered.connect(self.clear_scene)
 
@@ -421,3 +430,10 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"🖼️ Loaded background: {filepath}")
         else:
             QMessageBox.warning(self, "Could not load", f"Failed to load image:\n{filepath}")
+
+    def show_all_points(self):
+        n = self.scene.show_all_points()
+        if n:
+            self.statusBar().showMessage(f"👁️ Restored points on {n} curve(s)")
+        else:
+            self.statusBar().showMessage("Nothing to restore")

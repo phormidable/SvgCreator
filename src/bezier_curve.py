@@ -3,7 +3,7 @@ from PySide6.QtWidgets import QGraphicsItem
 from PySide6.QtGui import QPainterPath, QPainterPathStroker, QPen, QColor, QPainter
 from PySide6.QtCore import QRectF, Qt
 
-from settings import CURVE_PEN_WIDTH, CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH, HOVER_CURVE_COLOR, HOVER_TOLERANCE, SVG_PRECISION
+from settings import CURVE_PEN_WIDTH, CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH, HOVER_CURVE_COLOR, HOVER_TOLERANCE, SVG_PRECISION, HIDDEN_CURVE_COLOR
 from control_point import ControlPoint
 
 GOLDEN_RATIO_CONJUGATE = 0.618033988749895
@@ -32,6 +32,11 @@ class BezierCurve(QGraphicsItem):
         self.highlighted = False
         self.hovered = False
         self.committed = False
+        self.points_hidden = False
+        self._pen_normal = QPen(self.color, CURVE_PEN_WIDTH)
+        self._pen_hover = QPen(HOVER_CURVE_COLOR, CURVE_PEN_WIDTH)
+        self._pen_highlight = QPen(CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH)
+        self._pen_hidden = QPen(HIDDEN_CURVE_COLOR, CURVE_PEN_WIDTH)
 
         self._path = QPainterPath()
         self._hit_path = QPainterPath()
@@ -60,6 +65,8 @@ class BezierCurve(QGraphicsItem):
         if self._path.isEmpty():
             return
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        if self.points_hidden:
+            painter.setPen(self._pen_hidden)
         if self.highlighted:
             painter.setPen(self._pen_highlight)
         elif self.hovered:
@@ -136,6 +143,9 @@ class BezierCurve(QGraphicsItem):
             pt.set_hovered(value)
 
     def is_near(self, pos):
+        if self.points_hidden:
+            return False
+
         if self._hit_path.contains(pos):
             return True
 
@@ -176,3 +186,11 @@ class BezierCurve(QGraphicsItem):
             self._scene.removeItem(pt)
         self.points.clear()
         self._scene.removeItem(self)
+
+    def set_points_hidden(self, value):
+        if self.points_hidden == value:
+            return
+        self.points_hidden = value
+        for pt in self.points:
+            pt.setVisible(not value)
+        self.update()
