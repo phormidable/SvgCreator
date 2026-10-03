@@ -100,6 +100,12 @@ class BezierScene(QGraphicsScene):
 
         super().mousePressEvent(event)
 
+    def cancel_pending_curve(self) -> bool:
+        if self.mode == "create" and self.pending_curve is not None:
+            self.discard_current_points()
+            return True
+        return False
+
     def mouseMoveEvent(self, event):
         super().mouseMoveEvent(event)
         if self.dragging_curve is None or self._ensuring_visible:

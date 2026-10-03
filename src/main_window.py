@@ -122,6 +122,22 @@ class MainWindow(QMainWindow):
         group.setLayout(layout)
         return group
 
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape and not self._focus_is_in_spinbox():
+            if self.scene.cancel_pending_curve():
+                event.accept()
+                return
+        super().keyPressEvent(event)
+
+    def _focus_is_in_spinbox(self) -> bool:
+        """True if the focus is on one of our spinboxes (or its internal line edit)."""
+        w = QApplication.focusWidget()
+        while w is not None:
+            if isinstance(w, QDoubleSpinBox):
+                return True
+            w = w.parentWidget()
+        return False
+
     def connect_spinboxes(self):
         for i, (x_spin, y_spin) in enumerate(self.point_spinboxes):
             x_spin.valueChanged.connect(lambda val, idx=i: self.on_spinbox_changed(idx))
