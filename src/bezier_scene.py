@@ -36,9 +36,12 @@ class BezierScene(QGraphicsScene):
         self._hovered_curve = None
         self._ensuring_visible = False
         self.background_item = None
-        self.selected_point = None
+        #self.selected_point = None
         self.background_image_path = None
         self._proximity_target = None
+        self.selected_points: list[ControlPoint] = []
+        self._drag_targets: dict[ControlPoint, QPointF] = {}
+        self._drag_primary_start: QPointF | None = None
 
 
         # ---- Scene rect = artboard, never changes during editing ----
@@ -73,14 +76,19 @@ class BezierScene(QGraphicsScene):
             curve = item.curve
             shift = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
 
-            if shift and self.selected_point is not None and self.selected_point is not item:
-                self._prompt_link(self.selected_point, item)
+            if shift:
+                self.toggle_selection(item)
+                self._clear_hover()
                 event.accept()
                 return
 
-            self.set_selected_point(item)
+            # Non-shift: if the clicked point isn't already in the selection, start fresh.
+            if item not in self.selected_points:
+                self.set_selected_point(item)
+
             self._clear_hover()
             self.dragging_point = item
+            self._start_drag(item)
             curve.set_highlighted(True)
             idx = self.curves.index(curve)
             if idx != self.selected_curve_idx:
@@ -107,6 +115,29 @@ class BezierScene(QGraphicsScene):
             return
 
         super().mousePressEvent(event)
+
+    def _start_drag(self, primary):
+        """Snapshot positions of every point that should follow this drag."""
+        primary_group = set(self._group_of(primary) or [])
+        primary_group.add(primary)
+
+        # Seeds: all selected points + the primary (in case primary wasn't selected).
+        seeds = set(self.selected_points)
+        seeds.add(primary)
+
+        # Expand to link-group siblings.
+        targets = set()
+        for pt in seeds:
+            targets.add(pt)
+            group = self._group_of(pt)
+            if group:
+                targets.update(group)
+
+        # Primary and its group are moved by Qt + propagate_point_move — skip them.
+        targets -= primary_group
+
+        self._drag_targets = {pt: pt.pos() for pt in targets}
+        self._drag_primary_start = primary.pos()
 
     def _group_of(self, point):
         """Return the link group containing `point`, or None."""
@@ -178,6 +209,10 @@ class BezierScene(QGraphicsScene):
         super().mouseMoveEvent(event)
 
         if self.dragging_point is not None:
+            # Qt just moved the primary; mirror its delta onto the rest.
+            delta = self.dragging_point.pos() - self._drag_primary_start
+            for pt, start in self._drag_targets.items():
+                pt.setPos(start + delta)
             self._update_proximity(self.dragging_point)
 
         if self.dragging_point is None or self._ensuring_visible:
@@ -196,6 +231,8 @@ class BezierScene(QGraphicsScene):
             if self.dragging_point is not None:
                 self.dragging_point.curve.set_highlighted(False)
                 self.dragging_point = None
+                self._drag_targets = {}
+                self._drag_primary_start = None
                 self._clear_proximity()
                 self._update_hover(event.scenePos())
                 self.curveDragFinished.emit()
@@ -231,66 +268,29 @@ class BezierScene(QGraphicsScene):
             self._hovered_curve = None
 
     def set_selected_point(self, point):
-        if self.selected_point is point:
+        """Replace the whole selection with just `point` (or clear if None)."""
+        if point is None:
+            self.clear_selection()
             return
-        if self.selected_point is not None:
-            self.selected_point.set_selected(False)
-        self.selected_point = point
-        if point is not None:
+        if len(self.selected_points) == 1 and self.selected_points[0] is point:
+            return
+        self.clear_selection()
+        self.selected_points.append(point)
+        point.set_selected(True)
+
+    def toggle_selection(self, point):
+        if point in self.selected_points:
+            self.selected_points.remove(point)
+            point.set_selected(False)
+        else:
+            self.selected_points.append(point)
             point.set_selected(True)
 
-    def _prompt_link(self, point_a, point_b):
-        parent = self.views()[0] if self.views() else None
+    def clear_selection(self):
+        for pt in self.selected_points:
+            pt.set_selected(False)
+        self.selected_points.clear()
 
-        dialog = QDialog(parent)
-        dialog.setWindowTitle("Link Points")
-
-        layout = QVBoxLayout(dialog)
-        layout.setSpacing(10)
-
-        layout.addWidget(QLabel("Do you want to link these 2 points?"))
-
-        info = QLabel(
-            f"1st: ({point_a.pos().x():.2f}, {point_a.pos().y():.2f})\n"
-            f"2nd: ({point_b.pos().x():.2f}, {point_b.pos().y():.2f})"
-        )
-        info.setStyleSheet("color: #555;")
-        layout.addWidget(info)
-
-        btn_row = QHBoxLayout()
-        btn_1st = QPushButton("Yes, 1st")
-        btn_2nd = QPushButton("Yes, 2nd")
-        btn_no = QPushButton("No")
-        btn_row.addWidget(btn_1st)
-        btn_row.addWidget(btn_2nd)
-        btn_row.addWidget(btn_no)
-        layout.addLayout(btn_row)
-
-        # Default to "No" so Enter doesn't accidentally apply a link.
-        btn_no.setDefault(True)
-
-        choice = {"value": None}
-
-        def pick(v):
-            choice["value"] = v
-            dialog.accept()
-
-        btn_1st.clicked.connect(lambda: pick("1st"))
-        btn_2nd.clicked.connect(lambda: pick("2nd"))
-        btn_no.clicked.connect(lambda: pick("no"))
-
-        dialog.exec()
-
-        if choice["value"] == "1st":
-            point_b.setPos(point_a.pos())
-        elif choice["value"] == "2nd":
-            point_a.setPos(point_b.pos())
-        else:
-            self.set_selected_point(None)
-            return
-
-        self.link_points(point_a, point_b)
-        self.set_selected_point(None)
 
     # ------------------------------------------------------------
     #  Curve finalization
@@ -545,6 +545,23 @@ class BezierScene(QGraphicsScene):
     def move_selected_point(self, curve_idx, point_idx, pos):
         if 0 <= curve_idx < len(self.curves):
             self.curves[curve_idx].move_point(point_idx, pos)
+
+    def move_selected_points(self, dx: float, dy: float) -> bool:
+        if not self.selected_points:
+            return False
+
+        # Include link-group siblings so linked points stay coincident.
+        to_move = set()
+        for pt in self.selected_points:
+            to_move.add(pt)
+            group = self._group_of(pt)
+            if group:
+                to_move.update(group)
+
+        offset = QPointF(dx, dy)
+        for pt in to_move:
+            pt.setPos(pt.pos() + offset)
+        return True
 
     def on_point_moved(self, point):
         """Called by ControlPoint when its position changed."""

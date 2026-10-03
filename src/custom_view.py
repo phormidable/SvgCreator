@@ -65,3 +65,10 @@ class CustomGraphicsView(QGraphicsView):
     def leaveEvent(self, event):
         self.mouseMoved.emit(None)
         super().leaveEvent(event)
+
+    def keyPressEvent(self, event):
+        # Let Shift+arrows escape the view so MainWindow can nudge selected points.
+        if event.key() in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
+            event.ignore()
+            return
+        super().keyPressEvent(event)

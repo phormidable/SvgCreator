@@ -127,17 +127,27 @@ class MainWindow(QMainWindow):
             super().keyPressEvent(event)
             return
 
-        if event.key() == Qt.Key.Key_Escape:
+        key = event.key()
+        shift = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+
+        if key == Qt.Key.Key_Escape:
+            self.scene.clear_selection()
             if self.scene.cancel_pending_curve():
                 event.accept()
                 return
-        elif event.key() == Qt.Key.Key_L:
+        elif key == Qt.Key.Key_L:
             if self.scene.try_link_proximity():
                 event.accept()
                 return
-        elif event.key() == Qt.Key.Key_H:
+        elif key == Qt.Key.Key_H:
             if self.scene.hide_hovered_curve_points():
                 self.statusBar().showMessage("Curve points hidden. Use 'Show All' to restore.")
+                event.accept()
+                return
+        elif key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
+            dx = -1 if key == Qt.Key.Key_Left else 1 if key == Qt.Key.Key_Right else 0
+            dy = -1 if key == Qt.Key.Key_Up else 1 if key == Qt.Key.Key_Down else 0
+            if self.scene.move_selected_points(dx, dy):
                 event.accept()
                 return
 
