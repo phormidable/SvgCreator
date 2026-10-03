@@ -68,8 +68,7 @@ class BezierCurve(QGraphicsItem):
             painter.setPen(self._pen_normal)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(self._path)
-        #painter.setBrush(QColor(255, 0, 0, 60))
-        #painter.drawPath(self._hit_path)
+
 
     # ---------------------------------------------------------------
     #  Construction
@@ -81,7 +80,6 @@ class BezierCurve(QGraphicsItem):
         if self.committed:
             pt.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
         self.rebuild_path()
-        #self._scene.on_curve_changed()
         return pt
 
     def is_complete(self):
