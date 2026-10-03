@@ -377,19 +377,34 @@ class BezierScene(QGraphicsScene):
     #  Save and Load
     # ------------------------------------------------------------
     def save_state(self) -> dict:
+        # Temporary id() → (curve_idx, point_idx) lookup. Only used here, never stored.
+        location = {}
+        for ci, curve in enumerate(self.curves):
+            for pi, pt in enumerate(curve.points):
+                location[id(pt)] = [ci, pi]
+
+        links = []
+        for group in self.link_groups:
+            serialized = [location[id(pt)] for pt in group if id(pt) in location]
+            if len(serialized) >= 2:
+                links.append(serialized)
+
         state = {
-            "version": 1,
+            "version": 2,
             "curves": [
                 [[round(p.x(), 3), round(p.y(), 3)] for p in curve.points]
                 for curve in self.curves
             ],
         }
+        if links:
+            state["links"] = links
         if self.background_image_path:
             state["background"] = self.background_image_path
         return state
 
     def load_state(self, state: dict):
         curves_data = state.get("curves", [])
+        links_data = state.get("links", [])
 
         self.blockSignals(True)
         try:
@@ -399,16 +414,33 @@ class BezierScene(QGraphicsScene):
                 self.curves.append(curve)
             self.selected_curve_idx = len(self.curves) - 1 if self.curves else -1
 
+            self._restore_links(links_data)
+
             bg = state.get("background")
             if bg:
                 self.load_background_image(bg)
         finally:
             self.blockSignals(False)
 
-        # Manually notify listeners now that the batch rebuild is done.
         self.emit_svg()
         self.pointsChanged.emit()
         self.curveListChanged.emit()
+
+    def _restore_links(self, links_data):
+        """Rebuild link_groups from a saved 'links' list. Skips malformed entries."""
+        if not isinstance(links_data, list):
+            return
+        for group_data in links_data:
+            if not isinstance(group_data, list):
+                continue
+            try:
+                group = [self.curves[ci].points[pi] for ci, pi in group_data]
+            except (TypeError, ValueError, IndexError):
+                continue  # malformed or out-of-range → skip the whole group
+            if len(group) >= 2:
+                self.link_groups.append(group)
+                for pt in group:
+                    pt.set_linked(True)
 
     def _build_curve_from_points(self, points_data) -> BezierCurve:
         if not isinstance(points_data, list) or len(points_data) != 4:
