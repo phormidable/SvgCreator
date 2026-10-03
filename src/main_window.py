@@ -123,10 +123,19 @@ class MainWindow(QMainWindow):
         return group
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Escape and not self._focus_is_in_spinbox():
+        if self._focus_is_in_spinbox():
+            super().keyPressEvent(event)
+            return
+
+        if event.key() == Qt.Key.Key_Escape:
             if self.scene.cancel_pending_curve():
                 event.accept()
                 return
+        elif event.key() == Qt.Key.Key_L:
+            if self.scene.try_link_proximity():
+                event.accept()
+                return
+
         super().keyPressEvent(event)
 
     @staticmethod

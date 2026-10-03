@@ -107,4 +107,5 @@ class ControlPoint(QGraphicsEllipseItem):
             if scene is not None:
                 scene.propagate_point_move(self, self.pos())
                 self.curve.on_point_moved()
+                scene.on_point_moved(self)  # ← new: notify about *this* point
         return super().itemChange(change, value)

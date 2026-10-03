@@ -4,8 +4,10 @@ from PySide6.QtGui import QPen, QPixmap, QImage, QPainter
 from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem, QDialog, QPushButton,  QLabel, QVBoxLayout, QHBoxLayout
 from PySide6.QtSvg import QSvgRenderer
 
-from settings import ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH, SVG_STROKE_COLOR, SVG_STROKE_WIDTH, SVG_FILL
+from settings import (ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH,
+                      SVG_STROKE_COLOR, SVG_STROKE_WIDTH, SVG_FILL, LINK_PROXIMITY_TOLERANCE)
 
+from link_indicator import LinkIndicator
 from control_point import ControlPoint
 from bezier_curve import BezierCurve
 
@@ -36,6 +38,7 @@ class BezierScene(QGraphicsScene):
         self.background_item = None
         self.selected_point = None
         self.background_image_path = None
+        self._proximity_target = None
 
 
         # ---- Scene rect = artboard, never changes during editing ----
@@ -47,6 +50,9 @@ class BezierScene(QGraphicsScene):
         self.viewbox_item.setPen(QPen(VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH))
         self.viewbox_item.setZValue(-100)
         self.addItem(self.viewbox_item)
+
+        self.link_indicator = LinkIndicator()
+        self.addItem(self.link_indicator)
 
     # ------------------------------------------------------------
     #  Mouse interaction
@@ -74,7 +80,7 @@ class BezierScene(QGraphicsScene):
 
             self.set_selected_point(item)
             self._clear_hover()
-            self.dragging_point = curve
+            self.dragging_point = item
             curve.set_highlighted(True)
             idx = self.curves.index(curve)
             if idx != self.selected_curve_idx:
@@ -170,6 +176,10 @@ class BezierScene(QGraphicsScene):
 
     def mouseMoveEvent(self, event):
         super().mouseMoveEvent(event)
+
+        if self.dragging_point is not None:
+            self._update_proximity(self.dragging_point)
+
         if self.dragging_point is None or self._ensuring_visible:
             return
         self._ensuring_visible = True
@@ -184,8 +194,9 @@ class BezierScene(QGraphicsScene):
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             if self.dragging_point is not None:
-                self.dragging_point.set_highlighted(False)
+                self.dragging_point.curve.set_highlighted(False)
                 self.dragging_point = None
+                self._clear_proximity()
                 self._update_hover(event.scenePos())
                 self.curveDragFinished.emit()
         super().mouseReleaseEvent(event)
@@ -364,7 +375,7 @@ class BezierScene(QGraphicsScene):
         self.selected_curve_idx = -1
         BezierCurve._next_id = 1 # c'est mieux de repartir à 1.
         self.dragging_point = None
-
+        self._clear_proximity()
         self.emit_svg()
         self.pointsChanged.emit()
         self.curveListChanged.emit()
@@ -534,3 +545,63 @@ class BezierScene(QGraphicsScene):
     def move_selected_point(self, curve_idx, point_idx, pos):
         if 0 <= curve_idx < len(self.curves):
             self.curves[curve_idx].move_point(point_idx, pos)
+
+    def on_point_moved(self, point):
+        """Called by ControlPoint when its position changed."""
+        print(f"[scene.on_point_moved] point={point.point_idx} dragging={self.dragging_point is point}")
+        if self.dragging_point is point:
+            self._update_proximity(point)
+
+    def _update_proximity(self, point):
+        my_group = self._group_of(point)
+        nearest = None
+        best_d2 = LINK_PROXIMITY_TOLERANCE ** 2
+        px, py = point.pos().x(), point.pos().y()
+
+        for curve in self.curves:
+            for other in curve.points:
+                if other is point:
+                    continue
+                if my_group is not None and other in my_group:
+                    continue
+                ox, oy = other.pos().x(), other.pos().y()
+                d2 = (ox - px) ** 2 + (oy - py) ** 2
+                if d2 < best_d2:
+                    best_d2 = d2
+                    nearest = other
+
+        if nearest is self._proximity_target:
+            if nearest is not None:
+                self.link_indicator.show_between(point.pos(), nearest.pos())
+                print(f"[proximity] nearest={nearest is not None} target={self._proximity_target is not None}")
+            return
+
+        self._proximity_target = nearest
+        if nearest is not None:
+            self.link_indicator.show_between(point.pos(), nearest.pos())
+        else:
+            self.link_indicator.hide_indicator()
+
+    def _clear_proximity(self):
+        self._proximity_target = None
+        self.link_indicator.hide_indicator()
+
+    def try_link_proximity(self) -> bool:
+        """Called when user presses 'L'. Links the dragged point to its neighbour."""
+        print(f"[try_link] dragging={self.dragging_point} target={self._proximity_target}")
+        if self.dragging_point is None or self._proximity_target is None:
+            return False
+
+        source = self.dragging_point
+        target = self._proximity_target
+
+        # Clear state *first* so the setPos below doesn't re-show the indicator.
+        self._clear_proximity()
+
+        # Link (so they'll move together from now on), then snap.
+        self.link_points(source, target)
+        source.setPos(target.pos())  # triggers rebuild + on_curve_changed
+
+        self.emit_svg()
+        self.pointsChanged.emit()
+        return True

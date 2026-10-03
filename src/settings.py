@@ -63,3 +63,10 @@ SVG_PRECISION = 2
 LINKED_RING_COLOR = QColor("black")
 LINKED_RING_PEN_WIDTH = 2
 LINKED_RING_EXTRA = 2   # extra radius beyond the point's own radius
+
+# ---- Proximity linking ----
+LINK_PROXIMITY_TOLERANCE = 25        # scene units
+LINK_INDICATOR_RADIUS = 10
+LINK_INDICATOR_COLOR = QColor("orange")
+LINK_INDICATOR_PEN_WIDTH = 2
+LINK_INDICATOR_FLASH_INTERVAL = 300  # ms
