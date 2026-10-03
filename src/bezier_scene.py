@@ -17,6 +17,7 @@ class BezierScene(QGraphicsScene):
     curveListChanged = Signal()
     curveSelected = Signal(int)
     curveDragFinished = Signal()
+    messageLogged = Signal(str)
 
     def __init__(self):
         super().__init__()
@@ -112,6 +113,7 @@ class BezierScene(QGraphicsScene):
             self.pending_curve.add_point(event.scenePos())
             if self.pending_curve.is_complete():
                 self.finalize_curve()
+                self.messageLogged.emit(f"Curve {self.pending_curve.id} created")
             return
 
         super().mousePressEvent(event)
@@ -358,6 +360,7 @@ class BezierScene(QGraphicsScene):
         self.pending_curve = None
         self.emit_svg()
         self.pointsChanged.emit()
+        self.messageLogged.emit("Incomplete curve discarded")
 
     # ------------------------------------------------------------
     #  Clear everything
@@ -382,6 +385,7 @@ class BezierScene(QGraphicsScene):
         self._remove_background_image()
         self.link_groups.clear()
         self._propagating_links = False
+        self.messageLogged.emit("Scene cleared")
 
     # ------------------------------------------------------------
     #  Save and Load
@@ -433,6 +437,7 @@ class BezierScene(QGraphicsScene):
             self.blockSignals(False)
 
         self.emit_svg()
+        self.messageLogged.emit(f"Loaded {len(self.curves)} curve(s)")
         self.pointsChanged.emit()
         self.curveListChanged.emit()
 
@@ -495,6 +500,7 @@ class BezierScene(QGraphicsScene):
         self.addItem(item)
         self.background_item = item
         print(f"scale = {scale}")
+        self.messageLogged.emit(f"Background loaded: {filepath}")
         return True
 
     def _remove_background_image(self):
@@ -617,7 +623,10 @@ class BezierScene(QGraphicsScene):
         # Link (so they'll move together from now on), then snap.
         self.link_points(source, target)
         source.setPos(target.pos())  # triggers rebuild + on_curve_changed
-
+        self.messageLogged.emit(
+            f"Linked {source.curve.name}·P{source.point_idx} "
+            f"→ {target.curve.name}·P{target.point_idx}"
+        )
         self.emit_svg()
         self.pointsChanged.emit()
         return True
@@ -628,6 +637,7 @@ class BezierScene(QGraphicsScene):
         if self._hovered_curve is None:
             return False
         self._hovered_curve.set_points_hidden(True)
+        self.messageLogged.emit(f"Points hidden on {self._hovered_curve.name}")
         return True
 
     def show_all_points(self) -> int:
@@ -636,4 +646,6 @@ class BezierScene(QGraphicsScene):
             if curve.points_hidden:
                 curve.set_points_hidden(False)
                 n += 1
+        if n:
+            self.messageLogged.emit(f"Restored points on {n} curve(s)")
         return n

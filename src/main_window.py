@@ -1,6 +1,6 @@
 # main_window.py
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,QPlainTextEdit, QApplication,
-    QFileDialog, QMessageBox, QLabel, QDoubleSpinBox,QGroupBox, QGridLayout, QComboBox, QDialog, QDialogButtonBox)
+    QFileDialog, QMessageBox, QLabel, QDoubleSpinBox,QGroupBox, QGridLayout, QComboBox, QDialog, QDialogButtonBox, QLineEdit)
 from PySide6.QtCore import QByteArray, Qt, QPointF
 from PySide6.QtGui import QPainter, QFont, QActionGroup
 from PySide6.QtSvgWidgets import QSvgWidget
@@ -17,7 +17,6 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Bézier SVG Creator")
         self.resize(WINDOW_WIDTH, WINDOW_HEIGHT)
 
-        self.updating_spinboxes = False
         self.updating_combobox = False
 
         # Central widget
@@ -48,7 +47,7 @@ class MainWindow(QMainWindow):
         right_col.addWidget(self.preview_widget)
 
         self.info_widget = self._create_info_panel()
-        self.connect_spinboxes()
+        self.scene.messageLogged.connect(self.log)
         right_col.addWidget(self.info_widget, 1)  # stretch → fills remaining height
 
         main_layout.addLayout(right_col)
@@ -89,48 +88,77 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------
     def _create_info_panel(self):
         group = QGroupBox("Selected Curve Points")
-        layout = QGridLayout()
-        layout.setVerticalSpacing(2)
-        layout.setHorizontalSpacing(10)
+        outer = QVBoxLayout()
+        outer.setSpacing(6)
 
-        # ---- Combobox row ----
+        # ---- Two columns ----
+        columns = QHBoxLayout()
+        columns.setSpacing(24)
+
+        self.point_fields = [None] * 4  # indexed by point_idx, not visual order
+
+        def make_field_row(label_text, point_idx):
+            row = QHBoxLayout()
+            lbl = QLabel(label_text)
+            lbl.setFixedWidth(50)
+            lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            row.addWidget(lbl)
+
+            x_field = QLineEdit()
+            y_field = QLineEdit()
+            for f in (x_field, y_field):
+                f.setReadOnly(True)
+                f.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+                f.setMaximumWidth(80)
+            row.addWidget(x_field)
+            row.addWidget(y_field)
+            row.addStretch()
+
+            self.point_fields[point_idx] = (x_field, y_field)
+            return row
+
+        # --- Left column: Curve + Start + End ---
+        left = QVBoxLayout()
+        left.setSpacing(2)
+
+        curve_row = QHBoxLayout()
+        curve_label = QLabel("Curve:")
+        curve_label.setFixedWidth(50)
+        curve_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.curve_combo = QComboBox()
         self.curve_combo.currentIndexChanged.connect(self.on_curve_selected)
-        curve_label = QLabel("Curve:")
-        curve_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        layout.addWidget(curve_label, 0, 0)
-        layout.addWidget(self.curve_combo, 0, 1, 1, 5)
+        curve_row.addWidget(curve_label)
+        curve_row.addWidget(self.curve_combo, 1)
+        left.addLayout(curve_row)
+        left.addLayout(make_field_row("Start:", 0))
+        left.addLayout(make_field_row("End:", 3))
+        left.addStretch()
 
-        # ---- Point rows ----
-        # Left block: Start (top) and End (bottom).
-        # Right block: control points P1 (top) and P2 (bottom).
-        self.point_spinboxes = [None] * 4  # indexed by point_idx, not row order
+        # --- Right column: P1 + P2 ---
+        right = QVBoxLayout()
+        right.setSpacing(2)
+        right.addLayout(make_field_row("P1:", 1))
+        right.addLayout(make_field_row("P2:", 2))
+        right.addStretch()
 
-        def add_point_row(row, col_base, point_idx, label_text):
-            lbl = QLabel(label_text)
-            lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            layout.addWidget(lbl, row, col_base)
+        columns.addLayout(left, 1)
+        columns.addLayout(right, 1)
+        outer.addLayout(columns)
 
-            x_spin = QDoubleSpinBox(decimals=2, minimum=-9999, maximum=9999, singleStep=1.0)
-            x_spin.setProperty("point_idx", point_idx)
-            layout.addWidget(x_spin, row, col_base + 1)
+        # ---- Console ----
+        self.console = QPlainTextEdit()
+        self.console.setReadOnly(True)
+        self.console.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.console.setMaximumBlockCount(500)
+        self.console.setPlaceholderText("Events will appear here…")
+        self.console.setFixedHeight(120)
+        outer.addWidget(self.console)
 
-            y_spin = QDoubleSpinBox(decimals=2, minimum=-9999, maximum=9999, singleStep=1.0)
-            y_spin.setProperty("point_idx", point_idx)
-            layout.addWidget(y_spin, row, col_base + 2)
-
-            self.point_spinboxes[point_idx] = (x_spin, y_spin)
-
-        add_point_row(1, 0, 0, "Start:")
-        add_point_row(2, 0, 3, "End:")
-        add_point_row(1, 3, 1, "P1:")
-        add_point_row(2, 3, 2, "P2:")
-
-        group.setLayout(layout)
+        group.setLayout(outer)
         return group
 
     def keyPressEvent(self, event):
-        if self._focus_is_in_spinbox():
+        if self._focus_blocks_shortcuts():
             super().keyPressEvent(event)
             return
 
@@ -148,10 +176,9 @@ class MainWindow(QMainWindow):
                 return
         elif key == Qt.Key.Key_H:
             if self.scene.hide_hovered_curve_points():
-                self.statusBar().showMessage("Curve points hidden. Use 'Show All' to restore.")
                 event.accept()
                 return
-        elif key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
+        elif shift and key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
             dx = -1 if key == Qt.Key.Key_Left else 1 if key == Qt.Key.Key_Right else 0
             dy = -1 if key == Qt.Key.Key_Up else 1 if key == Qt.Key.Key_Down else 0
             if self.scene.move_selected_points(dx, dy):
@@ -161,29 +188,17 @@ class MainWindow(QMainWindow):
         super().keyPressEvent(event)
 
     @staticmethod
-    def _focus_is_in_spinbox() -> bool:
-        """True if the focus is on one of our spinboxes (or its internal line edit)."""
+    def _focus_blocks_shortcuts() -> bool:
+        """True when the combobox has focus, so L/H/arrows should stay local to it."""
         w = QApplication.focusWidget()
         while w is not None:
-            if isinstance(w, QDoubleSpinBox):
+            if isinstance(w, QComboBox):
                 return True
             w = w.parentWidget()
         return False
 
-    def connect_spinboxes(self):
-        for i, (x_spin, y_spin) in enumerate(self.point_spinboxes):
-            x_spin.valueChanged.connect(lambda val, idx=i: self.on_spinbox_changed(idx))
-            y_spin.valueChanged.connect(lambda val, idx=i: self.on_spinbox_changed(idx))
-
-    def on_spinbox_changed(self, point_idx):
-        if self.updating_spinboxes:
-            return
-        curve_idx = self.curve_combo.currentIndex()
-        if curve_idx < 0:
-            return
-        x_spin, y_spin = self.point_spinboxes[point_idx]
-        new_pos = QPointF(x_spin.value(), y_spin.value())
-        self.scene.move_selected_point(curve_idx, point_idx, new_pos)
+    def log(self, message: str):
+        self.console.appendPlainText(message)
 
     def on_curve_selected(self, index):
         if self.updating_combobox:
@@ -197,35 +212,19 @@ class MainWindow(QMainWindow):
         self.curve_combo.setCurrentIndex(index)
 
     def update_info_panel(self):
-        """Populate spinboxes from the currently selected curve."""
-        if self.updating_spinboxes:
-            return
-        if self.scene.dragging_point is not None:
-            return
-        self.updating_spinboxes = True
-
+        """Populate the read-only fields from the currently selected curve."""
         curve_idx = self.curve_combo.currentIndex()
         points = self.scene.get_curve_points(curve_idx)
         if points:
             for i, pt in enumerate(points):
                 pos = pt.pos()
-                x_spin, y_spin = self.point_spinboxes[i]
-                x_spin.blockSignals(True)
-                y_spin.blockSignals(True)
-                x_spin.setValue(pos.x())
-                y_spin.setValue(pos.y())
-                x_spin.blockSignals(False)
-                y_spin.blockSignals(False)
+                x_field, y_field = self.point_fields[i]
+                x_field.setText(f"{pos.x():.2f}")
+                y_field.setText(f"{pos.y():.2f}")
         else:
-            for x_spin, y_spin in self.point_spinboxes:
-                x_spin.blockSignals(True)
-                y_spin.blockSignals(True)
-                x_spin.setValue(0.0)
-                y_spin.setValue(0.0)
-                x_spin.blockSignals(False)
-                y_spin.blockSignals(False)
-
-        self.updating_spinboxes = False
+            for x_field, y_field in self.point_fields:
+                x_field.setText("")
+                y_field.setText("")
 
     def update_curve_combobox(self):
         """Update the combobox with current curve list."""
@@ -347,6 +346,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------
     def set_mode(self, mode):
         # If switching to Edit and there are incomplete points, discard them
+        self.log(f"Mode → {mode}")
         if mode == "edit" and self.scene.pending_curve is not None:
             self.scene.discard_current_points()
             self.statusBar().showMessage("Incomplete curve discarded. Switch to Edit mode.")
@@ -376,6 +376,7 @@ class MainWindow(QMainWindow):
     #  Export, save, load
     # ------------------------------------------------------------
     def export_svg(self):
+        self.log(f"export_svg")
         filepath, _ = QFileDialog.getSaveFileName(self, "Save SVG", "", "SVG files (*.svg)")
         if filepath:
             try:
@@ -386,6 +387,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, "Error", f"Could not save file:\n{e}")
 
     def save_project(self):
+        self.log(f"save_project")
         filepath, _ = QFileDialog.getSaveFileName(self, "Save Project", "", "Bezier Project (*.json);;All files (*)")
         if not filepath:
             return
@@ -399,6 +401,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Error", f"Could not save file:\n{e}")
 
     def load_project(self):
+        self.log(f"load_project")
         filepath, _ = QFileDialog.getOpenFileName(self, "Load Project", "", "Bezier Project (*.json);;All files (*)")
         if not filepath:
             return
