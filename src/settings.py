@@ -58,3 +58,8 @@ SELECTED_POINT_COLOR = QColor("red")
 SELECTED_POINT_PEN_COLOR = QColor("darkred")
 
 SVG_PRECISION = 2
+
+# ---- Linked point ring ----
+LINKED_RING_COLOR = QColor("black")
+LINKED_RING_PEN_WIDTH = 2
+LINKED_RING_EXTRA = 2   # extra radius beyond the point's own radius

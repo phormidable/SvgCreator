@@ -3,8 +3,9 @@ from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem
 from PySide6.QtGui import QBrush, QPen, QPainter
 from PySide6.QtCore import QPointF, QRectF, Qt
 
-from settings import (POINT_DIAMETER, CONTROL_POINT_INNER_RADIUS, CONTROL_POINT_RING_COLOR, CONTROL_POINT_RING_PEN_COLOR,
-    HIGHLIGHT_POINT_COLOR, HIGHLIGHT_POINT_PEN_COLOR, HOVER_POINT_COLOR, HOVER_POINT_PEN_COLOR, SELECTED_POINT_COLOR, SELECTED_POINT_PEN_COLOR)
+from settings import (POINT_DIAMETER, CONTROL_POINT_INNER_RADIUS, CONTROL_POINT_RING_COLOR,
+    CONTROL_POINT_RING_PEN_COLOR, HIGHLIGHT_POINT_COLOR, HIGHLIGHT_POINT_PEN_COLOR, HOVER_POINT_COLOR, LINKED_RING_COLOR,
+    HOVER_POINT_PEN_COLOR, SELECTED_POINT_COLOR, SELECTED_POINT_PEN_COLOR, LINKED_RING_EXTRA, LINKED_RING_PEN_WIDTH)
 
 
 class ControlPoint(QGraphicsEllipseItem):
@@ -17,13 +18,33 @@ class ControlPoint(QGraphicsEllipseItem):
         self.highlighted = False
         self.hovered = False
         self.selected = False
+        self.linked = False
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
 
     def _is_endpoint(self):
         return self.point_idx == 0 or self.point_idx == 3
 
+    def boundingRect(self):
+        if self.linked:
+            half = POINT_DIAMETER / 2 + LINKED_RING_EXTRA + LINKED_RING_PEN_WIDTH
+            return QRectF(-half, -half, 2 * half, 2 * half)
+        return super().boundingRect()
+
+    def set_linked(self, value):
+        if self.linked == value:
+            return
+        self.prepareGeometryChange()  # boundingRect() is about to change
+        self.linked = value
+        self.update()
+
     def paint(self, painter, option, widget=None):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+        if self.linked:
+            r = POINT_DIAMETER / 2 + LINKED_RING_EXTRA
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(LINKED_RING_COLOR, LINKED_RING_PEN_WIDTH))
+            painter.drawEllipse(QRectF(-r, -r, 2 * r, 2 * r))
 
         # Priority: highlight > hover > per-curve color
         if self.selected:
@@ -82,6 +103,8 @@ class ControlPoint(QGraphicsEllipseItem):
             y = min(max(value.y(), artboard.top()), artboard.bottom())
             return QPointF(x, y)
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
-            if self.curve.scene() is not None:  # same reason
+            scene = self.curve.scene()
+            if scene is not None:
+                scene.propagate_point_move(self, self.pos())
                 self.curve.on_point_moved()
         return super().itemChange(change, value)

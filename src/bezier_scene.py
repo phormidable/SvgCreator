@@ -28,6 +28,8 @@ class BezierScene(QGraphicsScene):
         self.curves = []              # committed BezierCurve objects
         self.pending_curve = None     # BezierCurve currently being placed
         self.mode = "create"
+        self.link_groups: list[list[ControlPoint]] = []
+        self._propagating_links = False
         self.selected_curve_idx = -1
         self.dragging_curve = None
         self._hovered_curve = None
@@ -35,6 +37,7 @@ class BezierScene(QGraphicsScene):
         self.background_item = None
         self.selected_point = None
         self.background_image_path = None
+
 
         # ---- Scene rect = artboard, never changes during editing ----
         self.setSceneRect(self.artboard)
@@ -99,6 +102,66 @@ class BezierScene(QGraphicsScene):
             return
 
         super().mousePressEvent(event)
+
+    def _group_of(self, point):
+        """Return the link group containing `point`, or None."""
+        for group in self.link_groups:
+            for pt in group:
+                if pt is point:
+                    return group
+        return None
+
+    def link_points(self, a, b):
+        """Merge a's and b's link groups (creating one if needed)."""
+        ga = self._group_of(a)
+        gb = self._group_of(b)
+
+        if ga is not None and ga is gb:
+            return  # already linked
+
+        if ga is None and gb is None:
+            group = [a, b]
+            self.link_groups.append(group)
+        elif ga is None:
+            gb.append(a)
+            group = gb
+        elif gb is None:
+            ga.append(b)
+            group = ga
+        else:
+            ga.extend(gb)
+            self.link_groups.remove(gb)
+            group = ga
+
+        for pt in group:
+            pt.set_linked(True)
+
+    def unlink_point(self, point):
+        """Remove `point` from its group. Dissolve the group if <2 remain."""
+        for gi, group in enumerate(self.link_groups):
+            for pi, pt in enumerate(group):
+                if pt is point:
+                    del group[pi]
+                    if len(group) < 2:
+                        for remaining in group:
+                            remaining.set_linked(False)
+                        del self.link_groups[gi]
+                    return
+
+    def propagate_point_move(self, source, pos):
+        """Move every other point in source's group to `pos`."""
+        if self._propagating_links:
+            return
+        group = self._group_of(source)
+        if group is None:
+            return
+        self._propagating_links = True
+        try:
+            for pt in group:
+                if pt is not source:
+                    pt.setPos(pos)
+        finally:
+            self._propagating_links = False
 
     def cancel_pending_curve(self) -> bool:
         if self.mode == "create" and self.pending_curve is not None:
@@ -212,8 +275,11 @@ class BezierScene(QGraphicsScene):
             point_b.setPos(point_a.pos())
         elif choice["value"] == "2nd":
             point_a.setPos(point_b.pos())
-        # "no" or closed → nothing
+        else:
+            self.set_selected_point(None)
+            return
 
+        self.link_points(point_a, point_b)
         self.set_selected_point(None)
 
     # ------------------------------------------------------------
@@ -304,6 +370,8 @@ class BezierScene(QGraphicsScene):
         self.pointsChanged.emit()
         self.curveListChanged.emit()
         self._remove_background_image()
+        self.link_groups.clear()
+        self._propagating_links = False
 
     # ------------------------------------------------------------
     #  Save and Load

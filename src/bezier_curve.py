@@ -174,6 +174,7 @@ class BezierCurve(QGraphicsItem):
     # ---------------------------------------------------------------
     def dispose(self):
         for pt in self.points:
+            self._scene.unlink_point(pt)
             self._scene.removeItem(pt)
         self.points.clear()
         self._scene.removeItem(self)
