@@ -126,6 +126,7 @@ class MainWindow(QMainWindow):
         curve_label.setFixedWidth(50)
         curve_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.curve_combo = QComboBox()
+        self.curve_combo.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.curve_combo.currentIndexChanged.connect(self.on_curve_selected)
         curve_row.addWidget(curve_label)
         curve_row.addWidget(self.curve_combo, 1)
@@ -158,10 +159,6 @@ class MainWindow(QMainWindow):
         return group
 
     def keyPressEvent(self, event):
-        if self._focus_blocks_shortcuts():
-            super().keyPressEvent(event)
-            return
-
         key = event.key()
         shift = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
 
@@ -178,7 +175,7 @@ class MainWindow(QMainWindow):
             if self.scene.hide_hovered_curve_points():
                 event.accept()
                 return
-        elif shift and key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
+        elif key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
             dx = -1 if key == Qt.Key.Key_Left else 1 if key == Qt.Key.Key_Right else 0
             dy = -1 if key == Qt.Key.Key_Up else 1 if key == Qt.Key.Key_Down else 0
             if self.scene.move_selected_points(dx, dy):
@@ -186,16 +183,6 @@ class MainWindow(QMainWindow):
                 return
 
         super().keyPressEvent(event)
-
-    @staticmethod
-    def _focus_blocks_shortcuts() -> bool:
-        """True when the combobox has focus, so L/H/arrows should stay local to it."""
-        w = QApplication.focusWidget()
-        while w is not None:
-            if isinstance(w, QComboBox):
-                return True
-            w = w.parentWidget()
-        return False
 
     def log(self, message: str):
         self.console.appendPlainText(message)

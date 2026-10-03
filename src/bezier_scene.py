@@ -113,7 +113,7 @@ class BezierScene(QGraphicsScene):
             self.pending_curve.add_point(event.scenePos())
             if self.pending_curve.is_complete():
                 self.finalize_curve()
-                self.messageLogged.emit(f"Curve {self.pending_curve.id} created")
+                self.messageLogged.emit(f"Curve created")
             return
 
         super().mousePressEvent(event)
