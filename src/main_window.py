@@ -93,31 +93,38 @@ class MainWindow(QMainWindow):
         layout.setVerticalSpacing(2)
         layout.setHorizontalSpacing(10)
 
-        # Combobox row
+        # ---- Combobox row ----
         self.curve_combo = QComboBox()
         self.curve_combo.currentIndexChanged.connect(self.on_curve_selected)
-        layout.addWidget(QLabel("Curve:"), 0, 0)
-        layout.addWidget(self.curve_combo, 0, 1, 1, 2)
+        curve_label = QLabel("Curve:")
+        curve_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(curve_label, 0, 0)
+        layout.addWidget(self.curve_combo, 0, 1, 1, 5)
 
-        # Spinboxes for 4 points
-        self.point_spinboxes = []
-        point_labels = ["P0 (start)", "P1 (control)", "P2 (control)", "P3 (end)"]
+        # ---- Point rows ----
+        # Left block: Start (top) and End (bottom).
+        # Right block: control points P1 (top) and P2 (bottom).
+        self.point_spinboxes = [None] * 4  # indexed by point_idx, not row order
 
-        for i, label in enumerate(point_labels):
-            row = i + 1
-            lbl = QLabel(label)
+        def add_point_row(row, col_base, point_idx, label_text):
+            lbl = QLabel(label_text)
             lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            layout.addWidget(lbl, row, 0)
+            layout.addWidget(lbl, row, col_base)
 
             x_spin = QDoubleSpinBox(decimals=2, minimum=-9999, maximum=9999, singleStep=1.0)
-            x_spin.setProperty("point_idx", i)
-            layout.addWidget(x_spin, row, 1)
+            x_spin.setProperty("point_idx", point_idx)
+            layout.addWidget(x_spin, row, col_base + 1)
 
             y_spin = QDoubleSpinBox(decimals=2, minimum=-9999, maximum=9999, singleStep=1.0)
-            y_spin.setProperty("point_idx", i)
-            layout.addWidget(y_spin, row, 2)
+            y_spin.setProperty("point_idx", point_idx)
+            layout.addWidget(y_spin, row, col_base + 2)
 
-            self.point_spinboxes.append((x_spin, y_spin))
+            self.point_spinboxes[point_idx] = (x_spin, y_spin)
+
+        add_point_row(1, 0, 0, "Start:")
+        add_point_row(2, 0, 3, "End:")
+        add_point_row(1, 3, 1, "P1:")
+        add_point_row(2, 3, 2, "P2:")
 
         group.setLayout(layout)
         return group

@@ -565,7 +565,6 @@ class BezierScene(QGraphicsScene):
 
     def on_point_moved(self, point):
         """Called by ControlPoint when its position changed."""
-        print(f"[scene.on_point_moved] point={point.point_idx} dragging={self.dragging_point is point}")
         if self.dragging_point is point:
             self._update_proximity(point)
 
