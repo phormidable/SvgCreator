@@ -169,7 +169,7 @@ class MainWindow(QMainWindow):
         """Populate spinboxes from the currently selected curve."""
         if self.updating_spinboxes:
             return
-        if self.scene.dragging_curve is not None:
+        if self.scene.dragging_point is not None:
             return
         self.updating_spinboxes = True
 

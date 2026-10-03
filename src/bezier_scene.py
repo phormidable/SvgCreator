@@ -30,7 +30,7 @@ class BezierScene(QGraphicsScene):
         self.link_groups: list[list[ControlPoint]] = []
         self._propagating_links = False
         self.selected_curve_idx = -1
-        self.dragging_curve = None
+        self.dragging_point = None
         self._hovered_curve = None
         self._ensuring_visible = False
         self.background_item = None
@@ -74,7 +74,7 @@ class BezierScene(QGraphicsScene):
 
             self.set_selected_point(item)
             self._clear_hover()
-            self.dragging_curve = curve
+            self.dragging_point = curve
             curve.set_highlighted(True)
             idx = self.curves.index(curve)
             if idx != self.selected_curve_idx:
@@ -170,7 +170,7 @@ class BezierScene(QGraphicsScene):
 
     def mouseMoveEvent(self, event):
         super().mouseMoveEvent(event)
-        if self.dragging_curve is None or self._ensuring_visible:
+        if self.dragging_point is None or self._ensuring_visible:
             return
         self._ensuring_visible = True
         try:
@@ -183,9 +183,9 @@ class BezierScene(QGraphicsScene):
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            if self.dragging_curve is not None:
-                self.dragging_curve.set_highlighted(False)
-                self.dragging_curve = None
+            if self.dragging_point is not None:
+                self.dragging_point.set_highlighted(False)
+                self.dragging_point = None
                 self._update_hover(event.scenePos())
                 self.curveDragFinished.emit()
         super().mouseReleaseEvent(event)
@@ -195,7 +195,7 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     def on_mouse_moved(self, scene_pos):
         """Called by the view's mouseMoved signal (scene_pos or None)."""
-        if self.dragging_curve is not None:
+        if self.dragging_point is not None:
             return
         self._update_hover(scene_pos)
 
@@ -363,7 +363,7 @@ class BezierScene(QGraphicsScene):
 
         self.selected_curve_idx = -1
         BezierCurve._next_id = 1 # c'est mieux de repartir à 1.
-        self.dragging_curve = None
+        self.dragging_point = None
 
         self.emit_svg()
         self.pointsChanged.emit()
