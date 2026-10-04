@@ -1,7 +1,7 @@
 # bezier_scene.py
 from PySide6.QtCore import QRectF, Qt, Signal, QSize, QPointF
-from PySide6.QtGui import QPen, QPixmap, QImage, QPainter
-from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem
+from PySide6.QtGui import QPen, QPixmap, QImage, QPainter, QBrush, QColor, QPainterPath
+from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem, QGraphicsPathItem
 from PySide6.QtSvg import QSvgRenderer
 
 from settings import (ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, SVG_FILL,
@@ -12,6 +12,8 @@ from control_point import ControlPoint
 from bezier_curve import BezierCurve
 import scene_io
 from shape import Shape
+
+SHAPE_FILL_Z = -10
 
 class BezierScene(QGraphicsScene):
     svgCodeChanged = Signal(str)
@@ -157,10 +159,6 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     #  Shape detection
     # ------------------------------------------------------------
-
-    # ------------------------------------------------------------
-    #  Shape detection
-    # ------------------------------------------------------------
     def _pair_partner(self, pt):
         """If `pt` is a curve endpoint whose link group is exactly {pt, other}
         and `other` is also an endpoint, return `other`. Otherwise None."""
@@ -224,9 +222,13 @@ class BezierScene(QGraphicsScene):
 
         for shape in self.shapes:
             if shape not in new_shapes:
+                if shape.fill_item is not None:
+                    self.removeItem(shape.fill_item)
+                    shape.fill_item = None
                 self.messageLogged.emit(f"{shape.name} dissolved")
 
         self.shapes = new_shapes
+        self._update_shape_fills()
         if self._selected_shape is not None and self._selected_shape not in new_shapes:
             self._selected_shape.set_selected(False)
             self.select_shape(None)
@@ -237,6 +239,84 @@ class BezierScene(QGraphicsScene):
         Shape._next_id = 1
         self._refresh_shapes()
 
+    # ------------------------------------------------------------
+    #  Shape fill
+    # ------------------------------------------------------------
+
+
+    def shape_path(self, shape):
+        """Walk the loop and return a closed QPainterPath. Empty if broken."""
+        if not shape.curves:
+            return QPainterPath()
+
+        # Pick any endpoint that participates in a clean pair.
+        start_pt = None
+        for curve in shape.curves:
+            for idx in (0, 3):
+                if self._pair_partner(curve.points[idx]) is not None:
+                    start_pt = curve.points[idx]
+                    break
+            if start_pt is not None:
+                break
+        if start_pt is None:
+            return QPainterPath()
+
+        path = QPainterPath()
+        path.moveTo(start_pt.pos())
+        current = start_pt
+        seen = set()
+
+        while True:
+            curve = current.curve
+            if curve in seen:
+                return QPainterPath()  # shouldn't happen on a valid loop
+            seen.add(curve)
+
+            # Far end of this curve
+            if current is curve.points[0]:
+                c1, c2 = curve.points[1].pos(), curve.points[2].pos()
+                other = curve.points[3]
+            else:
+                c1, c2 = curve.points[2].pos(), curve.points[1].pos()
+                other = curve.points[0]
+
+            path.cubicTo(c1, c2, other.pos())
+
+            nxt = self._pair_partner(other)
+            if nxt is None:
+                return QPainterPath()
+            if nxt is start_pt:
+                path.closeSubpath()
+                return path
+            current = nxt
+
+    def _rebuild_shape_fill(self, shape):
+        if shape.color is None:
+            return
+        path = self.shape_path(shape)
+        if path.isEmpty():
+            return
+        if shape.fill_item is None:
+            item = QGraphicsPathItem()
+            item.setPen(QPen(Qt.PenStyle.NoPen))
+            item.setZValue(SHAPE_FILL_Z)
+            item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            self.addItem(item)
+            shape.fill_item = item
+        shape.fill_item.setBrush(QBrush(shape.color))
+        shape.fill_item.setPath(path)
+
+    def _update_shape_fills(self):
+        for shape in self.shapes:
+            self._rebuild_shape_fill(shape)
+
+    def set_shape_color(self, shape, color):
+        shape.color = QColor(color) if color is not None else None
+        if shape.color is None and shape.fill_item is not None:
+            self.removeItem(shape.fill_item)
+            shape.fill_item = None
+            return
+        self._rebuild_shape_fill(shape)
 
 
     def link_points(self, a, b):
@@ -447,6 +527,7 @@ class BezierScene(QGraphicsScene):
     def on_curve_changed(self):
         self.emit_svg()
         self.pointsChanged.emit()
+        self._update_shape_fills()
 
     # ------------------------------------------------------------
     #  SVG generation — viewBox is simply self.viewbox
@@ -517,6 +598,11 @@ class BezierScene(QGraphicsScene):
         self._remove_background_image()
         self.link_groups.clear()
         self.select_shape(None)
+
+        for shape in self.shapes:
+            if shape.fill_item is not None:
+                self.removeItem(shape.fill_item)
+                shape.fill_item = None
         self.shapes.clear()
         Shape._next_id = 1
         self._propagating_links = False

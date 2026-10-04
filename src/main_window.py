@@ -1,8 +1,8 @@
 # main_window.py
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,QPlainTextEdit, QApplication,
-                            QFileDialog, QMessageBox, QLabel, QDialog, QDialogButtonBox)
+                            QFileDialog, QMessageBox, QLabel, QDialog, QDialogButtonBox, QColorDialog)
 from PySide6.QtCore import QByteArray, Qt
-from PySide6.QtGui import QPainter, QFont, QActionGroup
+from PySide6.QtGui import QPainter, QFont, QActionGroup, QColor
 from PySide6.QtSvgWidgets import QSvgWidget
 
 
@@ -93,6 +93,10 @@ class MainWindow(QMainWindow):
             if self.scene.select_shape_from_hover():
                 event.accept()
                 return
+        elif key == Qt.Key.Key_C:
+            self.color_selected_shape()
+            event.accept()
+            return
         elif key == Qt.Key.Key_H:
             if self.scene.hide_hovered_curve_points():
                 event.accept()
@@ -321,3 +325,15 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"👁️ Restored points on {n} curve(s)")
         else:
             self.statusBar().showMessage("Nothing to restore")
+
+    def color_selected_shape(self):
+        shape = self.scene._selected_shape
+        if shape is None:
+            self.statusBar().showMessage("No shape selected — hover a curve and press S first")
+            return
+        initial = shape.color if shape.color is not None else QColor(180, 180, 180)
+        color = QColorDialog.getColor(initial, self, f"Color for {shape.name}")
+        if not color.isValid():
+            return
+        self.scene.set_shape_color(shape, color)
+        self.log(f"{shape.name} colored {color.name()}")

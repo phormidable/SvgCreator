@@ -7,8 +7,10 @@ class Shape:
         self.id = Shape._next_id
         Shape._next_id += 1
         self.name = f"Shape {self.id}"
-        self.curves = frozenset(curves)   # 1 (teardrop) or 2+ curves
+        self.curves = frozenset(curves)
         self.selected = False
+        self.color = None         # QColor | None
+        self.fill_item = None     # QGraphicsPathItem | None
 
     def set_selected(self, value):
         if self.selected == value:
