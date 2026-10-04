@@ -3,7 +3,8 @@ from PySide6.QtWidgets import QGraphicsItem
 from PySide6.QtGui import QPainterPath, QPainterPathStroker, QPen, QColor, QPainter
 from PySide6.QtCore import QRectF, Qt
 
-from settings import CURVE_PEN_WIDTH, CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH, HOVER_CURVE_COLOR, HOVER_TOLERANCE, SVG_PRECISION, HIDDEN_CURVE_COLOR
+from settings import (CURVE_PEN_WIDTH, CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH, HOVER_CURVE_COLOR,
+                      HOVER_TOLERANCE, SVG_PRECISION, HIDDEN_CURVE_COLOR, SHAPE_SELECTED_CURVE_COLOR)
 from control_point import ControlPoint
 
 GOLDEN_RATIO_CONJUGATE = 0.618033988749895
@@ -33,10 +34,12 @@ class BezierCurve(QGraphicsItem):
         self.hovered = False
         self.committed = False
         self.points_hidden = False
+        self.shape_selected = False
         self._pen_normal = QPen(self.color, CURVE_PEN_WIDTH)
         self._pen_hover = QPen(HOVER_CURVE_COLOR, CURVE_PEN_WIDTH)
         self._pen_highlight = QPen(CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH)
         self._pen_hidden = QPen(HIDDEN_CURVE_COLOR, CURVE_PEN_WIDTH)
+        self._pen_shape_selected = QPen(SHAPE_SELECTED_CURVE_COLOR, CURVE_PEN_WIDTH)
 
         self._path = QPainterPath()
         self._hit_path = QPainterPath()
@@ -65,14 +68,17 @@ class BezierCurve(QGraphicsItem):
         if self._path.isEmpty():
             return
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        if self.points_hidden:
-            painter.setPen(self._pen_hidden)
         if self.highlighted:
-            painter.setPen(self._pen_highlight)
+            pen = self._pen_highlight
+        elif self.shape_selected:
+            pen = self._pen_shape_selected
         elif self.hovered:
-            painter.setPen(self._pen_hover)
+            pen = self._pen_hover
+        elif self.points_hidden:
+            pen = self._pen_hidden
         else:
-            painter.setPen(self._pen_normal)
+            pen = self._pen_normal
+        painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(self._path)
 
@@ -141,6 +147,12 @@ class BezierCurve(QGraphicsItem):
         self.update()
         for pt in self.points:
             pt.set_hovered(value)
+
+    def set_shape_selected(self, value):
+        if self.shape_selected == value:
+            return
+        self.shape_selected = value
+        self.update()
 
     def is_near(self, pos):
         if self.points_hidden:

@@ -46,6 +46,7 @@ class BezierScene(QGraphicsScene):
         self.selected_points: list[ControlPoint] = []
         self._drag_targets: dict[ControlPoint, QPointF] = {}
         self._drag_primary_start: QPointF | None = None
+        self._selected_shape = None
 
         # ---- Scene rect = artboard, never changes during editing ----
         self.setSceneRect(self.artboard)
@@ -226,6 +227,9 @@ class BezierScene(QGraphicsScene):
                 self.messageLogged.emit(f"{shape.name} dissolved")
 
         self.shapes = new_shapes
+        if self._selected_shape is not None and self._selected_shape not in new_shapes:
+            self._selected_shape.set_selected(False)
+            self.select_shape(None)
 
     def rebuild_shapes_from_links(self):
         """Reset shape state and re-detect all loops (used after loading)."""
@@ -359,6 +363,42 @@ class BezierScene(QGraphicsScene):
             self._hovered_curve.set_hovered(False)
             self._hovered_curve = None
 
+    # ------------------------------------------------------------
+    #  Shape selection
+    # ------------------------------------------------------------
+    def select_shape(self, shape):
+        """Set (or clear, with None) the currently selected shape."""
+        if shape is self._selected_shape:
+            return
+        if self._selected_shape is not None:
+            self._selected_shape.set_selected(False)
+        self._selected_shape = shape
+        if shape is not None:
+            shape.set_selected(True)
+
+    def shape_of_curve(self, curve):
+        for shape in self.shapes:
+            if curve in shape.curves:
+                return shape
+        return None
+
+    def select_shape_from_hover(self):
+        """Toggle selection of the shape containing the hovered curve.
+        Returns True if handled (so the caller can accept the key event)."""
+        if self._hovered_curve is None:
+            return False
+        shape = self.shape_of_curve(self._hovered_curve)
+        if shape is None:
+            self.messageLogged.emit(f"{self._hovered_curve.name} is not part of a shape")
+            return False
+        if shape is self._selected_shape:
+            self.select_shape(None)
+            self.messageLogged.emit(f"{shape.name} deselected")
+        else:
+            self.select_shape(shape)
+            self.messageLogged.emit(f"{shape.name} selected")
+        return True
+
     def set_selected_point(self, point):
         """Replace the whole selection with just `point` (or clear if None)."""
         if point is None:
@@ -382,6 +422,7 @@ class BezierScene(QGraphicsScene):
         for pt in self.selected_points:
             pt.set_selected(False)
         self.selected_points.clear()
+        self.select_shape(None)
 
 
     # ------------------------------------------------------------
@@ -475,6 +516,7 @@ class BezierScene(QGraphicsScene):
         self.curveListChanged.emit()
         self._remove_background_image()
         self.link_groups.clear()
+        self.select_shape(None)
         self.shapes.clear()
         Shape._next_id = 1
         self._propagating_links = False

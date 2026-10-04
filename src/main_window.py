@@ -89,6 +89,10 @@ class MainWindow(QMainWindow):
             if self.scene.try_link_proximity():
                 event.accept()
                 return
+        elif key == Qt.Key.Key_S:
+            if self.scene.select_shape_from_hover():
+                event.accept()
+                return
         elif key == Qt.Key.Key_H:
             if self.scene.hide_hovered_curve_points():
                 event.accept()

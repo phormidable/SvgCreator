@@ -73,3 +73,6 @@ LINK_INDICATOR_FLASH_INTERVAL = 300  # ms
 
 # ---- Hidden curve (points hidden) ----
 HIDDEN_CURVE_COLOR = QColor("grey")
+
+# ---- Shape selection ----
+SHAPE_SELECTED_CURVE_COLOR = QColor(90, 90, 90)   # mildly dark grey
