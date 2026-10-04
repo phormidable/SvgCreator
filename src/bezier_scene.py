@@ -1,15 +1,15 @@
 # bezier_scene.py
 from PySide6.QtCore import QRectF, Qt, Signal, QSize, QPointF
 from PySide6.QtGui import QPen, QPixmap, QImage, QPainter
-from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem, QDialog, QPushButton,  QLabel, QVBoxLayout, QHBoxLayout
+from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem
 from PySide6.QtSvg import QSvgRenderer
 
-from settings import (ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH,
-                      SVG_STROKE_COLOR, SVG_STROKE_WIDTH, SVG_FILL, LINK_PROXIMITY_TOLERANCE)
+from settings import ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH, LINK_PROXIMITY_TOLERANCE, SVG_STROKE_COLOR, SVG_STROKE_WIDTH
 
 from link_indicator import LinkIndicator
 from control_point import ControlPoint
 from bezier_curve import BezierCurve
+import scene_io
 
 class BezierScene(QGraphicsScene):
     svgCodeChanged = Signal(str)
@@ -347,9 +347,6 @@ class BezierScene(QGraphicsScene):
               '</svg>'
         )
 
-    def emit_svg(self):
-        self.svgCodeChanged.emit(self.generate_svg())
-
     # ------------------------------------------------------------
     #  Discard incomplete curve
     # ------------------------------------------------------------
@@ -390,86 +387,14 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     #  Save and Load
     # ------------------------------------------------------------
+    def emit_svg(self):
+        self.svgCodeChanged.emit(scene_io.generate_svg(self))
+
     def save_state(self) -> dict:
-        # Temporary id() → (curve_idx, point_idx) lookup. Only used here, never stored.
-        location = {}
-        for ci, curve in enumerate(self.curves):
-            for pi, pt in enumerate(curve.points):
-                location[id(pt)] = [ci, pi]
-
-        links = []
-        for group in self.link_groups:
-            serialized = [location[id(pt)] for pt in group if id(pt) in location]
-            if len(serialized) >= 2:
-                links.append(serialized)
-
-        state = {
-            "version": 2,
-            "curves": [
-                [[round(p.x(), 3), round(p.y(), 3)] for p in curve.points]
-                for curve in self.curves
-            ],
-        }
-        if links:
-            state["links"] = links
-        if self.background_image_path:
-            state["background"] = self.background_image_path
-        return state
+        return scene_io.save_state(self)
 
     def load_state(self, state: dict):
-        curves_data = state.get("curves", [])
-        links_data = state.get("links", [])
-
-        self.blockSignals(True)
-        try:
-            self.clear_all()
-            for points_data in curves_data:
-                curve = self._build_curve_from_points(points_data)
-                self.curves.append(curve)
-            self.selected_curve_idx = len(self.curves) - 1 if self.curves else -1
-
-            self._restore_links(links_data)
-
-            bg = state.get("background")
-            if bg:
-                self.load_background_image(bg)
-        finally:
-            self.blockSignals(False)
-
-        self.emit_svg()
-        self.messageLogged.emit(f"Loaded {len(self.curves)} curve(s)")
-        self.pointsChanged.emit()
-        self.curveListChanged.emit()
-
-    def _restore_links(self, links_data):
-        """Rebuild link_groups from a saved 'links' list. Skips malformed entries."""
-        if not isinstance(links_data, list):
-            return
-        for group_data in links_data:
-            if not isinstance(group_data, list):
-                continue
-            try:
-                group = [self.curves[ci].points[pi] for ci, pi in group_data]
-            except (TypeError, ValueError, IndexError):
-                continue  # malformed or out-of-range → skip the whole group
-            if len(group) >= 2:
-                self.link_groups.append(group)
-                for pt in group:
-                    pt.set_linked(True)
-
-    def _build_curve_from_points(self, points_data) -> BezierCurve:
-        if not isinstance(points_data, list) or len(points_data) != 4:
-            raise ValueError(f"Expected 4 points per curve, got {points_data!r}")
-        curve = BezierCurve(self)
-        curve.committed = True
-        for i, coords in enumerate(points_data):
-            try:
-                x, y = float(coords[0]), float(coords[1])
-            except (TypeError, IndexError, ValueError):
-                raise ValueError(f"Invalid point #{i}: {coords!r}")
-            curve.add_point(QPointF(x, y))
-        #curve.rebuild_path()
-        return curve
+        scene_io.load_state(self, state)
 
     # ------------------------------------------------------------
     #  Background image
