@@ -72,6 +72,7 @@ def load_state(scene, state: dict):
         scene.selected_curve_idx = len(scene.curves) - 1 if scene.curves else -1
 
         _restore_links(scene, links_data)
+        scene.rebuild_shapes_from_links()
 
         bg = state.get("background")
         if bg:

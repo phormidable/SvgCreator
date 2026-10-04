@@ -11,6 +11,7 @@ from link_indicator import LinkIndicator
 from control_point import ControlPoint
 from bezier_curve import BezierCurve
 import scene_io
+from shape import Shape
 
 class BezierScene(QGraphicsScene):
     svgCodeChanged = Signal(str)
@@ -32,19 +33,19 @@ class BezierScene(QGraphicsScene):
         self.pending_curve = None     # BezierCurve currently being placed
         self.mode = "create"
         self.link_groups: list[list[ControlPoint]] = []
+        self.curves = []
+        self.shapes: list[Shape] = []
         self._propagating_links = False
         self.selected_curve_idx = -1
         self.dragging_point = None
         self._hovered_curve = None
         self._ensuring_visible = False
         self.background_item = None
-        #self.selected_point = None
         self.background_image_path = None
         self._proximity_target = None
         self.selected_points: list[ControlPoint] = []
         self._drag_targets: dict[ControlPoint, QPointF] = {}
         self._drag_primary_start: QPointF | None = None
-
 
         # ---- Scene rect = artboard, never changes during editing ----
         self.setSceneRect(self.artboard)
@@ -111,6 +112,7 @@ class BezierScene(QGraphicsScene):
         if self.mode == "create":
             if self.pending_curve is None:
                 self.pending_curve = BezierCurve(self)
+
             self.pending_curve.add_point(event.scenePos())
             if self.pending_curve.is_complete():
                 self.finalize_curve()
@@ -142,6 +144,7 @@ class BezierScene(QGraphicsScene):
         self._drag_targets = {pt: pt.pos() for pt in targets}
         self._drag_primary_start = primary.pos()
 
+
     def _group_of(self, point):
         """Return the link group containing `point`, or None."""
         for group in self.link_groups:
@@ -149,6 +152,84 @@ class BezierScene(QGraphicsScene):
                 if pt is point:
                     return group
         return None
+
+    # ------------------------------------------------------------
+    #  Shape detection
+    # ------------------------------------------------------------
+    def _detect_shape(self, curve_a, curve_b):
+        """If A and B (possibly identical, for a teardrop) now form a closed
+        loop, add a Shape to self.shapes. No-op if it already exists."""
+        if curve_a is curve_b:
+            if not self._is_teardrop(curve_a):
+                return
+            curves = frozenset([curve_a])
+        else:
+            if not self._is_closed_pair(curve_a, curve_b):
+                return
+            curves = frozenset([curve_a, curve_b])
+
+        for shape in self.shapes:
+            if shape.curves == curves:
+                return
+
+        shape = Shape(curves)
+        self.shapes.append(shape)
+        if len(curves) == 1:
+            only = next(iter(curves))
+            self.messageLogged.emit(f"{shape.name} formed from {only.name}")
+        else:
+            a, b = tuple(curves)
+            self.messageLogged.emit(f"{shape.name} formed from {a.name} + {b.name}")
+
+    def _is_teardrop(self, curve) -> bool:
+        """A single curve whose two extremities share a link group of size 2."""
+        g = self._group_of(curve.points[0])
+        if g is None or g is not self._group_of(curve.points[3]):
+            return False
+        return len(g) == 2
+
+    def _is_closed_pair(self, a, b) -> bool:
+        """A and B form a closed loop iff each of a's extremities is linked
+        (in a distinct group) to a distinct extremity of b."""
+        if a is b:
+            return False
+        b_ends = {b.points[0], b.points[3]}
+        g0 = self._group_of(a.points[0])
+        g3 = self._group_of(a.points[3])
+        if g0 is None or g3 is None or g0 is g3:
+            return False
+        if len(b_ends & set(g0)) != 1:
+            return False
+        if len(b_ends & set(g3)) != 1:
+            return False
+        return True
+
+    def rebuild_shapes_from_links(self):
+        """Repopulate self.shapes from scratch, based on current link topology.
+        Used after loading a project."""
+        self.shapes.clear()
+        Shape._next_id = 1
+        for curve in self.curves:
+            self._detect_shape(curve, curve)
+        for i, a in enumerate(self.curves):
+            for b in self.curves[i + 1:]:
+                self._detect_shape(a, b)
+
+    def _revalidate_shapes(self):
+        """Drop any shape whose curves no longer form a closed loop."""
+        surviving = []
+        for shape in self.shapes:
+            if self._shape_still_valid(shape):
+                surviving.append(shape)
+            else:
+                self.messageLogged.emit(f"{shape.name} dissolved")
+        self.shapes = surviving
+
+    def _shape_still_valid(self, shape) -> bool:
+        if len(shape.curves) == 1:
+            return self._is_teardrop(next(iter(shape.curves)))
+        a, b = tuple(shape.curves)
+        return self._is_closed_pair(a, b)
 
     def link_points(self, a, b):
         """Merge a's and b's link groups (creating one if needed)."""
@@ -175,6 +256,8 @@ class BezierScene(QGraphicsScene):
         for pt in group:
             pt.set_linked(True)
 
+        self._detect_shape(a.curve, b.curve)
+
     def unlink_point(self, point):
         """Remove `point` from its group. Dissolve the group if <2 remain."""
         for gi, group in enumerate(self.link_groups):
@@ -185,6 +268,8 @@ class BezierScene(QGraphicsScene):
                         for remaining in group:
                             remaining.set_linked(False)
                         del self.link_groups[gi]
+
+                    self._revalidate_shapes()
                     return
 
     def propagate_point_move(self, source, pos):
@@ -382,6 +467,8 @@ class BezierScene(QGraphicsScene):
         self.curveListChanged.emit()
         self._remove_background_image()
         self.link_groups.clear()
+        self.shapes.clear()
+        Shape._next_id = 1
         self._propagating_links = False
         self.messageLogged.emit("Scene cleared")
 
