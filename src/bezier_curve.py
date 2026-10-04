@@ -181,6 +181,7 @@ class BezierCurve(QGraphicsItem):
     #  Teardown
     # ---------------------------------------------------------------
     def dispose(self):
+        assert self not in self._scene.curves
         for pt in self.points:
             self._scene.unlink_point(pt)
             self._scene.removeItem(pt)

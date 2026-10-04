@@ -156,80 +156,84 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     #  Shape detection
     # ------------------------------------------------------------
-    def _detect_shape(self, curve_a, curve_b):
-        """If A and B (possibly identical, for a teardrop) now form a closed
-        loop, add a Shape to self.shapes. No-op if it already exists."""
-        if curve_a is curve_b:
-            if not self._is_teardrop(curve_a):
-                return
-            curves = frozenset([curve_a])
-        else:
-            if not self._is_closed_pair(curve_a, curve_b):
-                return
-            curves = frozenset([curve_a, curve_b])
+
+    # ------------------------------------------------------------
+    #  Shape detection
+    # ------------------------------------------------------------
+    def _pair_partner(self, pt):
+        """If `pt` is a curve endpoint whose link group is exactly {pt, other}
+        and `other` is also an endpoint, return `other`. Otherwise None."""
+        if pt.point_idx not in (0, 3):
+            return None
+        g = self._group_of(pt)
+        if g is None or len(g) != 2:
+            return None
+        other = g[0] if g[1] is pt else g[1]
+        if other.point_idx not in (0, 3):
+            return None
+        return other
+
+    def _trace_loop_from(self, start_pt):
+        """Walk from `start_pt` through link partners. Return the frozenset of
+        curves if the walk returns to `start_pt`; otherwise None."""
+        if self._pair_partner(start_pt) is None:
+            return None
+        current_pt = start_pt
+        visited = []
+        while True:
+            partner = self._pair_partner(current_pt)
+            if partner is None:
+                return None  # dead end
+            next_curve = partner.curve
+            if next_curve in visited:
+                return None  # revisited without closing
+            visited.append(next_curve)
+            # Advance to the far endpoint of next_curve
+            other = (next_curve.points[3] if partner is next_curve.points[0]
+                     else next_curve.points[0])
+            if other is start_pt:
+                return frozenset(visited)  # closed
+            current_pt = other
+
+    def _refresh_shapes(self):
+        """Rebuild self.shapes from the current link topology. Existing Shape
+        objects (and their names) are reused when the loop is unchanged.
+        Emits 'formed' / 'dissolved' messages for the diff."""
+        found = []
+        seen = set()
+        for curve in self.curves:
+            if len(curve.points) < 4:  # curve is being disposed
+                continue
+            for idx in (0, 3):
+                loop = self._trace_loop_from(curve.points[idx])
+                if loop and loop not in seen:
+                    seen.add(loop)
+                    found.append(loop)
+
+        existing = {shape.curves: shape for shape in self.shapes}
+        new_shapes = []
+        for curves in found:
+            if curves in existing:
+                new_shapes.append(existing[curves])
+            else:
+                shape = Shape(curves)
+                new_shapes.append(shape)
+                names = " + ".join(c.name for c in sorted(curves, key=lambda c: c.id))
+                self.messageLogged.emit(f"{shape.name} formed from {names}")
 
         for shape in self.shapes:
-            if shape.curves == curves:
-                return
+            if shape not in new_shapes:
+                self.messageLogged.emit(f"{shape.name} dissolved")
 
-        shape = Shape(curves)
-        self.shapes.append(shape)
-        if len(curves) == 1:
-            only = next(iter(curves))
-            self.messageLogged.emit(f"{shape.name} formed from {only.name}")
-        else:
-            a, b = tuple(curves)
-            self.messageLogged.emit(f"{shape.name} formed from {a.name} + {b.name}")
-
-    def _is_teardrop(self, curve) -> bool:
-        """A single curve whose two extremities share a link group of size 2."""
-        g = self._group_of(curve.points[0])
-        if g is None or g is not self._group_of(curve.points[3]):
-            return False
-        return len(g) == 2
-
-    def _is_closed_pair(self, a, b) -> bool:
-        """A and B form a closed loop iff each of a's extremities is linked
-        (in a distinct group) to a distinct extremity of b."""
-        if a is b:
-            return False
-        b_ends = {b.points[0], b.points[3]}
-        g0 = self._group_of(a.points[0])
-        g3 = self._group_of(a.points[3])
-        if g0 is None or g3 is None or g0 is g3:
-            return False
-        if len(b_ends & set(g0)) != 1:
-            return False
-        if len(b_ends & set(g3)) != 1:
-            return False
-        return True
+        self.shapes = new_shapes
 
     def rebuild_shapes_from_links(self):
-        """Repopulate self.shapes from scratch, based on current link topology.
-        Used after loading a project."""
+        """Reset shape state and re-detect all loops (used after loading)."""
         self.shapes.clear()
         Shape._next_id = 1
-        for curve in self.curves:
-            self._detect_shape(curve, curve)
-        for i, a in enumerate(self.curves):
-            for b in self.curves[i + 1:]:
-                self._detect_shape(a, b)
+        self._refresh_shapes()
 
-    def _revalidate_shapes(self):
-        """Drop any shape whose curves no longer form a closed loop."""
-        surviving = []
-        for shape in self.shapes:
-            if self._shape_still_valid(shape):
-                surviving.append(shape)
-            else:
-                self.messageLogged.emit(f"{shape.name} dissolved")
-        self.shapes = surviving
 
-    def _shape_still_valid(self, shape) -> bool:
-        if len(shape.curves) == 1:
-            return self._is_teardrop(next(iter(shape.curves)))
-        a, b = tuple(shape.curves)
-        return self._is_closed_pair(a, b)
 
     def link_points(self, a, b):
         """Merge a's and b's link groups (creating one if needed)."""
@@ -256,10 +260,10 @@ class BezierScene(QGraphicsScene):
         for pt in group:
             pt.set_linked(True)
 
-        self._detect_shape(a.curve, b.curve)
+        self._refresh_shapes()
 
     def unlink_point(self, point):
-        """Remove `point` from its group. Dissolve the group if <2 remain."""
+        """Remove `point` from its group."""
         for gi, group in enumerate(self.link_groups):
             for pi, pt in enumerate(group):
                 if pt is point:
@@ -269,7 +273,7 @@ class BezierScene(QGraphicsScene):
                             remaining.set_linked(False)
                         del self.link_groups[gi]
 
-                    self._revalidate_shapes()
+                    self._refresh_shapes()
                     return
 
     def propagate_point_move(self, source, pos):
@@ -454,9 +458,13 @@ class BezierScene(QGraphicsScene):
         if self.pending_curve is not None:
             self.pending_curve.dispose()
             self.pending_curve = None
-        for curve in self.curves:
-            curve.dispose()
-        self.curves.clear()
+
+        # Pop each curve out of self.curves *before* disposing it, so
+        # _refresh_shapes (triggered by unlink_point) never sees a curve
+        # whose points list has already been emptied.
+        while self.curves:
+            self.curves.pop().dispose()
+        self.curves.clear()  # harmless, keeps intent obvious
 
         self.selected_curve_idx = -1
         BezierCurve._next_id = 1 # c'est mieux de repartir à 1.
