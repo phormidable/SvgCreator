@@ -11,8 +11,8 @@ class InfoPanel(QGroupBox):
         super().__init__("Selected Curve Points", parent)
         self.scene = scene
         self.updating_combobox = False
-        self.point_fields = [None] * 4   # indexed by point_idx
-
+        #self.point_fields = [None] * 4   # indexed by point_idx
+        self.point_fields: dict[int, tuple[QLineEdit, QLineEdit]] = {}
         outer = QVBoxLayout()
         outer.setSpacing(6)
 
@@ -115,7 +115,7 @@ class InfoPanel(QGroupBox):
                 x_field.setText(f"{pos.x():.2f}")
                 y_field.setText(f"{pos.y():.2f}")
         else:
-            for x_field, y_field in self.point_fields:
+            for x_field, y_field in self.point_fields.values():
                 x_field.setText("")
                 y_field.setText("")
 

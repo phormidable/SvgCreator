@@ -1,7 +1,7 @@
 # main_window.py
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,QPlainTextEdit, QApplication,
-    QFileDialog, QMessageBox, QLabel, QDoubleSpinBox,QGroupBox, QGridLayout, QComboBox, QDialog, QDialogButtonBox, QLineEdit)
-from PySide6.QtCore import QByteArray, Qt, QPointF
+                            QFileDialog, QMessageBox, QLabel, QDialog, QDialogButtonBox)
+from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QPainter, QFont, QActionGroup
 from PySide6.QtSvgWidgets import QSvgWidget
 
@@ -79,7 +79,6 @@ class MainWindow(QMainWindow):
 
     def keyPressEvent(self, event):
         key = event.key()
-        shift = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
 
         if key == Qt.Key.Key_Escape:
             self.scene.clear_selection()
