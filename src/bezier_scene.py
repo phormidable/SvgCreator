@@ -1,10 +1,10 @@
 # bezier_scene.py
 from PySide6.QtCore import QRectF, Qt, Signal, QSize, QPointF
-from PySide6.QtGui import QPen, QPixmap, QImage, QPainter
+from PySide6.QtGui import QPen, QPixmap, QImage, QPainter, QColor
 from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem
 from PySide6.QtSvg import QSvgRenderer
 
-from settings import ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH
+from settings import ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH, DEFAULT_CURVE_COLOR
 
 from link_manager import LinkManager
 from control_point import ControlPoint
@@ -33,6 +33,7 @@ class BezierScene(QGraphicsScene):
         self.curves = []              # committed BezierCurve objects
         self.pending_curve = None     # BezierCurve currently being placed
         self.mode = "create"
+        self.curve_color = QColor(DEFAULT_CURVE_COLOR)
         self.selected_points: list[ControlPoint] = []
         self.selected_curve_idx = -1
         self.dragging_point = None
@@ -43,7 +44,6 @@ class BezierScene(QGraphicsScene):
 
         self._drag_targets: dict[ControlPoint, QPointF] = {}
         self._drag_primary_start: QPointF | None = None
-
 
         # ---- Scene rect = artboard, never changes during editing ----
         self.setSceneRect(self.artboard)
@@ -244,6 +244,13 @@ class BezierScene(QGraphicsScene):
         self.shape_manager.select(None)
 
 
+    def set_curve_color(self, color):
+        self.curve_color = QColor(color)
+        for curve in self.curves:
+            curve.set_color(self.curve_color)
+        if self.pending_curve is not None:
+            self.pending_curve.set_color(self.curve_color)
+
     # ------------------------------------------------------------
     #  Curve finalization
     # ------------------------------------------------------------
@@ -296,6 +303,7 @@ class BezierScene(QGraphicsScene):
         while self.curves:
             self.curves.pop().dispose()
         self.curves.clear()  # harmless, keeps intent obvious
+        self.curve_color = QColor(DEFAULT_CURVE_COLOR)
         self.selected_curve_idx = -1
         BezierCurve._next_id = 1 # c'est mieux de repartir à 1.
         self.dragging_point = None
@@ -305,9 +313,6 @@ class BezierScene(QGraphicsScene):
         self.pointsChanged.emit()
         self.curveListChanged.emit()
         self._remove_background_image()
-
-
-
 
         self.messageLogged.emit("Scene cleared")
 
@@ -346,8 +351,7 @@ class BezierScene(QGraphicsScene):
         pw, ph = pixmap.width(), pixmap.height()
         scale = min(vb.width() / pw, vb.height() / ph)
         item.setScale(scale)
-        item.setPos(vb.center().x() - pw * scale / 2,
-                    vb.center().y() - ph * scale / 2)
+        item.setPos(vb.center().x() - pw * scale / 2, vb.center().y() - ph * scale / 2)
 
         self.addItem(item)
         self.background_item = item

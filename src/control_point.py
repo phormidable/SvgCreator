@@ -1,11 +1,12 @@
 # control_point.py
 from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem
-from PySide6.QtGui import QBrush, QPen, QPainter
+from PySide6.QtGui import QBrush, QPen, QPainter, QColor
 from PySide6.QtCore import QPointF, QRectF, Qt
 
-from settings import (POINT_DIAMETER, CONTROL_POINT_INNER_RADIUS, CONTROL_POINT_RING_COLOR,
-    CONTROL_POINT_RING_PEN_COLOR, HIGHLIGHT_POINT_COLOR, HIGHLIGHT_POINT_PEN_COLOR, HOVER_POINT_COLOR, LINKED_RING_COLOR,
-    HOVER_POINT_PEN_COLOR, SELECTED_POINT_COLOR, SELECTED_POINT_PEN_COLOR, LINKED_RING_EXTRA, LINKED_RING_PEN_WIDTH)
+from settings import (POINT_RADIUS, POINT_DIAMETER, POINT_BLUE, ENDPOINT_ALPHA, ENDPOINT_PEN_COLOR, LINKED_RING_PEN_WIDTH,
+    CONTROL_POINT_INNER_RADIUS, CONTROL_POINT_MIDDLE_RADIUS, CONTROL_POINT_INNER_COLOR, CONTROL_POINT_MIDDLE_COLOR,
+    CONTROL_POINT_MIDDLE_PEN_COLOR, CONTROL_POINT_OUTER_PEN_COLOR, HIGHLIGHT_POINT_COLOR, HIGHLIGHT_POINT_PEN_COLOR,
+    HOVER_POINT_COLOR, HOVER_POINT_PEN_COLOR, SELECTED_POINT_COLOR, SELECTED_POINT_PEN_COLOR, LINKED_RING_COLOR, LINKED_RING_EXTRA)
 
 class ControlPoint(QGraphicsEllipseItem):
     def __init__(self, pos, curve, point_idx):
@@ -40,39 +41,56 @@ class ControlPoint(QGraphicsEllipseItem):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
         if self.linked:
-            r = POINT_DIAMETER / 2 + LINKED_RING_EXTRA
+            r = POINT_RADIUS + LINKED_RING_EXTRA
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.setPen(QPen(LINKED_RING_COLOR, LINKED_RING_PEN_WIDTH))
             painter.drawEllipse(QRectF(-r, -r, 2 * r, 2 * r))
 
-        # Priority: highlight > hover > per-curve color
+        # Override states draw one solid disc and stop.
         if self.selected:
-            fill, outline, single = SELECTED_POINT_COLOR, SELECTED_POINT_PEN_COLOR, True
-        elif self.highlighted:
-            fill, outline, single = HIGHLIGHT_POINT_COLOR, HIGHLIGHT_POINT_PEN_COLOR, True
-        elif self.hovered:
-            fill, outline, single = HOVER_POINT_COLOR, HOVER_POINT_PEN_COLOR, True
-        else:
-            fill = self.curve.color
-            outline = self.curve.color.darker(150)
-            single = self._is_endpoint()
-
-        if single:
-            painter.setBrush(QBrush(fill))
-            painter.setPen(QPen(outline, 1.5))
-            painter.drawEllipse(self.rect())
+            self._draw_solid(painter, SELECTED_POINT_COLOR, SELECTED_POINT_PEN_COLOR)
+            return
+        if self.highlighted:
+            self._draw_solid(painter, HIGHLIGHT_POINT_COLOR, HIGHLIGHT_POINT_PEN_COLOR)
+            return
+        if self.hovered:
+            self._draw_solid(painter, HOVER_POINT_COLOR, HOVER_POINT_PEN_COLOR)
             return
 
-        # Control point: yellow ring, then colored inner disc on top.
-        painter.setBrush(QBrush(CONTROL_POINT_RING_COLOR))
-        painter.setPen(QPen(CONTROL_POINT_RING_PEN_COLOR, 1.5))
+        if self._is_endpoint():
+            self._draw_endpoint(painter)
+        else:
+            self._draw_control_point(painter)
+
+    def _draw_solid(self, painter, fill, outline):
+        painter.setBrush(QBrush(fill))
+        painter.setPen(QPen(outline, 1.5))
         painter.drawEllipse(self.rect())
 
+    def _draw_endpoint(self, painter):
+        c = QColor(POINT_BLUE)
+        c.setAlpha(ENDPOINT_ALPHA)
+        painter.setBrush(QBrush(c))
+        painter.setPen(QPen(ENDPOINT_PEN_COLOR, 1.5))
+        painter.drawEllipse(self.rect())
+
+    def _draw_control_point(self, painter):
+        # Outer blue disc (radius POINT_RADIUS)
+        painter.setBrush(QBrush(POINT_BLUE))
+        painter.setPen(QPen(CONTROL_POINT_OUTER_PEN_COLOR, 1.5))
+        painter.drawEllipse(self.rect())
+
+        # Middle white disc
+        r = CONTROL_POINT_MIDDLE_RADIUS
+        painter.setBrush(QBrush(CONTROL_POINT_MIDDLE_COLOR))
+        painter.setPen(QPen(CONTROL_POINT_MIDDLE_PEN_COLOR, 1.0))
+        painter.drawEllipse(QRectF(-r, -r, 2 * r, 2 * r))
+
+        # Inner yellow disc
         r = CONTROL_POINT_INNER_RADIUS
-        inner_rect = QRectF(-r, -r, 2 * r, 2 * r)
-        painter.setBrush(QBrush(fill))
+        painter.setBrush(QBrush(CONTROL_POINT_INNER_COLOR))
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawEllipse(inner_rect)
+        painter.drawEllipse(QRectF(-r, -r, 2 * r, 2 * r))
 
     def set_highlighted(self, value):
         if self.highlighted == value:

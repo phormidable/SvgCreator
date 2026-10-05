@@ -32,10 +32,6 @@ HOVER_POINT_PEN_COLOR = QColor("darkred")
 HIGHLIGHT_POINT_COLOR = QColor("green")
 HIGHLIGHT_POINT_PEN_COLOR = QColor("darkgreen")
 
-# ---- Control point ring ----
-CONTROL_POINT_RING_COLOR = QColor("yellow")
-CONTROL_POINT_RING_PEN_COLOR = QColor("darkgoldenrod")
-
 # ---- Curve style ----
 CURVE_PEN_WIDTH = 2
 CURVE_DRAG_PEN_COLOR = QColor("green")
@@ -46,21 +42,11 @@ SVG_STROKE_COLOR = "black"
 SVG_STROKE_WIDTH = 2
 SVG_FILL = "none"
 
-# ---- Point size ----
-POINT_RADIUS = 6
-POINT_DIAMETER = POINT_RADIUS * 2
-CONTROL_POINT_INNER_RADIUS = 4
-
 # ---- Selected point (persistent click selection) ----
 SELECTED_POINT_COLOR = QColor("red")
 SELECTED_POINT_PEN_COLOR = QColor("darkred")
 
 SVG_PRECISION = 2
-
-# ---- Linked point ring ----
-LINKED_RING_COLOR = QColor("black")
-LINKED_RING_PEN_WIDTH = 2
-LINKED_RING_EXTRA = 2   # extra radius beyond the point's own radius
 
 # ---- Proximity linking ----
 LINK_PROXIMITY_TOLERANCE = 25        # scene units
@@ -72,5 +58,37 @@ LINK_INDICATOR_FLASH_INTERVAL = 300  # ms
 # ---- Hidden curve (points hidden) ----
 HIDDEN_CURVE_COLOR = QColor("grey")
 
+
+
+# NEW COLORS #
+# ---- Curve color ----
+DEFAULT_CURVE_COLOR = QColor(90, 90, 90)
+
+# ---- Point size ----
+POINT_RADIUS = 8
+POINT_DIAMETER = POINT_RADIUS * 2          # was 12, now 16
+
+# ---- Point blue (endpoints + control-point outer ring) ----
+POINT_BLUE = QColor.fromHsvF(0.55, 0.75, 0.85)
+
+# ---- Endpoint appearance ----
+ENDPOINT_ALPHA = 170                        # 0..255; semi-transparent fill
+ENDPOINT_PEN_COLOR = QColor(30, 60, 120)
+
+# ---- Control point rings (inside -> outside) ----
+CONTROL_POINT_INNER_RADIUS = 4              # yellow
+CONTROL_POINT_MIDDLE_RADIUS = 6             # white
+CONTROL_POINT_INNER_COLOR = QColor("yellow")
+CONTROL_POINT_MIDDLE_COLOR = QColor("white")
+CONTROL_POINT_MIDDLE_PEN_COLOR = QColor("grey")
+CONTROL_POINT_OUTER_PEN_COLOR = QColor(30, 60, 120)
+
+# ---- Linked ring ----
+LINKED_RING_COLOR = QColor("black")
+LINKED_RING_PEN_WIDTH = 2
+LINKED_RING_EXTRA = 4                       # was 2
+
 # ---- Shape selection ----
-SHAPE_SELECTED_CURVE_COLOR = QColor(90, 90, 90)   # mildly dark grey
+SHAPE_SELECTED_CURVE_COLOR = QColor(200, 0, 0)
+SHAPE_BLINK_INTERVAL = 400                  # ms
+SHAPE_BLINK_MIN_OPACITY = 0.35

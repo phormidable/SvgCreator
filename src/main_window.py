@@ -182,6 +182,10 @@ class MainWindow(QMainWindow):
         bg_action.triggered.connect(self.file_io.load_background_image)
         toolbar.addSeparator()
 
+        color_action = toolbar.addAction("🎨 Curve Color")
+        color_action.triggered.connect(self.pick_curve_color)
+        toolbar.addSeparator()
+
         show_all_action = toolbar.addAction("👁️ Show All")
         show_all_action.setToolTip("Restore all hidden curve points")
         show_all_action.triggered.connect(self.show_all_points)
@@ -257,3 +261,10 @@ class MainWindow(QMainWindow):
             return
         self.scene.shape_manager.set_color(shape, color)
         self.log(f"{shape.name} colored {color.name()}")
+
+    def pick_curve_color(self):
+        color = QColorDialog.getColor(self.scene.curve_color, self, "Curve Color")
+        if not color.isValid():
+            return
+        self.scene.set_curve_color(color)
+        self.log(f"Curve color → {color.name()}")

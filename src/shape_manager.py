@@ -9,21 +9,24 @@ starting endpoint.
 Owned state: shapes, _selected.
 """
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QBrush, QColor, QPainterPath, QPen
 from PySide6.QtWidgets import QGraphicsPathItem
 
 from shape import Shape
-
+from settings import SHAPE_BLINK_INTERVAL, SHAPE_BLINK_MIN_OPACITY
 
 SHAPE_FILL_Z = -10
-
 
 class ShapeManager:
     def __init__(self, scene):
         self.scene = scene
         self.shapes: list[Shape] = []
         self._selected: Shape | None = None
+        self._blink_timer = QTimer()
+        self._blink_timer.setInterval(SHAPE_BLINK_INTERVAL)
+        self._blink_timer.timeout.connect(self._toggle_blink)
+        self._blink_on = True
 
     # ------------------------------------------------------------
     #  Selection
@@ -35,11 +38,36 @@ class ShapeManager:
         """Set (or clear, with None) the currently selected shape."""
         if shape is self._selected:
             return
-        if self._selected is not None:
-            self._selected.set_selected(False)
+        old = self._selected
         self._selected = shape
+        if old is not None:
+            old.set_selected(False)
+            self._stop_blink_on(old)
         if shape is not None:
             shape.set_selected(True)
+            self._start_blink()
+
+    def _start_blink(self):
+        self._blink_on = True
+        self._apply_blink()
+        self._blink_timer.start()
+
+    def _stop_blink_on(self, shape):
+        self._blink_timer.stop()
+        for curve in shape.curves:
+            curve.setOpacity(1.0)
+
+    def _toggle_blink(self):
+        if self._selected is None:
+            self._blink_timer.stop()
+            return
+        self._blink_on = not self._blink_on
+        self._apply_blink()
+
+    def _apply_blink(self):
+        opacity = 1.0 if self._blink_on else SHAPE_BLINK_MIN_OPACITY
+        for curve in self._selected.curves:
+            curve.setOpacity(opacity)
 
     def shape_of_curve(self, curve) -> Shape | None:
         for shape in self.shapes:
@@ -243,6 +271,8 @@ class ShapeManager:
     # ------------------------------------------------------------
     def reset(self):
         """Drop every shape and its fill (used by clear_all)."""
+        self._blink_timer.stop()
+        self._blink_on = True
         for shape in self.shapes:
             if shape.fill_item is not None:
                 self.scene.removeItem(shape.fill_item)

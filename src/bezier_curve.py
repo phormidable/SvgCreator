@@ -4,11 +4,8 @@ from PySide6.QtGui import QPainterPath, QPainterPathStroker, QPen, QColor, QPain
 from PySide6.QtCore import QRectF, Qt
 
 from settings import (CURVE_PEN_WIDTH, CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH, HOVER_CURVE_COLOR,
-                      HOVER_TOLERANCE, SVG_PRECISION, HIDDEN_CURVE_COLOR, SHAPE_SELECTED_CURVE_COLOR)
+                      HOVER_TOLERANCE, SVG_PRECISION, HIDDEN_CURVE_COLOR, SHAPE_SELECTED_CURVE_COLOR, DEFAULT_CURVE_COLOR, )
 from control_point import ControlPoint
-
-GOLDEN_RATIO_CONJUGATE = 0.618033988749895
-FIRST_HUE_OFFSET = 0.55
 
 from typing import TYPE_CHECKING, cast
 if TYPE_CHECKING:
@@ -24,8 +21,7 @@ class BezierCurve(QGraphicsItem):
         BezierCurve._next_id += 1
         self.name = f"Curve {self.id}"
 
-        hue = (FIRST_HUE_OFFSET + (self.id - 1) * GOLDEN_RATIO_CONJUGATE) % 1.0
-        self.color = QColor.fromHsvF(hue, 0.75, 0.85)
+        self.color = QColor(scene.curve_color)
         self.points: list[ControlPoint] = []
         self.highlighted = False
         self.hovered = False
@@ -140,6 +136,11 @@ class BezierCurve(QGraphicsItem):
         self.update()
         for pt in self.points:
             pt.set_hovered(value)
+
+    def set_color(self, color):
+        self.color = QColor(color)
+        self._pen_normal = QPen(self.color, CURVE_PEN_WIDTH)
+        self.update()
 
     def set_shape_selected(self, value):
         if self.shape_selected == value:
