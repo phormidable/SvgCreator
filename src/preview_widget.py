@@ -11,7 +11,7 @@ SVG always scale together. Right-drag pans by driving the scrollbars.
 """
 
 from PySide6.QtWidgets import QWidget, QScrollArea, QToolBar, QComboBox, QLabel, QVBoxLayout
-from PySide6.QtCore import Qt, QByteArray, QPointF, QSizeF, Signal
+from PySide6.QtCore import Qt, QByteArray, QPointF, QSizeF, Signal, QTimer
 from PySide6.QtGui import QPainter, QPixmap, QColor
 from PySide6.QtSvg import QSvgRenderer
 
@@ -163,15 +163,64 @@ class PreviewWidget(QWidget):
                 return
 
     def reset_view(self):
-        """Recenter: zoom back to 1x and reset scrollbars to top-left."""
-        self._zoom_combo.setCurrentIndex(1)
+        """Recentre: zoom back to 1x and scroll to top-left."""
+        # Block the combo signal so _on_zoom_changed does not fight us
+        # by trying to preserve the current centre.
+        self._zoom_combo.blockSignals(True)
+        self._zoom_combo.setCurrentIndex(1)  # 1x index
+        self._zoom_combo.blockSignals(False)
+        self._zoom = 1.0
+        self._update_canvas_size()
         self._scroll.horizontalScrollBar().setValue(0)
         self._scroll.verticalScrollBar().setValue(0)
 
     # ---- Internal ----
     def _on_zoom_changed(self, index):
-        self._zoom = self._zoom_combo.itemData(index)
+        new_zoom = self._zoom_combo.itemData(index)
+        if new_zoom == self._zoom:
+            return
+        norm = self._current_center_norm()
+        self._zoom = new_zoom
         self._update_canvas_size()
+        # Defer until Qt has updated the scroll ranges to match the new
+        # canvas size; otherwise the viewport size we read is stale.
+        QTimer.singleShot(0, lambda n=norm: self._center_on_norm(n))
+
+    def _current_center_norm(self):
+        """Return the viewport centre in canvas-normalized coords (0..1)."""
+        canvas = self._canvas
+        vp = self._scroll.viewport()
+
+        if canvas.width() > vp.width():
+            h = self._scroll.horizontalScrollBar()
+            nx = (h.value() + vp.width() / 2) / canvas.width()
+        else:
+            nx = 0.5  # canvas fits; it is auto-centred via AlignCenter
+
+        if canvas.height() > vp.height():
+            v = self._scroll.verticalScrollBar()
+            ny = (v.value() + vp.height() / 2) / canvas.height()
+        else:
+            ny = 0.5
+
+        return (nx, ny)
+
+    def _center_on_norm(self, norm):
+        nx, ny = norm
+        canvas = self._canvas
+        vp = self._scroll.viewport()
+        h = self._scroll.horizontalScrollBar()
+        v = self._scroll.verticalScrollBar()
+
+        if canvas.width() > vp.width():
+            h.setValue(int(nx * canvas.width() - vp.width() / 2))
+        else:
+            h.setValue(0)
+
+        if canvas.height() > vp.height():
+            v.setValue(int(ny * canvas.height() - vp.height() / 2))
+        else:
+            v.setValue(0)
 
     def _base_scale(self) -> float:
         """Scale that makes the viewBox fit inside the preview reference
