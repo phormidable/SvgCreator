@@ -11,6 +11,9 @@ from info_panel import InfoPanel
 from file_io import FileIO
 from preview_widget import PreviewWidget
 
+ZOOM_LEVELS = [("0.5x", 0.5), ("1x", 1.0), ("2x", 2.0),
+               ("4x", 4.0), ("8x", 8.0), ("16x", 16.0)]
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -42,6 +45,19 @@ class MainWindow(QMainWindow):
 
         self.preview_widget = PreviewWidget()
         self.preview_widget.setFixedSize(PREVIEW_WIDTH, PREVIEW_HEIGHT)
+
+        preview_zoom_row = QHBoxLayout()
+        preview_zoom_row.addWidget(QLabel("Preview zoom:"))
+        preview_zoom_row.addStretch()
+        self.preview_zoom_combo = QComboBox()
+        for label, factor in ZOOM_LEVELS:
+            self.preview_zoom_combo.addItem(label, factor)
+        self.preview_zoom_combo.setCurrentIndex(1)          # 1x
+        self.preview_zoom_combo.currentIndexChanged.connect(
+            self._on_preview_zoom_changed)
+        preview_zoom_row.addWidget(self.preview_zoom_combo)
+        right_col.addLayout(preview_zoom_row)
+
         right_col.addWidget(self.preview_widget)
 
         self.info_panel = InfoPanel(self.scene)
@@ -100,6 +116,14 @@ class MainWindow(QMainWindow):
             if self.scene.select_curve_under_hover():
                 event.accept()
                 return
+        elif key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
+            self._step_zoom(+1)
+            event.accept()
+            return
+        elif key == Qt.Key.Key_Minus:
+            self._step_zoom(-1)
+            event.accept()
+            return
         elif key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
             dx = -1 if key == Qt.Key.Key_Left else 1 if key == Qt.Key.Key_Right else 0
             dy = -1 if key == Qt.Key.Key_Up else 1 if key == Qt.Key.Key_Down else 0
@@ -161,10 +185,9 @@ class MainWindow(QMainWindow):
         # ---- Zoom ----
         toolbar.addWidget(QLabel(" Zoom: "))
         self.zoom_combo = QComboBox()
-        for label, factor in [("0.5x", 0.5), ("1x", 1.0), ("2x", 2.0),
-                              ("4x", 4.0), ("8x", 8.0), ("16x", 16.0)]:
+        for label, factor in ZOOM_LEVELS:
             self.zoom_combo.addItem(label, factor)
-        self.zoom_combo.setCurrentIndex(1)  # 1x
+        self.zoom_combo.setCurrentIndex(1)
         self.zoom_combo.currentIndexChanged.connect(self._on_zoom_changed)
         toolbar.addWidget(self.zoom_combo)
 
@@ -208,6 +231,10 @@ class MainWindow(QMainWindow):
     def _on_zoom_changed(self, index):
         factor = self.zoom_combo.itemData(index)
         self.drawing_view.set_zoom(factor)
+
+    def _on_preview_zoom_changed(self, index):
+        factor = self.preview_zoom_combo.itemData(index)
+        self.preview_widget.set_zoom(factor)
 
     # ------------------------------------------------------------
     #  Mode switching
@@ -258,6 +285,15 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"👁️ Restored points on {n} curve(s)")
         else:
             self.statusBar().showMessage("Nothing to restore")
+
+    def _step_zoom(self, direction: int):
+        """Step both zoom combos by ±1. The combos drive the views."""
+        idx = self.zoom_combo.currentIndex()
+        new_idx = max(0, min(self.zoom_combo.count() - 1, idx + direction))
+        if new_idx == idx:
+            return
+        self.zoom_combo.setCurrentIndex(new_idx)
+        self.preview_zoom_combo.setCurrentIndex(new_idx)
 
     def color_selected_shape(self):
         shape = self.scene.shape_manager.selected()

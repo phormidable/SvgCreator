@@ -12,7 +12,7 @@ Owned state: shapes, _selected.
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QPainterPath, QPen
 from PySide6.QtWidgets import QGraphicsPathItem
-
+from settings import SVG_PRECISION
 from shape import Shape
 
 SHAPE_FILL_Z = -10
@@ -161,12 +161,11 @@ class ShapeManager:
     # ------------------------------------------------------------
     #  Fill
     # ------------------------------------------------------------
-    def shape_path(self, shape: Shape) -> QPainterPath:
-        """Walk the loop and return a closed QPainterPath. Empty if broken."""
+    def _loop_segments(self, shape: Shape):
+        """Return (start_pos, [(c1, c2, end_pos), ...]) for the closed loop,
+        or None if the topology is broken."""
         if not shape.curves:
-            return QPainterPath()
-
-        # Pick any endpoint that participates in a clean pair.
+            return None
         start_pt = None
         for curve in shape.curves:
             for idx in (0, 3):
@@ -176,35 +175,58 @@ class ShapeManager:
             if start_pt is not None:
                 break
         if start_pt is None:
-            return QPainterPath()
+            return None
 
-        path = QPainterPath()
-        path.moveTo(start_pt.pos())
+        segments = []
         current = start_pt
         seen: set = set()
-
         while True:
             curve = current.curve
             if curve in seen:
-                return QPainterPath()             # shouldn't happen on a valid loop
+                return None
             seen.add(curve)
-
             if current is curve.points[0]:
                 c1, c2 = curve.points[1].pos(), curve.points[2].pos()
                 other = curve.points[3]
             else:
                 c1, c2 = curve.points[2].pos(), curve.points[1].pos()
                 other = curve.points[0]
-
-            path.cubicTo(c1, c2, other.pos())
-
+            segments.append((c1, c2, other.pos()))
             nxt = self._pair_partner(other)
             if nxt is None:
-                return QPainterPath()
+                return None
             if nxt is start_pt:
-                path.closeSubpath()
-                return path
+                return start_pt.pos(), segments
             current = nxt
+
+    def shape_path(self, shape: Shape) -> QPainterPath:
+        result = self._loop_segments(shape)
+        if result is None:
+            return QPainterPath()
+        start_pos, segments = result
+        path = QPainterPath()
+        path.moveTo(start_pos)
+        for c1, c2, end_pos in segments:
+            path.cubicTo(c1, c2, end_pos)
+        path.closeSubpath()
+        return path
+
+    def shape_svg_path_string(self, shape: Shape) -> str:
+        """SVG `d` attribute for a closed shape. '' if the loop is broken."""
+        result = self._loop_segments(shape)
+        if result is None:
+            return ""
+        start_pos, segments = result
+        p = SVG_PRECISION
+        parts = [f"M {start_pos.x():.{p}f},{start_pos.y():.{p}f}"]
+        for c1, c2, end_pos in segments:
+            parts.append(
+                f"C {c1.x():.{p}f},{c1.y():.{p}f} "
+                f"{c2.x():.{p}f},{c2.y():.{p}f} "
+                f"{end_pos.x():.{p}f},{end_pos.y():.{p}f}"
+            )
+        parts.append("Z")
+        return " ".join(parts)
 
     def _rebuild_fill(self, shape: Shape):
         if shape.color is None:
@@ -230,11 +252,13 @@ class ShapeManager:
 
     def set_color(self, shape: Shape, color: QColor | None):
         shape.color = QColor(color) if color is not None else None
-        if shape.color is None and shape.fill_item is not None:
-            self.scene.removeItem(shape.fill_item)
-            shape.fill_item = None
-            return
-        self._rebuild_fill(shape)
+        if shape.color is None:
+            if shape.fill_item is not None:
+                self.scene.removeItem(shape.fill_item)
+                shape.fill_item = None
+        else:
+            self._rebuild_fill(shape)
+        self.scene.emit_svg()  # ← preview / code dialog refresh
 
     # ------------------------------------------------------------
     #  Reset

@@ -6,6 +6,17 @@ from bezier_curve import BezierCurve
 
 
 def generate_svg(scene) -> str:
+    # Filled shapes first, so the stroke path draws over them.
+    shape_paths = []
+    for shape in scene.shape_manager.shapes:
+        if shape.color is None:
+            continue
+        d = scene.shape_manager.shape_svg_path_string(shape)
+        if d:
+            shape_paths.append(
+                f'<path d="{d}" fill="{shape.color.name()}" stroke="none"/>'
+            )
+
     path_commands = []
     for curve in scene.curves:
         d = curve.svg_path_string()
@@ -20,17 +31,16 @@ def generate_svg(scene) -> str:
         f'width="{vb.width():.2f}" height="{vb.height():.2f}">'
     )
 
-    if not path_commands:
-        return header + '</svg>'
+    body = "".join(shape_paths)
+    if path_commands:
+        d_string = " ".join(path_commands)
+        body += (
+            f'<path d="{d_string}" fill="{SVG_FILL}" '
+            f'stroke="{SVG_STROKE_COLOR}" '
+            f'stroke-width="{SVG_STROKE_WIDTH}"/>'
+        )
 
-    d_string = " ".join(path_commands)
-    return (
-        header
-        + f'<path d="{d_string}" fill="{SVG_FILL}" '
-          f'stroke="{SVG_STROKE_COLOR}" '
-          f'stroke-width="{SVG_STROKE_WIDTH}"/>'
-          '</svg>'
-    )
+    return header + body + '</svg>' if body else header + '</svg>'
 
 
 def save_state(scene) -> dict:

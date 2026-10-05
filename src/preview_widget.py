@@ -16,6 +16,13 @@ class PreviewWidget(QWidget):
         super().__init__(parent)
         self._bg_pixmap: QPixmap | None = None
         self._renderer: QSvgRenderer | None = None
+        self._zoom = 1.0
+
+    def set_zoom(self, factor: float):
+        if factor == self._zoom:
+            return
+        self._zoom = factor
+        self.update()
 
     def set_background(self, pixmap: QPixmap | None):
         if pixmap is None or pixmap.isNull():
@@ -38,6 +45,11 @@ class PreviewWidget(QWidget):
 
         p.fillRect(self.rect(), QColor("white"))
 
+        p.save()
+        p.translate(self.width() / 2, self.height() / 2)
+        p.scale(self._zoom, self._zoom)
+        p.translate(-self.width() / 2, -self.height() / 2)
+
         if self._bg_pixmap is not None:
             x = (self.width() - self._bg_pixmap.width()) // 2
             y = (self.height() - self._bg_pixmap.height()) // 2
@@ -47,3 +59,5 @@ class PreviewWidget(QWidget):
 
         if self._renderer is not None and self._renderer.isValid():
             self._renderer.render(p)
+
+        p.restore()
