@@ -11,7 +11,7 @@ from link_manager import LinkManager
 from control_point import ControlPoint
 from bezier_curve import BezierCurve
 import scene_io
-from shape import Shape
+from shape_manager import ShapeManager
 
 SHAPE_FILL_Z = -10
 
@@ -36,7 +36,7 @@ class BezierScene(QGraphicsScene):
         self.mode = "create"
         #self.link_groups: list[list[ControlPoint]] = []
         self.selected_points: list[ControlPoint] = []
-        self.shapes: list[Shape] = []
+        #self.shapes: list[Shape] = []
         #self._propagating_links = False
         self.selected_curve_idx = -1
         self.dragging_point = None
@@ -47,7 +47,7 @@ class BezierScene(QGraphicsScene):
         #self._proximity_target = None
         self._drag_targets: dict[ControlPoint, QPointF] = {}
         self._drag_primary_start: QPointF | None = None
-        self._selected_shape = None
+        #self._selected_shape = None
 
         # ---- Scene rect = artboard, never changes during editing ----
         self.setSceneRect(self.artboard)
@@ -59,6 +59,7 @@ class BezierScene(QGraphicsScene):
         self.viewbox_item.setZValue(-100)
         self.addItem(self.viewbox_item)
         self.link_manager = LinkManager(self)
+        self.shape_manager = ShapeManager(self)
         #self.link_indicator = LinkIndicator()
         #self.addItem(self.link_indicator)
 
@@ -152,164 +153,6 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     #  Shape detection
     # ------------------------------------------------------------
-    def _pair_partner(self, pt):
-        """If `pt` is a curve endpoint whose link group is exactly {pt, other}
-        and `other` is also an endpoint, return `other`. Otherwise None."""
-        if pt.point_idx not in (0, 3):
-            return None
-        g = self.link_manager.group_of(pt)
-        if g is None or len(g) != 2:
-            return None
-        other = g[0] if g[1] is pt else g[1]
-        if other.point_idx not in (0, 3):
-            return None
-        return other
-
-    def _trace_loop_from(self, start_pt):
-        """Walk from `start_pt` through link partners. Return the frozenset of
-        curves if the walk returns to `start_pt`; otherwise None."""
-        if self._pair_partner(start_pt) is None:
-            return None
-        current_pt = start_pt
-        visited = []
-        while True:
-            partner = self._pair_partner(current_pt)
-            if partner is None:
-                return None  # dead end
-            next_curve = partner.curve
-            if next_curve in visited:
-                return None  # revisited without closing
-            visited.append(next_curve)
-            # Advance to the far endpoint of next_curve
-            other = (next_curve.points[3] if partner is next_curve.points[0]
-                     else next_curve.points[0])
-            if other is start_pt:
-                return frozenset(visited)  # closed
-            current_pt = other
-
-    def _refresh_shapes(self):
-        """Rebuild self.shapes from the current link topology. Existing Shape
-        objects (and their names) are reused when the loop is unchanged.
-        Emits 'formed' / 'dissolved' messages for the diff."""
-        found = []
-        seen = set()
-        for curve in self.curves:
-            if len(curve.points) < 4:  # curve is being disposed
-                continue
-            for idx in (0, 3):
-                loop = self._trace_loop_from(curve.points[idx])
-                if loop and loop not in seen:
-                    seen.add(loop)
-                    found.append(loop)
-
-        existing = {shape.curves: shape for shape in self.shapes}
-        new_shapes = []
-        for curves in found:
-            if curves in existing:
-                new_shapes.append(existing[curves])
-            else:
-                shape = Shape(curves)
-                new_shapes.append(shape)
-                names = " + ".join(c.name for c in sorted(curves, key=lambda c: c.id))
-                self.messageLogged.emit(f"{shape.name} formed from {names}")
-
-        for shape in self.shapes:
-            if shape not in new_shapes:
-                if shape.fill_item is not None:
-                    self.removeItem(shape.fill_item)
-                    shape.fill_item = None
-                self.messageLogged.emit(f"{shape.name} dissolved")
-
-        self.shapes = new_shapes
-        self._update_shape_fills()
-        if self._selected_shape is not None and self._selected_shape not in new_shapes:
-            self._selected_shape.set_selected(False)
-            self.select_shape(None)
-
-    def rebuild_shapes_from_links(self):
-        """Reset shape state and re-detect all loops (used after loading)."""
-        self.shapes.clear()
-        Shape._next_id = 1
-        self._refresh_shapes()
-
-    # ------------------------------------------------------------
-    #  Shape fill
-    # ------------------------------------------------------------
-
-
-    def shape_path(self, shape):
-        """Walk the loop and return a closed QPainterPath. Empty if broken."""
-        if not shape.curves:
-            return QPainterPath()
-
-        # Pick any endpoint that participates in a clean pair.
-        start_pt = None
-        for curve in shape.curves:
-            for idx in (0, 3):
-                if self._pair_partner(curve.points[idx]) is not None:
-                    start_pt = curve.points[idx]
-                    break
-            if start_pt is not None:
-                break
-        if start_pt is None:
-            return QPainterPath()
-
-        path = QPainterPath()
-        path.moveTo(start_pt.pos())
-        current = start_pt
-        seen = set()
-
-        while True:
-            curve = current.curve
-            if curve in seen:
-                return QPainterPath()  # shouldn't happen on a valid loop
-            seen.add(curve)
-
-            # Far end of this curve
-            if current is curve.points[0]:
-                c1, c2 = curve.points[1].pos(), curve.points[2].pos()
-                other = curve.points[3]
-            else:
-                c1, c2 = curve.points[2].pos(), curve.points[1].pos()
-                other = curve.points[0]
-
-            path.cubicTo(c1, c2, other.pos())
-
-            nxt = self._pair_partner(other)
-            if nxt is None:
-                return QPainterPath()
-            if nxt is start_pt:
-                path.closeSubpath()
-                return path
-            current = nxt
-
-    def _rebuild_shape_fill(self, shape):
-        if shape.color is None:
-            return
-        path = self.shape_path(shape)
-        if path.isEmpty():
-            return
-        if shape.fill_item is None:
-            item = QGraphicsPathItem()
-            item.setPen(QPen(Qt.PenStyle.NoPen))
-            item.setZValue(SHAPE_FILL_Z)
-            item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
-            self.addItem(item)
-            shape.fill_item = item
-        shape.fill_item.setBrush(QBrush(shape.color))
-        shape.fill_item.setPath(path)
-
-    def _update_shape_fills(self):
-        for shape in self.shapes:
-            self._rebuild_shape_fill(shape)
-
-    def set_shape_color(self, shape, color):
-        shape.color = QColor(color) if color is not None else None
-        if shape.color is None and shape.fill_item is not None:
-            self.removeItem(shape.fill_item)
-            shape.fill_item = None
-            return
-        self._rebuild_shape_fill(shape)
 
 
     def cancel_pending_curve(self) -> bool:
@@ -383,38 +226,6 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     #  Shape selection
     # ------------------------------------------------------------
-    def select_shape(self, shape):
-        """Set (or clear, with None) the currently selected shape."""
-        if shape is self._selected_shape:
-            return
-        if self._selected_shape is not None:
-            self._selected_shape.set_selected(False)
-        self._selected_shape = shape
-        if shape is not None:
-            shape.set_selected(True)
-
-    def shape_of_curve(self, curve):
-        for shape in self.shapes:
-            if curve in shape.curves:
-                return shape
-        return None
-
-    def select_shape_from_hover(self):
-        """Toggle selection of the shape containing the hovered curve.
-        Returns True if handled (so the caller can accept the key event)."""
-        if self._hovered_curve is None:
-            return False
-        shape = self.shape_of_curve(self._hovered_curve)
-        if shape is None:
-            self.messageLogged.emit(f"{self._hovered_curve.name} is not part of a shape")
-            return False
-        if shape is self._selected_shape:
-            self.select_shape(None)
-            self.messageLogged.emit(f"{shape.name} deselected")
-        else:
-            self.select_shape(shape)
-            self.messageLogged.emit(f"{shape.name} selected")
-        return True
 
     def set_selected_point(self, point):
         """Replace the whole selection with just `point` (or clear if None)."""
@@ -439,7 +250,7 @@ class BezierScene(QGraphicsScene):
         for pt in self.selected_points:
             pt.set_selected(False)
         self.selected_points.clear()
-        self.select_shape(None)
+        self.shape_manager.select(None)
 
 
     # ------------------------------------------------------------
@@ -464,7 +275,7 @@ class BezierScene(QGraphicsScene):
     def on_curve_changed(self):
         self.emit_svg()
         self.pointsChanged.emit()
-        self._update_shape_fills()
+        self.shape_manager.update_fills()
 
     # ------------------------------------------------------------
     #  Discard incomplete curve
@@ -498,18 +309,13 @@ class BezierScene(QGraphicsScene):
         BezierCurve._next_id = 1 # c'est mieux de repartir à 1.
         self.dragging_point = None
         self.link_manager.reset()
+        self.shape_manager.reset()
         self.emit_svg()
         self.pointsChanged.emit()
         self.curveListChanged.emit()
         self._remove_background_image()
-        self.select_shape(None)
 
-        for shape in self.shapes:
-            if shape.fill_item is not None:
-                self.removeItem(shape.fill_item)
-                shape.fill_item = None
-        self.shapes.clear()
-        Shape._next_id = 1
+
 
 
         self.messageLogged.emit("Scene cleared")

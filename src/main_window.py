@@ -90,7 +90,7 @@ class MainWindow(QMainWindow):
                 event.accept()
                 return
         elif key == Qt.Key.Key_S:
-            if self.scene.select_shape_from_hover():
+            if self.scene.shape_manager.select_from_hover():
                 event.accept()
                 return
         elif key == Qt.Key.Key_C:
@@ -327,7 +327,7 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Nothing to restore")
 
     def color_selected_shape(self):
-        shape = self.scene._selected_shape
+        shape = self.scene.shape_manager.selected()
         if shape is None:
             self.statusBar().showMessage("No shape selected — hover a curve and press S first")
             return
@@ -335,5 +335,5 @@ class MainWindow(QMainWindow):
         color = QColorDialog.getColor(initial, self, f"Color for {shape.name}")
         if not color.isValid():
             return
-        self.scene.set_shape_color(shape, color)
+        self.scene.shape_manager.set_color(shape, color)
         self.log(f"{shape.name} colored {color.name()}")

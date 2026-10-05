@@ -72,7 +72,7 @@ def load_state(scene, state: dict):
         scene.selected_curve_idx = len(scene.curves) - 1 if scene.curves else -1
 
         _restore_links(scene, links_data)
-        scene.rebuild_shapes_from_links()
+        scene.shape_manager.rebuild_from_links()
 
         bg = state.get("background")
         if bg:
@@ -82,6 +82,7 @@ def load_state(scene, state: dict):
 
     scene.emit_svg()
     scene.messageLogged.emit(f"Loaded {len(scene.curves)} curve(s)")
+    scene.shape_manager.log_shapes()
     scene.pointsChanged.emit()
     scene.curveListChanged.emit()
 

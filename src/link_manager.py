@@ -61,9 +61,7 @@ class LinkManager:
         for pt in group:
             pt.set_linked(True)
 
-        # TODO: becomes self.scene.shape_manager.refresh() after the
-        # ShapeManager split.
-        self.scene._refresh_shapes()
+        self.scene.shape_manager.refresh()
 
     def unlink_point(self, point):
         """Remove `point` from its group. Dissolve the group if <2 remain."""
@@ -75,7 +73,7 @@ class LinkManager:
                         for remaining in group:
                             remaining.set_linked(False)
                         del self.groups[gi]
-                    self.scene._refresh_shapes()
+                    self.scene.shape_manager.refresh()
                     return
 
     # ------------------------------------------------------------
