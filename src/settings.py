@@ -2,6 +2,13 @@
 from PySide6.QtCore import QRectF
 from PySide6.QtGui import QColor
 
+
+# ---- Zoom levels (used by the drawing view and the preview) ----
+ZOOM_LEVELS = [("0.5x", 0.5), ("1x", 1.0), ("2x", 2.0),
+               ("4x", 4.0), ("8x", 8.0), ("16x", 16.0)]
+
+PREVIEW_FIT_MARGIN = 40   # rough allowance for the preview toolbar + borders
+
 # ---- Window & layout ----
 DRAWING_MIN_WIDTH = 1100
 DRAWING_MIN_HEIGHT = 700

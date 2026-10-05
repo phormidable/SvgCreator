@@ -220,7 +220,6 @@ class MainWindow(QMainWindow):
     def _on_zoom_changed(self, index):
         factor = self.zoom_combo.itemData(index)
         self.drawing_view.set_zoom(factor)
-        self.preview_widget.set_zoom(factor)  # ← add this
 
     # ------------------------------------------------------------
     #  Mode switching
@@ -273,7 +272,6 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Nothing to restore")
 
     def _step_zoom(self, direction: int):
-        """Step the toolbar zoom combo by ±1. The combo drives both views."""
         idx = self.zoom_combo.currentIndex()
         new_idx = max(0, min(self.zoom_combo.count() - 1, idx + direction))
         if new_idx == idx:
