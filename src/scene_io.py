@@ -40,7 +40,7 @@ def save_state(scene) -> dict:
             location[id(pt)] = [ci, pi]
 
     links = []
-    for group in scene.link_groups:
+    for group in scene.link_manager.groups:
         serialized = [location[id(pt)] for pt in group if id(pt) in location]
         if len(serialized) >= 2:
             links.append(serialized)
@@ -97,7 +97,7 @@ def _restore_links(scene, links_data):
         except (TypeError, ValueError, IndexError):
             continue
         if len(group) >= 2:
-            scene.link_groups.append(group)
+            scene.link_manager.groups.append(group)
             for pt in group:
                 pt.set_linked(True)
 

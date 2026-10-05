@@ -26,9 +26,6 @@ class BezierCurve(QGraphicsItem):
 
         hue = (FIRST_HUE_OFFSET + (self.id - 1) * GOLDEN_RATIO_CONJUGATE) % 1.0
         self.color = QColor.fromHsvF(hue, 0.75, 0.85)
-        self._pen_normal = QPen(self.color, CURVE_PEN_WIDTH)
-        self._pen_hover = QPen(HOVER_CURVE_COLOR, CURVE_PEN_WIDTH)
-        self._pen_highlight = QPen(CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH)
         self.points: list[ControlPoint] = []
         self.highlighted = False
         self.hovered = False
@@ -103,10 +100,6 @@ class BezierCurve(QGraphicsItem):
     # ---------------------------------------------------------------
     def positions(self):
         return [p.pos() for p in self.points]
-
-    def move_point(self, point_idx, pos):
-        if 0 <= point_idx < len(self.points):
-            self.points[point_idx].setPos(pos)
 
     def rebuild_path(self):
         self.prepareGeometryChange()     # tell the scene bounds are about to change

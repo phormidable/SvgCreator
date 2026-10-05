@@ -7,7 +7,7 @@ from PySide6.QtSvg import QSvgRenderer
 from settings import (ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, SVG_FILL,
                       VIEWBOX_BORDER_WIDTH, LINK_PROXIMITY_TOLERANCE, SVG_STROKE_COLOR, SVG_STROKE_WIDTH)
 
-from link_indicator import LinkIndicator
+from link_manager import LinkManager
 from control_point import ControlPoint
 from bezier_curve import BezierCurve
 import scene_io
@@ -34,18 +34,17 @@ class BezierScene(QGraphicsScene):
         self.curves = []              # committed BezierCurve objects
         self.pending_curve = None     # BezierCurve currently being placed
         self.mode = "create"
-        self.link_groups: list[list[ControlPoint]] = []
-        self.curves = []
+        #self.link_groups: list[list[ControlPoint]] = []
+        self.selected_points: list[ControlPoint] = []
         self.shapes: list[Shape] = []
-        self._propagating_links = False
+        #self._propagating_links = False
         self.selected_curve_idx = -1
         self.dragging_point = None
         self._hovered_curve = None
         self._ensuring_visible = False
         self.background_item = None
         self.background_image_path = None
-        self._proximity_target = None
-        self.selected_points: list[ControlPoint] = []
+        #self._proximity_target = None
         self._drag_targets: dict[ControlPoint, QPointF] = {}
         self._drag_primary_start: QPointF | None = None
         self._selected_shape = None
@@ -59,9 +58,9 @@ class BezierScene(QGraphicsScene):
         self.viewbox_item.setPen(QPen(VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH))
         self.viewbox_item.setZValue(-100)
         self.addItem(self.viewbox_item)
-
-        self.link_indicator = LinkIndicator()
-        self.addItem(self.link_indicator)
+        self.link_manager = LinkManager(self)
+        #self.link_indicator = LinkIndicator()
+        #self.addItem(self.link_indicator)
 
     # ------------------------------------------------------------
     #  Mouse interaction
@@ -126,7 +125,7 @@ class BezierScene(QGraphicsScene):
 
     def _start_drag(self, primary):
         """Snapshot positions of every point that should follow this drag."""
-        primary_group = set(self._group_of(primary) or [])
+        primary_group = set(self.link_manager.group_of(primary) or [])
         primary_group.add(primary)
 
         # Seeds: all selected points + the primary (in case primary wasn't selected).
@@ -137,7 +136,7 @@ class BezierScene(QGraphicsScene):
         targets = set()
         for pt in seeds:
             targets.add(pt)
-            group = self._group_of(pt)
+            group = self.link_manager.group_of(pt)
             if group:
                 targets.update(group)
 
@@ -148,13 +147,7 @@ class BezierScene(QGraphicsScene):
         self._drag_primary_start = primary.pos()
 
 
-    def _group_of(self, point):
-        """Return the link group containing `point`, or None."""
-        for group in self.link_groups:
-            for pt in group:
-                if pt is point:
-                    return group
-        return None
+
 
     # ------------------------------------------------------------
     #  Shape detection
@@ -164,7 +157,7 @@ class BezierScene(QGraphicsScene):
         and `other` is also an endpoint, return `other`. Otherwise None."""
         if pt.point_idx not in (0, 3):
             return None
-        g = self._group_of(pt)
+        g = self.link_manager.group_of(pt)
         if g is None or len(g) != 2:
             return None
         other = g[0] if g[1] is pt else g[1]
@@ -319,62 +312,6 @@ class BezierScene(QGraphicsScene):
         self._rebuild_shape_fill(shape)
 
 
-    def link_points(self, a, b):
-        """Merge a's and b's link groups (creating one if needed)."""
-        ga = self._group_of(a)
-        gb = self._group_of(b)
-
-        if ga is not None and ga is gb:
-            return  # already linked
-
-        if ga is None and gb is None:
-            group = [a, b]
-            self.link_groups.append(group)
-        elif ga is None:
-            gb.append(a)
-            group = gb
-        elif gb is None:
-            ga.append(b)
-            group = ga
-        else:
-            ga.extend(gb)
-            self.link_groups.remove(gb)
-            group = ga
-
-        for pt in group:
-            pt.set_linked(True)
-
-        self._refresh_shapes()
-
-    def unlink_point(self, point):
-        """Remove `point` from its group."""
-        for gi, group in enumerate(self.link_groups):
-            for pi, pt in enumerate(group):
-                if pt is point:
-                    del group[pi]
-                    if len(group) < 2:
-                        for remaining in group:
-                            remaining.set_linked(False)
-                        del self.link_groups[gi]
-
-                    self._refresh_shapes()
-                    return
-
-    def propagate_point_move(self, source, pos):
-        """Move every other point in source's group to `pos`."""
-        if self._propagating_links:
-            return
-        group = self._group_of(source)
-        if group is None:
-            return
-        self._propagating_links = True
-        try:
-            for pt in group:
-                if pt is not source:
-                    pt.setPos(pos)
-        finally:
-            self._propagating_links = False
-
     def cancel_pending_curve(self) -> bool:
         if self.mode == "create" and self.pending_curve is not None:
             self.discard_current_points()
@@ -389,7 +326,7 @@ class BezierScene(QGraphicsScene):
             delta = self.dragging_point.pos() - self._drag_primary_start
             for pt, start in self._drag_targets.items():
                 pt.setPos(start + delta)
-            self._update_proximity(self.dragging_point)
+            self.link_manager.update_proximity(self.dragging_point)
 
         if self.dragging_point is None or self._ensuring_visible:
             return
@@ -409,7 +346,7 @@ class BezierScene(QGraphicsScene):
                 self.dragging_point = None
                 self._drag_targets = {}
                 self._drag_primary_start = None
-                self._clear_proximity()
+                self.link_manager.clear_proximity()
                 self._update_hover(event.scenePos())
                 self.curveDragFinished.emit()
         super().mouseReleaseEvent(event)
@@ -530,36 +467,6 @@ class BezierScene(QGraphicsScene):
         self._update_shape_fills()
 
     # ------------------------------------------------------------
-    #  SVG generation — viewBox is simply self.viewbox
-    # ------------------------------------------------------------
-    def generate_svg(self):
-        path_commands = []
-        for curve in self.curves:
-            d = curve.svg_path_string()
-            if d:
-                path_commands.append(d)
-
-        vb = self.viewbox
-        header = (
-            f'<svg xmlns="http://www.w3.org/2000/svg" '
-            f'viewBox="{vb.x():.2f} {vb.y():.2f} '
-            f'{vb.width():.2f} {vb.height():.2f}" '
-            f'width="{vb.width():.2f}" height="{vb.height():.2f}">'
-        )
-
-        if not path_commands:
-            return header + '</svg>'
-
-        d_string = " ".join(path_commands)
-        return (
-            header
-            + f'<path d="{d_string}" fill="{SVG_FILL}" '
-              f'stroke="{SVG_STROKE_COLOR}" '
-              f'stroke-width="{SVG_STROKE_WIDTH}"/>'
-              '</svg>'
-        )
-
-    # ------------------------------------------------------------
     #  Discard incomplete curve
     # ------------------------------------------------------------
     def discard_current_points(self):
@@ -587,16 +494,14 @@ class BezierScene(QGraphicsScene):
         while self.curves:
             self.curves.pop().dispose()
         self.curves.clear()  # harmless, keeps intent obvious
-
         self.selected_curve_idx = -1
         BezierCurve._next_id = 1 # c'est mieux de repartir à 1.
         self.dragging_point = None
-        self._clear_proximity()
+        self.link_manager.reset()
         self.emit_svg()
         self.pointsChanged.emit()
         self.curveListChanged.emit()
         self._remove_background_image()
-        self.link_groups.clear()
         self.select_shape(None)
 
         for shape in self.shapes:
@@ -605,7 +510,8 @@ class BezierScene(QGraphicsScene):
                 shape.fill_item = None
         self.shapes.clear()
         Shape._next_id = 1
-        self._propagating_links = False
+
+
         self.messageLogged.emit("Scene cleared")
 
     # ------------------------------------------------------------
@@ -648,7 +554,6 @@ class BezierScene(QGraphicsScene):
 
         self.addItem(item)
         self.background_item = item
-        print(f"scale = {scale}")
         self.messageLogged.emit(f"Background loaded: {filepath}")
         return True
 
@@ -697,9 +602,7 @@ class BezierScene(QGraphicsScene):
             return self.curves[curve_idx].points
         return None
 
-    def move_selected_point(self, curve_idx, point_idx, pos):
-        if 0 <= curve_idx < len(self.curves):
-            self.curves[curve_idx].move_point(point_idx, pos)
+
 
     def move_selected_points(self, dx: float, dy: float) -> bool:
         if not self.selected_points:
@@ -709,7 +612,7 @@ class BezierScene(QGraphicsScene):
         to_move = set()
         for pt in self.selected_points:
             to_move.add(pt)
-            group = self._group_of(pt)
+            group = self.link_manager.group_of(pt)
             if group:
                 to_move.update(group)
 
@@ -721,64 +624,7 @@ class BezierScene(QGraphicsScene):
     def on_point_moved(self, point):
         """Called by ControlPoint when its position changed."""
         if self.dragging_point is point:
-            self._update_proximity(point)
-
-    def _update_proximity(self, point):
-        my_group = self._group_of(point)
-        nearest = None
-        best_d2 = LINK_PROXIMITY_TOLERANCE ** 2
-        px, py = point.pos().x(), point.pos().y()
-
-        for curve in self.curves:
-            for other in curve.points:
-                if other is point:
-                    continue
-                if my_group is not None and other in my_group:
-                    continue
-                ox, oy = other.pos().x(), other.pos().y()
-                d2 = (ox - px) ** 2 + (oy - py) ** 2
-                if d2 < best_d2:
-                    best_d2 = d2
-                    nearest = other
-
-        if nearest is self._proximity_target:
-            if nearest is not None:
-                self.link_indicator.show_between(point.pos(), nearest.pos())
-                print(f"[proximity] nearest={nearest is not None} target={self._proximity_target is not None}")
-            return
-
-        self._proximity_target = nearest
-        if nearest is not None:
-            self.link_indicator.show_between(point.pos(), nearest.pos())
-        else:
-            self.link_indicator.hide_indicator()
-
-    def _clear_proximity(self):
-        self._proximity_target = None
-        self.link_indicator.hide_indicator()
-
-    def try_link_proximity(self) -> bool:
-        """Called when user presses 'L'. Links the dragged point to its neighbour."""
-        print(f"[try_link] dragging={self.dragging_point} target={self._proximity_target}")
-        if self.dragging_point is None or self._proximity_target is None:
-            return False
-
-        source = self.dragging_point
-        target = self._proximity_target
-
-        # Clear state *first* so the setPos below doesn't re-show the indicator.
-        self._clear_proximity()
-
-        # Link (so they'll move together from now on), then snap.
-        self.link_points(source, target)
-        source.setPos(target.pos())  # triggers rebuild + on_curve_changed
-        self.messageLogged.emit(
-            f"Linked {source.curve.name}·P{source.point_idx} "
-            f"→ {target.curve.name}·P{target.point_idx}"
-        )
-        self.emit_svg()
-        self.pointsChanged.emit()
-        return True
+            self.link_manager.update_proximity(point)
 
     def hide_hovered_curve_points(self) -> bool:
         if self.dragging_point is not None:

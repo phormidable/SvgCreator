@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,QP
 from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QPainter, QFont, QActionGroup, QColor
 from PySide6.QtSvgWidgets import QSvgWidget
-
+import scene_io
 
 import json
 
@@ -86,7 +86,7 @@ class MainWindow(QMainWindow):
                 event.accept()
                 return
         elif key == Qt.Key.Key_L:
-            if self.scene.try_link_proximity():
+            if self.scene.link_manager.try_link_proximity():
                 event.accept()
                 return
         elif key == Qt.Key.Key_S:
@@ -285,7 +285,7 @@ class MainWindow(QMainWindow):
     #  Show svg code
     # ------------------------------------------------------------
     def show_svg_code_dialog(self):
-        svg_string = self.scene.generate_svg()
+        svg_string = scene_io.generate_svg()
 
         dialog = QDialog(self)
         dialog.setWindowTitle("SVG Code")

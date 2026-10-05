@@ -7,6 +7,7 @@ from settings import (POINT_DIAMETER, CONTROL_POINT_INNER_RADIUS, CONTROL_POINT_
     CONTROL_POINT_RING_PEN_COLOR, HIGHLIGHT_POINT_COLOR, HIGHLIGHT_POINT_PEN_COLOR, HOVER_POINT_COLOR, LINKED_RING_COLOR,
     HOVER_POINT_PEN_COLOR, SELECTED_POINT_COLOR, SELECTED_POINT_PEN_COLOR, LINKED_RING_EXTRA, LINKED_RING_PEN_WIDTH)
 
+from link_manager import LinkManager
 
 class ControlPoint(QGraphicsEllipseItem):
     def __init__(self, pos, curve, point_idx):
@@ -105,7 +106,7 @@ class ControlPoint(QGraphicsEllipseItem):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
             scene = self.curve.scene()
             if scene is not None:
-                scene.propagate_point_move(self, self.pos())
+                scene.link_manager.propagate_move(self, self.pos())
                 self.curve.on_point_moved()
                 scene.on_point_moved(self)  # ← new: notify about *this* point
         return super().itemChange(change, value)
