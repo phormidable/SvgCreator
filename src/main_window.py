@@ -1,18 +1,14 @@
 # main_window.py
-from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,QPlainTextEdit, QApplication,
-                            QFileDialog, QMessageBox, QLabel, QDialog, QDialogButtonBox, QColorDialog)
+from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QColorDialog
 from PySide6.QtCore import QByteArray, Qt
-from PySide6.QtGui import QPainter, QFont, QActionGroup, QColor
+from PySide6.QtGui import QPainter, QActionGroup, QColor
 from PySide6.QtSvgWidgets import QSvgWidget
-import scene_io
-
-import json
 
 from settings import DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
 from bezier_scene import BezierScene
 from custom_view import CustomGraphicsView
 from info_panel import InfoPanel
-
+from file_io import FileIO
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -37,7 +33,7 @@ class MainWindow(QMainWindow):
         self.scene = BezierScene()
         self.drawing_view.setScene(self.scene)
         main_layout.addWidget(self.drawing_view, 1)  # stretch = 1, take all the room
-
+        self.file_io = FileIO(self)
         # ---- Right column: preview on top, info below ----
         right_col = QVBoxLayout()
         right_col.setSpacing(5)
@@ -183,7 +179,7 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
         bg_action = toolbar.addAction("🖼️ Add Background Image")
-        bg_action.triggered.connect(self.load_background_image)
+        bg_action.triggered.connect(self.file_io.load_background_image)
         toolbar.addSeparator()
 
         show_all_action = toolbar.addAction("👁️ Show All")
@@ -195,19 +191,19 @@ class MainWindow(QMainWindow):
 
         load_action = toolbar.addAction("📂 Load")
         load_action.setShortcut("Ctrl+O")
-        load_action.triggered.connect(self.load_project)
+        load_action.triggered.connect(self.file_io.load_project)
 
         save_action = toolbar.addAction("💾 Save")
         save_action.setShortcut("Ctrl+S")
-        save_action.triggered.connect(self.save_project)
+        save_action.triggered.connect(self.file_io.save_project)
 
         toolbar.addSeparator()
 
         generate_action = toolbar.addAction("📄 Generate SVG code")
-        generate_action.triggered.connect(self.show_svg_code_dialog)
+        generate_action.triggered.connect(self.file_io.show_svg_code_dialog)
 
         export_action = toolbar.addAction("💾 Export SVG")
-        export_action.triggered.connect(self.export_svg)
+        export_action.triggered.connect(self.file_io.export_svg)
 
     # ------------------------------------------------------------
     #  Mode switching
@@ -240,84 +236,6 @@ class MainWindow(QMainWindow):
     def clear_scene(self):
         self.scene.clear_all()
 
-    # ------------------------------------------------------------
-    #  Export, save, load
-    # ------------------------------------------------------------
-    def export_svg(self):
-        self.log(f"export_svg")
-        filepath, _ = QFileDialog.getSaveFileName(self, "Save SVG", "", "SVG files (*.svg)")
-        if filepath:
-            try:
-                with open(filepath, "w", encoding="utf-8") as f:
-                    f.write(scene_io.generate_svg())
-                self.statusBar().showMessage(f"✅ Exported to {filepath}")
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Could not save file:\n{e}")
-
-    def save_project(self):
-        self.log(f"save_project")
-        filepath, _ = QFileDialog.getSaveFileName(self, "Save Project", "", "Bezier Project (*.json);;All files (*)")
-        if not filepath:
-            return
-        if not filepath.lower().endswith(".json"):
-            filepath += ".json"
-        try:
-            with open(filepath, "w", encoding="utf-8") as f:
-                json.dump(self.scene.save_state(), f, indent=2)
-            self.statusBar().showMessage(f"💾 Saved to {filepath}")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Could not save file:\n{e}")
-
-    def load_project(self):
-        self.log(f"load_project")
-        filepath, _ = QFileDialog.getOpenFileName(self, "Load Project", "", "Bezier Project (*.json);;All files (*)")
-        if not filepath:
-            return
-        try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                state = json.load(f)
-            self.scene.load_state(state)
-            self.statusBar().showMessage(f"📂 Loaded from {filepath}")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Could not load file:\n{e}")
-
-    # ------------------------------------------------------------
-    #  Show svg code
-    # ------------------------------------------------------------
-    def show_svg_code_dialog(self):
-        svg_string = scene_io.generate_svg(self.scene)
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle("SVG Code")
-        dialog.resize(700, 500)
-
-        layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(6)
-
-        code_edit = QPlainTextEdit()
-        code_edit.setPlainText(svg_string)
-        code_edit.setFont(QFont("Courier New", 10))
-        code_edit.setReadOnly(True)
-        layout.addWidget(code_edit)
-
-        buttons = QDialogButtonBox()
-        copy_btn = buttons.addButton("Copy to clipboard", QDialogButtonBox.ButtonRole.ActionRole)
-        close_btn = buttons.addButton(QDialogButtonBox.StandardButton.Close)
-        copy_btn.clicked.connect(lambda: QApplication.clipboard().setText(svg_string))
-        close_btn.clicked.connect(dialog.accept)
-        layout.addWidget(buttons)
-
-        dialog.exec()
-
-    def load_background_image(self):
-        filepath, _ = QFileDialog.getOpenFileName(self, "Open Background Image", "", "Images (*.png *.jpg *.jpeg *.svg);;All files (*)")
-        if not filepath:
-            return
-        if self.scene.load_background_image(filepath):
-            self.statusBar().showMessage(f"🖼️ Loaded background: {filepath}")
-        else:
-            QMessageBox.warning(self, "Could not load", f"Failed to load image:\n{filepath}")
 
     def show_all_points(self):
         n = self.scene.show_all_points()
