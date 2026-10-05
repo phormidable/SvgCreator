@@ -1,11 +1,10 @@
 # bezier_scene.py
 from PySide6.QtCore import QRectF, Qt, Signal, QSize, QPointF
-from PySide6.QtGui import QPen, QPixmap, QImage, QPainter, QBrush, QColor, QPainterPath
-from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem, QGraphicsPathItem
+from PySide6.QtGui import QPen, QPixmap, QImage, QPainter
+from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem
 from PySide6.QtSvg import QSvgRenderer
 
-from settings import (ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, SVG_FILL,
-                      VIEWBOX_BORDER_WIDTH, LINK_PROXIMITY_TOLERANCE, SVG_STROKE_COLOR, SVG_STROKE_WIDTH)
+from settings import ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH
 
 from link_manager import LinkManager
 from control_point import ControlPoint
@@ -34,20 +33,17 @@ class BezierScene(QGraphicsScene):
         self.curves = []              # committed BezierCurve objects
         self.pending_curve = None     # BezierCurve currently being placed
         self.mode = "create"
-        #self.link_groups: list[list[ControlPoint]] = []
         self.selected_points: list[ControlPoint] = []
-        #self.shapes: list[Shape] = []
-        #self._propagating_links = False
         self.selected_curve_idx = -1
         self.dragging_point = None
         self._hovered_curve = None
         self._ensuring_visible = False
         self.background_item = None
         self.background_image_path = None
-        #self._proximity_target = None
+
         self._drag_targets: dict[ControlPoint, QPointF] = {}
         self._drag_primary_start: QPointF | None = None
-        #self._selected_shape = None
+
 
         # ---- Scene rect = artboard, never changes during editing ----
         self.setSceneRect(self.artboard)
@@ -60,8 +56,6 @@ class BezierScene(QGraphicsScene):
         self.addItem(self.viewbox_item)
         self.link_manager = LinkManager(self)
         self.shape_manager = ShapeManager(self)
-        #self.link_indicator = LinkIndicator()
-        #self.addItem(self.link_indicator)
 
     # ------------------------------------------------------------
     #  Mouse interaction
@@ -148,12 +142,9 @@ class BezierScene(QGraphicsScene):
         self._drag_primary_start = primary.pos()
 
 
-
-
     # ------------------------------------------------------------
     #  Shape detection
     # ------------------------------------------------------------
-
 
     def cancel_pending_curve(self) -> bool:
         if self.mode == "create" and self.pending_curve is not None:

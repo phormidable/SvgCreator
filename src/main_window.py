@@ -249,7 +249,7 @@ class MainWindow(QMainWindow):
         if filepath:
             try:
                 with open(filepath, "w", encoding="utf-8") as f:
-                    f.write(self.scene.generate_svg())
+                    f.write(scene_io.generate_svg())
                 self.statusBar().showMessage(f"✅ Exported to {filepath}")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Could not save file:\n{e}")
@@ -285,7 +285,7 @@ class MainWindow(QMainWindow):
     #  Show svg code
     # ------------------------------------------------------------
     def show_svg_code_dialog(self):
-        svg_string = scene_io.generate_svg()
+        svg_string = scene_io.generate_svg(self.scene)
 
         dialog = QDialog(self)
         dialog.setWindowTitle("SVG Code")
