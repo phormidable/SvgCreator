@@ -236,6 +236,8 @@ class MainWindow(QMainWindow):
     def clear_scene(self):
         self.scene.clear_all()
 
+    def set_status(self, message):
+        self.statusBar().showMessage(message)
 
     def show_all_points(self):
         n = self.scene.show_all_points()

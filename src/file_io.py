@@ -31,7 +31,7 @@ class FileIO:
         try:
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(self.scene.generate_svg())
-            self.window.statusBar().showMessage(f"✅ Exported to {filepath}")
+            self.window.set_status(f"✅ Exported to {filepath}")
         except Exception as e:
             QMessageBox.critical(self.window, "Error",
                                  f"Could not save file:\n{e}")
@@ -70,8 +70,7 @@ class FileIO:
     def save_project(self):
         self.window.log("save_project")
         filepath, _ = QFileDialog.getSaveFileName(
-            self.window, "Save Project", "",
-            "Bezier Project (*.json);;All files (*)")
+            self.window, "Save Project", "", "Bezier Project (*.json);;All files (*)")
         if not filepath:
             return
         if not filepath.lower().endswith(".json"):
@@ -79,23 +78,21 @@ class FileIO:
         try:
             with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(self.scene.save_state(), f, indent=2)
-            self.window.statusBar().showMessage(f"💾 Saved to {filepath}")
+            self.window.set_status(f"💾 Saved to {filepath}")
         except Exception as e:
-            QMessageBox.critical(self.window, "Error",
-                                 f"Could not save file:\n{e}")
+            QMessageBox.critical(self.window, "Error", f"Could not save file:\n{e}")
 
     def load_project(self):
         self.window.log("load_project")
         filepath, _ = QFileDialog.getOpenFileName(
-            self.window, "Load Project", "",
-            "Bezier Project (*.json);;All files (*)")
+            self.window, "Load Project", "", "Bezier Project (*.json);;All files (*)")
         if not filepath:
             return
         try:
             with open(filepath, "r", encoding="utf-8") as f:
                 state = json.load(f)
             self.scene.load_state(state)
-            self.window.statusBar().showMessage(f"📂 Loaded from {filepath}")
+            self.window.set_status(f"📂 Loaded from {filepath}")
         except Exception as e:
             QMessageBox.critical(self.window, "Error", f"Could not load file:\n{e}")
 
@@ -109,7 +106,7 @@ class FileIO:
         if not filepath:
             return
         if self.scene.load_background_image(filepath):
-            self.window.statusBar().showMessage(
+            self.window.set_status(
                 f"🖼️ Loaded background: {filepath}")
         else:
             QMessageBox.warning(self.window, "Could not load", f"Failed to load image:\n{filepath}")
