@@ -240,9 +240,22 @@ class BezierScene(QGraphicsScene):
     def clear_selection(self):
         for pt in self.selected_points:
             pt.set_selected(False)
+            pt.curve.set_curve_selected(False)  # idempotent; harmless if not set
         self.selected_points.clear()
         self.shape_manager.select(None)
 
+    def select_curve_under_hover(self) -> bool:
+        if self._hovered_curve is None:
+            return False
+        self.clear_selection()
+        curve = self._hovered_curve
+        curve.set_curve_selected(True)
+        for pt in curve.points:
+            self.selected_points.append(pt)
+            pt.set_selected(True)
+        self.messageLogged.emit(f"Selected {curve.name} "
+                                f"({len(curve.points)} points)")
+        return True
 
     def set_curve_color(self, color):
         self.curve_color = QColor(color)
@@ -307,12 +320,12 @@ class BezierScene(QGraphicsScene):
         self.selected_curve_idx = -1
         BezierCurve._next_id = 1 # c'est mieux de repartir à 1.
         self.dragging_point = None
-        self.link_manager.reset()
-        self.shape_manager.reset()
+        self._remove_background_image()
         self.emit_svg()
         self.pointsChanged.emit()
         self.curveListChanged.emit()
-        self._remove_background_image()
+        self.link_manager.reset()
+        self.shape_manager.reset()
 
         self.messageLogged.emit("Scene cleared")
 
@@ -321,6 +334,9 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     def emit_svg(self):
         self.svgCodeChanged.emit(scene_io.generate_svg(self))
+
+    def generate_svg(self):
+        return scene_io.generate_svg(self)
 
     def save_state(self) -> dict:
         return scene_io.save_state(self)

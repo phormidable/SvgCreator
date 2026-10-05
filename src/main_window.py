@@ -1,7 +1,7 @@
 # main_window.py
-from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QColorDialog
+from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QColorDialog, QComboBox, QSizePolicy, QGraphicsOpacityEffect
 from PySide6.QtCore import QByteArray, Qt
-from PySide6.QtGui import QPainter, QActionGroup, QColor
+from PySide6.QtGui import QPainter, QActionGroup, QColor, QPixmap
 from PySide6.QtSvgWidgets import QSvgWidget
 
 from settings import DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
@@ -9,6 +9,7 @@ from bezier_scene import BezierScene
 from custom_view import CustomGraphicsView
 from info_panel import InfoPanel
 from file_io import FileIO
+from preview_widget import PreviewWidget
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -34,20 +35,18 @@ class MainWindow(QMainWindow):
         self.drawing_view.setScene(self.scene)
         main_layout.addWidget(self.drawing_view, 1)  # stretch = 1, take all the room
         self.file_io = FileIO(self)
+
         # ---- Right column: preview on top, info below ----
         right_col = QVBoxLayout()
         right_col.setSpacing(5)
 
-        self.preview_widget = QSvgWidget()
+        self.preview_widget = PreviewWidget()
         self.preview_widget.setFixedSize(PREVIEW_WIDTH, PREVIEW_HEIGHT)
-        self.preview_widget.setStyleSheet("background-color: white;")
         right_col.addWidget(self.preview_widget)
 
         self.info_panel = InfoPanel(self.scene)
         right_col.addWidget(self.info_panel, 1)
-
         main_layout.addLayout(right_col)
-
         # ---- Toolbar ----
         self._setup_toolbar()
 
@@ -97,6 +96,10 @@ class MainWindow(QMainWindow):
             if self.scene.hide_hovered_curve_points():
                 event.accept()
                 return
+        elif key == Qt.Key.Key_A:
+            if self.scene.select_curve_under_hover():
+                event.accept()
+                return
         elif key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
             dx = -1 if key == Qt.Key.Key_Left else 1 if key == Qt.Key.Key_Right else 0
             dy = -1 if key == Qt.Key.Key_Up else 1 if key == Qt.Key.Key_Down else 0
@@ -138,6 +141,7 @@ class MainWindow(QMainWindow):
     def _setup_toolbar(self):
         toolbar = self.addToolBar("Tools")
 
+        # ---- Mode ----
         self.create_action = toolbar.addAction("✏️ Create")
         self.create_action.setCheckable(True)
         self.edit_action = toolbar.addAction("🖱️ Edit")
@@ -154,45 +158,42 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
-        # Zoom
-        self.zoom_group = QActionGroup(self)
-        self.zoom_group.setExclusive(True)
-        self.zoom_actions = {}
-
-        zoom_levels = [
-            ("0.5x", 0.5, "Ctrl+1"),
-            ("1x", 1.0, "Ctrl+2"),
-            ("2x", 2.0, "Ctrl+3"),
-            ("4x", 4.0, "Ctrl+4"),
-            ("8x", 8.0, "Ctrl+5"),
-            ("16x", 16.0, "Ctrl+6"),
-        ]
-        for label, factor, shortcut in zoom_levels:
-            action = toolbar.addAction(label)
-            action.setCheckable(True)
-            action.setShortcut(shortcut)
-            action.setToolTip(f"Zoom {label}  ({shortcut})")
-            action.triggered.connect(lambda checked=False, f=factor: self.drawing_view.set_zoom(f))
-            self.zoom_group.addAction(action)
-            self.zoom_actions[factor] = action
-        self.zoom_actions[1.0].setChecked(True)
+        # ---- Zoom ----
+        toolbar.addWidget(QLabel(" Zoom: "))
+        self.zoom_combo = QComboBox()
+        for label, factor in [("0.5x", 0.5), ("1x", 1.0), ("2x", 2.0),
+                              ("4x", 4.0), ("8x", 8.0), ("16x", 16.0)]:
+            self.zoom_combo.addItem(label, factor)
+        self.zoom_combo.setCurrentIndex(1)  # 1x
+        self.zoom_combo.currentIndexChanged.connect(self._on_zoom_changed)
+        toolbar.addWidget(self.zoom_combo)
 
         toolbar.addSeparator()
+
+        # ---- Left group ----
         bg_action = toolbar.addAction("🖼️ Add Background Image")
         bg_action.triggered.connect(self.file_io.load_background_image)
-        toolbar.addSeparator()
 
         color_action = toolbar.addAction("🎨 Curve Color")
         color_action.triggered.connect(self.pick_curve_color)
-        toolbar.addSeparator()
 
-        show_all_action = toolbar.addAction("👁️ Show All")
+        show_all_action = toolbar.addAction("👁️ Show all points")
         show_all_action.setToolTip("Restore all hidden curve points")
         show_all_action.triggered.connect(self.show_all_points)
 
-        clear_action = toolbar.addAction("🗑️ Clear All")
-        clear_action.triggered.connect(self.clear_scene)
+        generate_action = toolbar.addAction("📄 Show SVG code")
+        generate_action.triggered.connect(self.file_io.show_svg_code_dialog)
 
+        export_action = toolbar.addAction("💾 Export SVG")
+        export_action.triggered.connect(self.file_io.export_svg)
+
+        # ---- Spacer: pushes the next items to the right ----
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding,
+                             QSizePolicy.Policy.Preferred)
+        toolbar.addWidget(spacer)
+
+        # ---- Right group: file operations ----
         load_action = toolbar.addAction("📂 Load")
         load_action.setShortcut("Ctrl+O")
         load_action.triggered.connect(self.file_io.load_project)
@@ -201,13 +202,12 @@ class MainWindow(QMainWindow):
         save_action.setShortcut("Ctrl+S")
         save_action.triggered.connect(self.file_io.save_project)
 
-        toolbar.addSeparator()
+        clear_action = toolbar.addAction("🗑️ Clear All")
+        clear_action.triggered.connect(self.clear_scene)
 
-        generate_action = toolbar.addAction("📄 Generate SVG code")
-        generate_action.triggered.connect(self.file_io.show_svg_code_dialog)
-
-        export_action = toolbar.addAction("💾 Export SVG")
-        export_action.triggered.connect(self.file_io.export_svg)
+    def _on_zoom_changed(self, index):
+        factor = self.zoom_combo.itemData(index)
+        self.drawing_view.set_zoom(factor)
 
     # ------------------------------------------------------------
     #  Mode switching
@@ -232,7 +232,16 @@ class MainWindow(QMainWindow):
     #  Update preview & code
     # ------------------------------------------------------------
     def update_preview(self, svg_string):
-        self.preview_widget.load(QByteArray(svg_string.encode()))
+        self.preview_widget.set_svg(QByteArray(svg_string.encode()))
+        self.refresh_preview_background()
+
+    def refresh_preview_background(self):
+        path = self.scene.background_image_path
+        if not path:
+            self.preview_widget.set_background(None)
+            return
+        # Reuse the scene's reader so SVG backgrounds work here too.
+        self.preview_widget.set_background(self.scene._read_image(path))
 
     # ------------------------------------------------------------
     #  Clear scene

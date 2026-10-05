@@ -106,7 +106,7 @@ class FileIO:
         if not filepath:
             return
         if self.scene.load_background_image(filepath):
-            self.window.set_status(
-                f"🖼️ Loaded background: {filepath}")
+            self.window.set_status(f"🖼️ Loaded background: {filepath}")
+            self.window.refresh_preview_background()
         else:
             QMessageBox.warning(self.window, "Could not load", f"Failed to load image:\n{filepath}")

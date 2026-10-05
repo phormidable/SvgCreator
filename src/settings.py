@@ -64,6 +64,10 @@ HIDDEN_CURVE_COLOR = QColor("grey")
 # ---- Curve color ----
 DEFAULT_CURVE_COLOR = QColor(90, 90, 90)
 
+# ---- Whole-curve selection (via 'A' on hover) ----
+CURVE_SELECTED_PEN_COLOR = QColor(200, 0, 0)
+CURVE_SELECTED_PEN_WIDTH = 3
+
 # ---- Point size ----
 POINT_RADIUS = 8
 POINT_DIAMETER = POINT_RADIUS * 2          # was 12, now 16
@@ -90,5 +94,4 @@ LINKED_RING_EXTRA = 4                       # was 2
 
 # ---- Shape selection ----
 SHAPE_SELECTED_CURVE_COLOR = QColor(200, 0, 0)
-SHAPE_BLINK_INTERVAL = 400                  # ms
-SHAPE_BLINK_MIN_OPACITY = 0.35
+SHAPE_SELECTED_CURVE_PEN_WIDTH = 5
