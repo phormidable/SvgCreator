@@ -245,10 +245,17 @@ class BezierScene(QGraphicsScene):
         self.shape_manager.select(None)
 
     def select_curve_under_hover(self) -> bool:
+        """Toggle selection of the hovered curve. Returns True if handled."""
         if self._hovered_curve is None:
             return False
-        self.clear_selection()
         curve = self._hovered_curve
+        already = (curve.curve_selected
+                   and all(pt in self.selected_points for pt in curve.points))
+        if already:
+            self.clear_selection()
+            self.messageLogged.emit(f"{curve.name} deselected")
+            return True
+        self.clear_selection()
         curve.set_curve_selected(True)
         for pt in curve.points:
             self.selected_points.append(pt)
@@ -263,6 +270,7 @@ class BezierScene(QGraphicsScene):
             curve.set_color(self.curve_color)
         if self.pending_curve is not None:
             self.pending_curve.set_color(self.curve_color)
+        self.shape_manager.apply_curve_colors()
 
     # ------------------------------------------------------------
     #  Curve finalization
@@ -461,3 +469,4 @@ class BezierScene(QGraphicsScene):
         if n:
             self.messageLogged.emit(f"Restored points on {n} curve(s)")
         return n
+

@@ -24,8 +24,8 @@ VIEWBOX_BORDER_WIDTH = 1
 
 # ---- Hover highlight ----
 HOVER_TOLERANCE = 5
-HOVER_CURVE_COLOR = QColor("red")
-HOVER_POINT_COLOR = QColor("red")
+HOVER_CURVE_COLOR = QColor("green")
+HOVER_POINT_COLOR = QColor("green")
 HOVER_POINT_PEN_COLOR = QColor("darkred")
 
 # ---- Highlighted point colors (while dragging a curve) ----
@@ -45,6 +45,8 @@ SVG_FILL = "none"
 # ---- Selected point (persistent click selection) ----
 SELECTED_POINT_COLOR = QColor("red")
 SELECTED_POINT_PEN_COLOR = QColor("darkred")
+SELECTED_POINT_OUTER_COLOR = QColor("green")
+SELECTED_POINT_OUTER_WIDTH = 5.0
 
 SVG_PRECISION = 2
 
@@ -95,3 +97,4 @@ LINKED_RING_EXTRA = 4                       # was 2
 # ---- Shape selection ----
 SHAPE_SELECTED_CURVE_COLOR = QColor(200, 0, 0)
 SHAPE_SELECTED_CURVE_PEN_WIDTH = 5
+SHAPE_BORDER_DARKEN = 130   # QColor.darker(factor); 100 = unchanged

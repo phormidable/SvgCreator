@@ -12,7 +12,7 @@ Owned state: shapes, _selected.
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QPainterPath, QPen
 from PySide6.QtWidgets import QGraphicsPathItem
-from settings import SVG_PRECISION
+from settings import SVG_PRECISION, SHAPE_BORDER_DARKEN
 from shape import Shape
 
 SHAPE_FILL_Z = -10
@@ -131,6 +131,8 @@ class ShapeManager:
                 if shape.fill_item is not None:
                     self.scene.removeItem(shape.fill_item)
                     shape.fill_item = None
+                for curve in shape.curves:
+                    curve.set_color(self.scene.curve_color)
                 self.scene.messageLogged.emit(f"{shape.name} dissolved")
 
         self.shapes = new_shapes
@@ -140,6 +142,16 @@ class ShapeManager:
             self.select(None)
 
         self.update_fills()
+
+    def apply_curve_colors(self):
+        """Reapply each shape's border color to its curves. Used after the
+        scene-wide curve color changes, to keep shape borders distinct."""
+        for shape in self.shapes:
+            if shape.color is None:
+                continue
+            border = self._border_color(shape)
+            for curve in shape.curves:
+                curve.set_color(border)
 
     def rebuild_from_links(self):
         """Reset shape state and re-detect all loops (used after loading)."""
@@ -157,6 +169,12 @@ class ShapeManager:
         for shape in self.shapes:
             names = " + ".join(c.name for c in sorted(shape.curves, key=lambda c: c.id))
             self.scene.messageLogged.emit(f"{shape.name} formed from {names}")
+
+    def _border_color(self, shape: Shape):
+        """Darker variant of the shape's fill, or the scene default."""
+        if shape.color is None:
+            return self.scene.curve_color
+        return shape.color.darker(SHAPE_BORDER_DARKEN)
 
     # ------------------------------------------------------------
     #  Fill
@@ -256,9 +274,14 @@ class ShapeManager:
             if shape.fill_item is not None:
                 self.scene.removeItem(shape.fill_item)
                 shape.fill_item = None
+            for curve in shape.curves:
+                curve.set_color(self.scene.curve_color)
         else:
             self._rebuild_fill(shape)
-        self.scene.emit_svg()  # ← preview / code dialog refresh
+            border = self._border_color(shape)
+            for curve in shape.curves:
+                curve.set_color(border)
+        self.scene.emit_svg()
 
     # ------------------------------------------------------------
     #  Reset

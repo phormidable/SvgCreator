@@ -46,18 +46,6 @@ class MainWindow(QMainWindow):
         self.preview_widget = PreviewWidget()
         self.preview_widget.setFixedSize(PREVIEW_WIDTH, PREVIEW_HEIGHT)
 
-        preview_zoom_row = QHBoxLayout()
-        preview_zoom_row.addWidget(QLabel("Preview zoom:"))
-        preview_zoom_row.addStretch()
-        self.preview_zoom_combo = QComboBox()
-        for label, factor in ZOOM_LEVELS:
-            self.preview_zoom_combo.addItem(label, factor)
-        self.preview_zoom_combo.setCurrentIndex(1)          # 1x
-        self.preview_zoom_combo.currentIndexChanged.connect(
-            self._on_preview_zoom_changed)
-        preview_zoom_row.addWidget(self.preview_zoom_combo)
-        right_col.addLayout(preview_zoom_row)
-
         right_col.addWidget(self.preview_widget)
 
         self.info_panel = InfoPanel(self.scene)
@@ -193,6 +181,15 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
+        load_action = toolbar.addAction("📂 Load")
+        load_action.setShortcut("Ctrl+O")
+        load_action.triggered.connect(self.file_io.load_project)
+
+        save_action = toolbar.addAction("💾 Save")
+        save_action.setShortcut("Ctrl+S")
+        save_action.triggered.connect(self.file_io.save_project)
+        toolbar.addSeparator()
+
         # ---- Left group ----
         bg_action = toolbar.addAction("🖼️ Add Background Image")
         bg_action.triggered.connect(self.file_io.load_background_image)
@@ -216,25 +213,14 @@ class MainWindow(QMainWindow):
                              QSizePolicy.Policy.Preferred)
         toolbar.addWidget(spacer)
 
-        # ---- Right group: file operations ----
-        load_action = toolbar.addAction("📂 Load")
-        load_action.setShortcut("Ctrl+O")
-        load_action.triggered.connect(self.file_io.load_project)
-
-        save_action = toolbar.addAction("💾 Save")
-        save_action.setShortcut("Ctrl+S")
-        save_action.triggered.connect(self.file_io.save_project)
-
+        # ---- Right group: Clear All ----
         clear_action = toolbar.addAction("🗑️ Clear All")
         clear_action.triggered.connect(self.clear_scene)
 
     def _on_zoom_changed(self, index):
         factor = self.zoom_combo.itemData(index)
         self.drawing_view.set_zoom(factor)
-
-    def _on_preview_zoom_changed(self, index):
-        factor = self.preview_zoom_combo.itemData(index)
-        self.preview_widget.set_zoom(factor)
+        self.preview_widget.set_zoom(factor)  # ← add this
 
     # ------------------------------------------------------------
     #  Mode switching
@@ -287,13 +273,12 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Nothing to restore")
 
     def _step_zoom(self, direction: int):
-        """Step both zoom combos by ±1. The combos drive the views."""
+        """Step the toolbar zoom combo by ±1. The combo drives both views."""
         idx = self.zoom_combo.currentIndex()
         new_idx = max(0, min(self.zoom_combo.count() - 1, idx + direction))
         if new_idx == idx:
             return
         self.zoom_combo.setCurrentIndex(new_idx)
-        self.preview_zoom_combo.setCurrentIndex(new_idx)
 
     def color_selected_shape(self):
         shape = self.scene.shape_manager.selected()

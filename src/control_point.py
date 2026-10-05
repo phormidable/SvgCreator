@@ -3,10 +3,7 @@ from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem
 from PySide6.QtGui import QBrush, QPen, QPainter, QColor
 from PySide6.QtCore import QPointF, QRectF, Qt
 
-from settings import (POINT_RADIUS, POINT_DIAMETER, POINT_BLUE, ENDPOINT_ALPHA, ENDPOINT_PEN_COLOR, LINKED_RING_PEN_WIDTH,
-    CONTROL_POINT_INNER_RADIUS, CONTROL_POINT_MIDDLE_RADIUS, CONTROL_POINT_INNER_COLOR, CONTROL_POINT_MIDDLE_COLOR,
-    CONTROL_POINT_MIDDLE_PEN_COLOR, CONTROL_POINT_OUTER_PEN_COLOR, HIGHLIGHT_POINT_COLOR, HIGHLIGHT_POINT_PEN_COLOR,
-    HOVER_POINT_COLOR, HOVER_POINT_PEN_COLOR, SELECTED_POINT_COLOR, SELECTED_POINT_PEN_COLOR, LINKED_RING_COLOR, LINKED_RING_EXTRA)
+from settings import *
 
 class ControlPoint(QGraphicsEllipseItem):
     def __init__(self, pos, curve, point_idx):
@@ -48,7 +45,7 @@ class ControlPoint(QGraphicsEllipseItem):
 
         # Override states draw one solid disc and stop.
         if self.selected:
-            self._draw_solid(painter, SELECTED_POINT_COLOR, SELECTED_POINT_PEN_COLOR)
+            self._draw_selected(painter)
             return
         if self.highlighted:
             self._draw_solid(painter, HIGHLIGHT_POINT_COLOR, HIGHLIGHT_POINT_PEN_COLOR)
@@ -66,6 +63,18 @@ class ControlPoint(QGraphicsEllipseItem):
         painter.setBrush(QBrush(fill))
         painter.setPen(QPen(outline, 1.5))
         painter.drawEllipse(self.rect())
+
+    def _draw_selected(self, painter):
+        # Green outer ring, on the point's own outline.
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(SELECTED_POINT_OUTER_COLOR, SELECTED_POINT_OUTER_WIDTH))
+        painter.drawEllipse(self.rect())
+
+        # Red inner disc, pulled inward so the ring is visible.
+        r = POINT_RADIUS - SELECTED_POINT_OUTER_WIDTH
+        painter.setBrush(QBrush(SELECTED_POINT_COLOR))
+        painter.setPen(QPen(SELECTED_POINT_PEN_COLOR, 1.0))
+        painter.drawEllipse(QRectF(-r, -r, 2 * r, 2 * r))
 
     def _draw_endpoint(self, painter):
         c = QColor(POINT_BLUE)

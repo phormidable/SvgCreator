@@ -1,5 +1,6 @@
 # scene_io.py
 from PySide6.QtCore import QPointF
+from PySide6.QtGui import QColor
 
 from settings import SVG_FILL, SVG_STROKE_COLOR, SVG_STROKE_WIDTH
 from bezier_curve import BezierCurve
@@ -62,6 +63,16 @@ def save_state(scene) -> dict:
             for curve in scene.curves
         ],
     }
+    shape_colors = []
+    for shape in scene.shape_manager.shapes:
+        if shape.color is None:
+            continue
+        shape_colors.append({
+            "curves": sorted(scene.curves.index(c) for c in shape.curves),
+            "color": shape.color.name(),
+        })
+    if shape_colors:
+        state["shapes"] = shape_colors
     if links:
         state["links"] = links
     if scene.background_image_path:
@@ -83,7 +94,7 @@ def load_state(scene, state: dict):
 
         _restore_links(scene, links_data)
         scene.shape_manager.rebuild_from_links()
-
+        _restore_shape_colors(scene, state.get("shapes", []))
         bg = state.get("background")
         if bg:
             scene.load_background_image(bg)
@@ -96,6 +107,25 @@ def load_state(scene, state: dict):
     scene.pointsChanged.emit()
     scene.curveListChanged.emit()
 
+
+def _restore_shape_colors(scene, shapes_data):
+    if not isinstance(shapes_data, list):
+        return
+    for entry in shapes_data:
+        if not isinstance(entry, dict):
+            continue
+        try:
+            indices = entry["curves"]
+            curves = frozenset(scene.curves[i] for i in indices)
+        except (KeyError, TypeError, IndexError):
+            continue
+        color = QColor(entry.get("color", ""))
+        if not color.isValid():
+            continue
+        for shape in scene.shape_manager.shapes:
+            if shape.curves == curves:
+                scene.shape_manager.set_color(shape, color)
+                break
 
 def _restore_links(scene, links_data):
     if not isinstance(links_data, list):
