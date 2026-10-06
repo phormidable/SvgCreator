@@ -35,31 +35,36 @@ class ShapeManager:
             return
         if self._selected is not None:
             self._selected.set_selected(False)
-            self._set_opacity(self._selected, 1.0)
         self._selected = shape
         if shape is not None:
             shape.set_selected(True)
-            if self._transparent:
-                self._set_opacity(shape, SHAPE_TRANSPARENT_OPACITY)
 
     def set_transparent(self, value: bool):
-        """Enable/disable transparent rendering of the selected shape."""
+        """Enable/disable transparent rendering of every shape."""
         if self._transparent == value:
             return
         self._transparent = value
-        if self._selected is not None:
-            self._set_opacity(self._selected,
-                              SHAPE_TRANSPARENT_OPACITY if value else 1.0)
+        self._apply_transparency_to_all()
 
-    def _set_opacity(self, shape: Shape, opacity: float):
-        """Apply an opacity to every visual component of a shape:
-        its curves, the control points of those curves, and the fill."""
-        for curve in shape.curves:
-            curve.setOpacity(opacity)
+    def _apply_transparency_to_all(self):
+        """Set opacity on every shape's visual components according to the
+        current mode. Curves that belong to a shape get the target opacity;
+        everything else (unshaped curves) is left at 1.0."""
+        opacity = SHAPE_TRANSPARENT_OPACITY if self._transparent else 1.0
+
+        shape_curves: set = set()
+        for shape in self.shapes:
+            shape_curves.update(shape.curves)
+
+        for curve in self.scene.curves:
+            target = opacity if curve in shape_curves else 1.0
+            curve.setOpacity(target)
             for pt in curve.points:
-                pt.setOpacity(opacity)
-        if shape.fill_item is not None:
-            shape.fill_item.setOpacity(opacity)
+                pt.setOpacity(target)
+
+        for shape in self.shapes:
+            if shape.fill_item is not None:
+                shape.fill_item.setOpacity(opacity)
 
     def shape_of_curve(self, curve) -> Shape | None:
         for shape in self.shapes:
@@ -163,6 +168,7 @@ class ShapeManager:
         if self._selected is not None and self._selected not in new_shapes:
             self.select(None)
 
+        self._apply_transparency_to_all()
         self.update_fills()
 
     def apply_curve_colors(self):
@@ -283,11 +289,8 @@ class ShapeManager:
             shape.fill_item = item
         shape.fill_item.setBrush(QBrush(shape.color))
         shape.fill_item.setPath(path)
-        # Keep fill opacity in sync with the current selection/mode state.
-        opacity = (SHAPE_TRANSPARENT_OPACITY
-                   if self._transparent and shape is self._selected
-                   else 1.0)
-        shape.fill_item.setOpacity(opacity)
+        shape.fill_item.setOpacity(
+            SHAPE_TRANSPARENT_OPACITY if self._transparent else 1.0)
 
     def update_fills(self):
         """Rebuild the fill geometry of every coloured shape. Cheap; called

@@ -4,10 +4,10 @@ from PySide6.QtGui import QColor
 
 from settings import SVG_FILL, SVG_STROKE_COLOR, SVG_STROKE_WIDTH
 from bezier_curve import BezierCurve
-
+from collections import defaultdict
 
 def generate_svg(scene) -> str:
-    # Filled shapes first, so the stroke path draws over them.
+    # 1) Fills: one <path> per colored shape.
     shape_paths = []
     for shape in scene.shape_manager.shapes:
         if shape.color is None:
@@ -18,11 +18,29 @@ def generate_svg(scene) -> str:
                 f'<path d="{d}" fill="{shape.color.name()}" stroke="none"/>'
             )
 
-    path_commands = []
+    # 2) Strokes: group curves by their effective stroke color. A curve
+    #    inside a colored shape is stroked with that shape's color; every
+    #    other curve uses the default SVG_STROKE_COLOR.
+    curve_color = {}
+    for shape in scene.shape_manager.shapes:
+        if shape.color is None:
+            continue
+        for curve in shape.curves:
+            curve_color[curve] = shape.color.name()
+
+    by_color: dict[str, list[str]] = defaultdict(list)
     for curve in scene.curves:
         d = curve.svg_path_string()
         if d:
-            path_commands.append(d)
+            color = curve_color.get(curve, SVG_STROKE_COLOR)
+            by_color[color].append(d)
+
+    stroke_paths = []
+    for color, ds in by_color.items():
+        stroke_paths.append(
+            f'<path d="{" ".join(ds)}" fill="{SVG_FILL}" '
+            f'stroke="{color}" stroke-width="{SVG_STROKE_WIDTH}"/>'
+        )
 
     vb = scene.viewbox
     header = (
@@ -32,16 +50,10 @@ def generate_svg(scene) -> str:
         f'width="{vb.width():.2f}" height="{vb.height():.2f}">'
     )
 
-    body = "".join(shape_paths)
-    if path_commands:
-        d_string = " ".join(path_commands)
-        body += (
-            f'<path d="{d_string}" fill="{SVG_FILL}" '
-            f'stroke="{SVG_STROKE_COLOR}" '
-            f'stroke-width="{SVG_STROKE_WIDTH}"/>'
-        )
-
-    return header + body + '</svg>' if body else header + '</svg>'
+    body = "".join(shape_paths) + "".join(stroke_paths)
+    if not body:
+        return header + '</svg>'
+    return header + body + '</svg>'
 
 
 def save_state(scene) -> dict:
