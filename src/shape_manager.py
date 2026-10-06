@@ -12,7 +12,7 @@ Owned state: shapes, _selected.
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QPainterPath, QPen
 from PySide6.QtWidgets import QGraphicsPathItem
-from settings import SVG_PRECISION, SHAPE_BORDER_DARKEN
+from settings import SVG_PRECISION, SHAPE_BORDER_DARKEN, SHAPE_TRANSPARENT_OPACITY
 from shape import Shape
 
 SHAPE_FILL_Z = -10
@@ -22,6 +22,7 @@ class ShapeManager:
         self.scene = scene
         self.shapes: list[Shape] = []
         self._selected: Shape | None = None
+        self._transparent = False
 
     # ------------------------------------------------------------
     #  Selection
@@ -30,14 +31,35 @@ class ShapeManager:
         return self._selected
 
     def select(self, shape: Shape | None):
-        """Set (or clear, with None) the currently selected shape."""
         if shape is self._selected:
             return
         if self._selected is not None:
             self._selected.set_selected(False)
+            self._set_opacity(self._selected, 1.0)
         self._selected = shape
         if shape is not None:
             shape.set_selected(True)
+            if self._transparent:
+                self._set_opacity(shape, SHAPE_TRANSPARENT_OPACITY)
+
+    def set_transparent(self, value: bool):
+        """Enable/disable transparent rendering of the selected shape."""
+        if self._transparent == value:
+            return
+        self._transparent = value
+        if self._selected is not None:
+            self._set_opacity(self._selected,
+                              SHAPE_TRANSPARENT_OPACITY if value else 1.0)
+
+    def _set_opacity(self, shape: Shape, opacity: float):
+        """Apply an opacity to every visual component of a shape:
+        its curves, the control points of those curves, and the fill."""
+        for curve in shape.curves:
+            curve.setOpacity(opacity)
+            for pt in curve.points:
+                pt.setOpacity(opacity)
+        if shape.fill_item is not None:
+            shape.fill_item.setOpacity(opacity)
 
     def shape_of_curve(self, curve) -> Shape | None:
         for shape in self.shapes:
@@ -261,6 +283,11 @@ class ShapeManager:
             shape.fill_item = item
         shape.fill_item.setBrush(QBrush(shape.color))
         shape.fill_item.setPath(path)
+        # Keep fill opacity in sync with the current selection/mode state.
+        opacity = (SHAPE_TRANSPARENT_OPACITY
+                   if self._transparent and shape is self._selected
+                   else 1.0)
+        shape.fill_item.setOpacity(opacity)
 
     def update_fills(self):
         """Rebuild the fill geometry of every coloured shape. Cheap; called
@@ -294,4 +321,5 @@ class ShapeManager:
                 shape.fill_item = None
         self.shapes.clear()
         self._selected = None
+        self._transparent = False
         Shape._next_id = 1

@@ -197,6 +197,11 @@ class MainWindow(QMainWindow):
         color_action = toolbar.addAction("🎨 Curve Color")
         color_action.triggered.connect(self.pick_curve_color)
 
+        self.transparent_action = toolbar.addAction("👻 Make transparent")
+        self.transparent_action.setCheckable(True)
+        self.transparent_action.setToolTip("Make the selected shape translucent so you can see behind it")
+        self.transparent_action.triggered.connect(self.on_transparent_toggled)
+
         show_all_action = toolbar.addAction("👁️ Show all points")
         show_all_action.setToolTip("Restore all hidden curve points")
         show_all_action.triggered.connect(self.show_all_points)
@@ -296,3 +301,7 @@ class MainWindow(QMainWindow):
             return
         self.scene.set_curve_color(color)
         self.log(f"Curve color → {color.name()}")
+
+    def on_transparent_toggled(self, checked):
+        self.scene.shape_manager.set_transparent(checked)
+        self.log(f"Transparent mode: {'on' if checked else 'off'}")
