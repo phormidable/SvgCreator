@@ -88,9 +88,14 @@ class BezierScene(QGraphicsScene):
                 self.set_selected_point(item)
 
             self._clear_hover()
+            # Setting dragging_point *before* calling super() is deliberate:
+            # Qt delivers the first mouseMoveEvent after this returns, and
+            # mouseMoveEvent only mirrors the drag when dragging_point is set.
+            # _start_drag snapshots _drag_primary_start here, before Qt moves
+            # the primary point, so the delta is measured from the pre-drag position.
             self.dragging_point = item
             self._start_drag(item)
-            curve.set_highlighted(True)
+            #curve.set_highlighted(True)
             idx = self.curves.index(curve)
             if idx != self.selected_curve_idx:
                 self.selected_curve_idx = idx
@@ -177,7 +182,7 @@ class BezierScene(QGraphicsScene):
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             if self.dragging_point is not None:
-                self.dragging_point.curve.set_highlighted(False)
+                #self.dragging_point.curve.set_highlighted(False)
                 self.dragging_point = None
                 self._drag_targets = {}
                 self._drag_primary_start = None

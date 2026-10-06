@@ -1,9 +1,13 @@
 # control_point.py
 from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem
-from PySide6.QtGui import QBrush, QPen, QPainter
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import QBrush, QPen, QPainter, QColor
+from PySide6.QtCore import QPointF, Qt, QRectF
 
-from settings import *
+from settings import (POINT_DIAMETER, LINKED_RING_EXTRA, LINKED_RING_PEN_WIDTH, POINT_RADIUS, HIGHLIGHT_POINT_COLOR,
+            HIGHLIGHT_POINT_PEN_COLOR, HOVER_POINT_COLOR, HOVER_POINT_PEN_COLOR, SELECTED_POINT_OUTER_COLOR, SELECTED_POINT_OUTER_WIDTH,
+                      SELECTED_POINT_COLOR, SELECTED_POINT_PEN_COLOR, LINKED_RING_COLOR, POINT_BLUE, ENDPOINT_ALPHA, ENDPOINT_PEN_COLOR,
+                      CONTROL_POINT_OUTER_PEN_COLOR, CONTROL_POINT_MIDDLE_RADIUS, CONTROL_POINT_MIDDLE_COLOR, CONTROL_POINT_MIDDLE_PEN_COLOR,
+                      CONTROL_POINT_INNER_RADIUS, CONTROL_POINT_INNER_COLOR)
 
 class ControlPoint(QGraphicsEllipseItem):
     def __init__(self, pos, curve, point_idx):

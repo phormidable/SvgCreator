@@ -3,8 +3,9 @@ from PySide6.QtWidgets import QGraphicsItem
 from PySide6.QtGui import QPainterPath, QPainterPathStroker, QPen, QColor, QPainter
 from PySide6.QtCore import QRectF, Qt
 
-from settings import (CURVE_PEN_WIDTH, CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH, HOVER_CURVE_COLOR, CURVE_SELECTED_PEN_COLOR, CURVE_SELECTED_PEN_WIDTH,
+from settings import (CURVE_PEN_WIDTH, HOVER_CURVE_COLOR, CURVE_SELECTED_PEN_COLOR, CURVE_SELECTED_PEN_WIDTH,
                       HOVER_TOLERANCE, SVG_PRECISION, HIDDEN_CURVE_COLOR, SHAPE_SELECTED_CURVE_COLOR, SHAPE_SELECTED_CURVE_PEN_WIDTH)
+
 from control_point import ControlPoint
 
 from typing import TYPE_CHECKING, cast
@@ -23,7 +24,7 @@ class BezierCurve(QGraphicsItem):
 
         self.color = QColor(scene.curve_color)
         self.points: list[ControlPoint] = []
-        self.highlighted = False
+        #self.highlighted = False
         self.hovered = False
         self.committed = False
         self.points_hidden = False
@@ -31,7 +32,7 @@ class BezierCurve(QGraphicsItem):
         self.curve_selected = False
         self._pen_normal = QPen(self.color, CURVE_PEN_WIDTH)
         self._pen_hover = QPen(HOVER_CURVE_COLOR, CURVE_PEN_WIDTH)
-        self._pen_highlight = QPen(CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH)
+        #self._pen_highlight = QPen(CURVE_DRAG_PEN_COLOR, CURVE_DRAG_PEN_WIDTH)
         self._pen_hidden = QPen(HIDDEN_CURVE_COLOR, CURVE_PEN_WIDTH)
         self._pen_shape_selected = QPen(SHAPE_SELECTED_CURVE_COLOR, SHAPE_SELECTED_CURVE_PEN_WIDTH)
         self._pen_curve_selected = QPen(CURVE_SELECTED_PEN_COLOR, CURVE_SELECTED_PEN_WIDTH)
@@ -53,9 +54,7 @@ class BezierCurve(QGraphicsItem):
     def boundingRect(self):
         if self._hit_path.isEmpty():
             return QRectF()
-        pad = max(CURVE_PEN_WIDTH, CURVE_DRAG_PEN_WIDTH,
-                  SHAPE_SELECTED_CURVE_PEN_WIDTH,
-                  CURVE_SELECTED_PEN_WIDTH) / 2 + 1
+        pad = max(CURVE_PEN_WIDTH, SHAPE_SELECTED_CURVE_PEN_WIDTH, CURVE_SELECTED_PEN_WIDTH) / 2 + 1
         return self._hit_path.boundingRect().adjusted(-pad, -pad, pad, pad)
 
     def shape(self):
@@ -65,9 +64,9 @@ class BezierCurve(QGraphicsItem):
         if self._path.isEmpty():
             return
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        if self.highlighted:
-            pen = self._pen_highlight
-        elif self.shape_selected:
+        #if self.highlighted:
+         #   pen = self._pen_highlight
+        if self.shape_selected:
             pen = self._pen_shape_selected
         elif self.curve_selected:
             pen = self._pen_curve_selected
@@ -127,13 +126,13 @@ class BezierCurve(QGraphicsItem):
     # ---------------------------------------------------------------
     #  Highlight / hover
     # ---------------------------------------------------------------
-    def set_highlighted(self, value):
-        if self.highlighted == value:
-            return
-        self.highlighted = value
-        self.update()
-        for pt in self.points:
-            pt.set_highlighted(value)
+    # def set_highlighted(self, value):
+    #     if self.highlighted == value:
+    #         return
+    #     self.highlighted = value
+    #     self.update()
+    #     for pt in self.points:
+    #         pt.set_highlighted(value)
 
     def set_hovered(self, value):
         if self.hovered == value:

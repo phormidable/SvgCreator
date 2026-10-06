@@ -41,8 +41,6 @@ HIGHLIGHT_POINT_PEN_COLOR = QColor("darkgreen")
 
 # ---- Curve style ----
 CURVE_PEN_WIDTH = 2
-CURVE_DRAG_PEN_COLOR = QColor("green")
-CURVE_DRAG_PEN_WIDTH = 2
 
 # ---- Export defaults ----
 SVG_STROKE_COLOR = "black"

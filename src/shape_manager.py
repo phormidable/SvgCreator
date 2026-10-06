@@ -23,6 +23,8 @@ class ShapeManager:
         self.shapes: list[Shape] = []
         self._selected: Shape | None = None
         self._transparent = False
+        self._shaped_curves: set = set()  # curves whose opacity we last set
+        self._last_opacity: float = 1.0  # value we last applied to those curves
 
     # ------------------------------------------------------------
     #  Selection
@@ -47,24 +49,40 @@ class ShapeManager:
         self._apply_transparency_to_all()
 
     def _apply_transparency_to_all(self):
-        """Set opacity on every shape's visual components according to the
-        current mode. Curves that belong to a shape get the target opacity;
-        everything else (unshaped curves) is left at 1.0."""
-        opacity = SHAPE_TRANSPARENT_OPACITY if self._transparent else 1.0
-
-        shape_curves: set = set()
+        """Sync each curve's opacity with its shape membership, touching only
+        curves whose target opacity actually changed since last call."""
+        shaped: set = set()
         for shape in self.shapes:
-            shape_curves.update(shape.curves)
+            shaped.update(shape.curves)
 
-        for curve in self.scene.curves:
-            target = opacity if curve in shape_curves else 1.0
-            curve.setOpacity(target)
-            for pt in curve.points:
-                pt.setOpacity(target)
+        opacity = SHAPE_TRANSPARENT_OPACITY if self._transparent else 1.0
+        prev_shaped = self._shaped_curves
+        prev_opacity = self._last_opacity
 
+        # Curves that joined a shape → fade to `opacity`.
+        for curve in shaped - prev_shaped:
+            self._set_curve_opacity(curve, opacity)
+        # Curves that left a shape → back to solid.
+        for curve in prev_shaped - shaped:
+            self._set_curve_opacity(curve, 1.0)
+        # Curves still in a shape, but the mode flipped → reapply.
+        if opacity != prev_opacity:
+            for curve in shaped & prev_shaped:
+                self._set_curve_opacity(curve, opacity)
+
+        self._shaped_curves = shaped
+        self._last_opacity = opacity
+
+        # Fill items: cheap, just iterate shapes (one per shape, not per point).
         for shape in self.shapes:
             if shape.fill_item is not None:
                 shape.fill_item.setOpacity(opacity)
+
+    @staticmethod
+    def _set_curve_opacity(curve, opacity):
+        curve.setOpacity(opacity)
+        for pt in curve.points:
+            pt.setOpacity(opacity)
 
     def shape_of_curve(self, curve) -> Shape | None:
         for shape in self.shapes:
@@ -325,4 +343,6 @@ class ShapeManager:
         self.shapes.clear()
         self._selected = None
         self._transparent = False
+        self._shaped_curves = set()
+        self._last_opacity = 1.0
         Shape._next_id = 1
