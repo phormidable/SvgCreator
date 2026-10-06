@@ -239,18 +239,21 @@ class MainWindow(QMainWindow):
     #  Mode switching
     # ------------------------------------------------------------
     def set_mode(self, mode):
-        # If switching to Edit and there are incomplete points, discard them
         self.log(f"Mode → {mode}")
         if mode == "edit" and self.scene.pending_curve is not None:
             self.scene.discard_current_points()
-            self.statusBar().showMessage("Incomplete curve discarded. Switch to Edit mode.")
+            self.statusBar().showMessage(
+                "Incomplete curve discarded. Switch to Edit mode.")
 
         self.scene.set_selected_point(None)
+        self.scene._clear_hover()
         self.scene.mode = mode
         if mode == "create":
-            self.statusBar().showMessage("Create mode: left-click to place points. Right-drag to pan.")
+            self.statusBar().showMessage(
+                "Create mode: left-click to place points. Right-drag to pan.")
         else:
-            self.statusBar().showMessage("Edit mode: drag points or edit coordinates. Right-drag to pan.")
+            self.statusBar().showMessage(
+                "Edit mode: drag points or edit coordinates. Right-drag to pan.")
 
         self.coord_label.show()
 

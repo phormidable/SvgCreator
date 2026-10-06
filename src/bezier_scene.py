@@ -74,6 +74,17 @@ class BezierScene(QGraphicsScene):
             super().mousePressEvent(event)
             return
 
+        # ---- Create mode: left-click places a point, nothing else ----
+        if self.mode == "create":
+            if self.pending_curve is None:
+                self.pending_curve = BezierCurve(self)
+            self.pending_curve.add_point(event.scenePos())
+            if self.pending_curve.is_complete():
+                self.finalize_curve()
+                self.messageLogged.emit(f"Curve created")
+            return
+
+        # ---- Edit mode ----
         views = self.views()
         if not views:
             super().mousePressEvent(event)
@@ -81,7 +92,6 @@ class BezierScene(QGraphicsScene):
         item = self.itemAt(event.scenePos(), views[0].transform())
 
         if isinstance(item, ControlPoint) and item.curve.committed:
-            # --- Existing committed-point logic, unchanged ---
             curve = item.curve
             shift = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
 
@@ -91,7 +101,8 @@ class BezierScene(QGraphicsScene):
                 event.accept()
                 return
 
-            # Non-shift: if the clicked point isn't already in the selection, start fresh.
+            # Non-shift: if the clicked point isn't already in the selection,
+            # start fresh.
             if item not in self.selected_points:
                 self.set_selected_point(item)
 
@@ -100,10 +111,10 @@ class BezierScene(QGraphicsScene):
             # Qt delivers the first mouseMoveEvent after this returns, and
             # mouseMoveEvent only mirrors the drag when dragging_point is set.
             # _start_drag snapshots _drag_primary_start here, before Qt moves
-            # the primary point, so the delta is measured from the pre-drag position.
+            # the primary point, so the delta is measured from the pre-drag
+            # position.
             self.dragging_point = item
             self._start_drag(item)
-            #curve.set_highlighted(True)
             idx = self.curves.index(curve)
             if idx != self.selected_curve_idx:
                 self.selected_curve_idx = idx
@@ -113,23 +124,6 @@ class BezierScene(QGraphicsScene):
 
         # Not a committed control point → drop any previous selection.
         self.set_selected_point(None)
-
-        if isinstance(item, ControlPoint):
-            # Pending-curve point (create mode). Let Qt handle it, but don't
-            # fall through to the create branch.
-            super().mousePressEvent(event)
-            return
-
-        if self.mode == "create":
-            if self.pending_curve is None:
-                self.pending_curve = BezierCurve(self)
-
-            self.pending_curve.add_point(event.scenePos())
-            if self.pending_curve.is_complete():
-                self.finalize_curve()
-                self.messageLogged.emit(f"Curve created")
-            return
-
         super().mousePressEvent(event)
 
     def _start_drag(self, primary):
@@ -208,6 +202,8 @@ class BezierScene(QGraphicsScene):
             return
         if self.dragging_point is not None:
             return
+        if self.mode == "create":
+            return  # no hover in create mode
         self._update_hover(scene_pos)
 
     def _update_hover(self, pos):
