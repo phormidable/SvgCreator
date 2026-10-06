@@ -110,7 +110,8 @@ class MainWindow(QMainWindow):
                 event.accept()
                 return
         elif key == Qt.Key.Key_A:
-            if self.scene.select_curve_under_hover():
+            add = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+            if self.scene.select_curve_under_hover(add=add):
                 event.accept()
                 return
         elif key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
@@ -239,21 +240,28 @@ class MainWindow(QMainWindow):
     #  Mode switching
     # ------------------------------------------------------------
     def set_mode(self, mode):
+        if self.scene.is_rotating():
+            self.statusBar().showMessage(
+                "Finish the rotation first — right-click to validate, Esc to cancel")
+            # The toolbar already flipped the check state; put it back.
+            if self.scene.mode == "create":
+                self.create_action.setChecked(True)
+            else:
+                self.edit_action.setChecked(True)
+            return
+
         self.log(f"Mode → {mode}")
         if mode == "edit" and self.scene.pending_curve is not None:
             self.scene.discard_current_points()
-            self.statusBar().showMessage(
-                "Incomplete curve discarded. Switch to Edit mode.")
+            self.statusBar().showMessage("Incomplete curve discarded. Switch to Edit mode.")
 
         self.scene.set_selected_point(None)
-        self.scene._clear_hover()
+        self.scene.clear_hover()
         self.scene.mode = mode
         if mode == "create":
-            self.statusBar().showMessage(
-                "Create mode: left-click to place points. Right-drag to pan.")
+            self.statusBar().showMessage("Create mode: left-click to place points. Right-drag to pan.")
         else:
-            self.statusBar().showMessage(
-                "Edit mode: drag points or edit coordinates. Right-drag to pan.")
+            self.statusBar().showMessage("Edit mode: drag points or edit coordinates. Right-drag to pan.")
 
         self.coord_label.show()
 

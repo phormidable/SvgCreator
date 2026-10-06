@@ -97,7 +97,7 @@ class BezierScene(QGraphicsScene):
 
             if shift:
                 self.toggle_selection(item)
-                self._clear_hover()
+                self.clear_hover()
                 event.accept()
                 return
 
@@ -106,7 +106,7 @@ class BezierScene(QGraphicsScene):
             if item not in self.selected_points:
                 self.set_selected_point(item)
 
-            self._clear_hover()
+            self.clear_hover()
             # Setting dragging_point *before* calling super() is deliberate:
             # Qt delivers the first mouseMoveEvent after this returns, and
             # mouseMoveEvent only mirrors the drag when dragging_point is set.
@@ -221,7 +221,7 @@ class BezierScene(QGraphicsScene):
         if new_hovered is not None:
             new_hovered.set_hovered(True)
 
-    def _clear_hover(self):
+    def clear_hover(self):
         if self.hovered_curve is not None:
             self.hovered_curve.set_hovered(False)
             self.hovered_curve = None
@@ -256,14 +256,34 @@ class BezierScene(QGraphicsScene):
         self.selected_points.clear()
         self.shape_manager.select(None)
 
-    def select_curve_under_hover(self) -> bool:
-        """Toggle selection of the hovered curve. Returns True if handled."""
+    def select_curve_under_hover(self, add: bool = False) -> bool:
+        """Toggle selection of the hovered curve. With `add`, the curve joins
+        the existing selection instead of replacing it. Returns True if handled."""
         if self.hovered_curve is None:
             return False
         curve = self.hovered_curve
-        already = (curve.curve_selected
-                   and all(pt in self.selected_points for pt in curve.points))
-        if already:
+        in_selection = all(pt in self.selected_points for pt in curve.points)
+
+        if add:
+            # Toggle membership; leave the rest of the selection alone.
+            if in_selection:
+                for pt in curve.points:
+                    if pt in self.selected_points:
+                        self.selected_points.remove(pt)
+                        pt.set_selected(False)
+                curve.set_curve_selected(False)
+                self.messageLogged.emit(f"{curve.name} removed from selection")
+            else:
+                curve.set_curve_selected(True)
+                for pt in curve.points:
+                    if pt not in self.selected_points:
+                        self.selected_points.append(pt)
+                    pt.set_selected(True)
+                self.messageLogged.emit(f"Added {curve.name} to selection")
+            return True
+
+        # No shift: replace, unless this curve is already the whole selection.
+        if in_selection and len(self.selected_points) == len(curve.points):
             self.clear_selection()
             self.messageLogged.emit(f"{curve.name} deselected")
             return True
@@ -272,8 +292,7 @@ class BezierScene(QGraphicsScene):
         for pt in curve.points:
             self.selected_points.append(pt)
             pt.set_selected(True)
-        self.messageLogged.emit(f"Selected {curve.name} "
-                                f"({len(curve.points)} points)")
+        self.messageLogged.emit(f"Selected {curve.name} ({len(curve.points)} points)")
         return True
 
     def set_curve_color(self, color):
@@ -324,7 +343,7 @@ class BezierScene(QGraphicsScene):
     #  Clear everything
     # ------------------------------------------------------------
     def clear_all(self):
-        self._clear_hover()
+        self.clear_hover()
         self.end_rotation(commit=False)
         self.set_selected_point(None)
         if self.pending_curve is not None:
@@ -493,18 +512,17 @@ class BezierScene(QGraphicsScene):
         return self._rotation_pivot is not None
 
     def _rotation_base_points(self) -> list[ControlPoint] | None:
-        """The points whose barycentre is the pivot: the selected shape's,
-        or the selected curve's. None if nothing suitable is selected."""
         shape = self.shape_manager.selected()
         if shape is not None:
             pts: set[ControlPoint] = set()
             for curve in shape.curves:
                 pts.update(curve.points)
             return list(pts)
+        pts = set()
         for curve in self.curves:
             if curve.curve_selected:
-                return list(curve.points)
-        return None
+                pts.update(curve.points)
+        return list(pts) if pts else None
 
     def start_rotation(self) -> bool:
         if self.is_rotating():
