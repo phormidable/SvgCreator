@@ -341,11 +341,12 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     #  Save and Load
     # ------------------------------------------------------------
-    def emit_svg(self):
-        self.svgCodeChanged.emit(scene_io.generate_svg(self))
+    def generate_svg(self, bordered: bool = False):
+        return scene_io.generate_svg(self, bordered=bordered)
 
-    def generate_svg(self):
-        return scene_io.generate_svg(self)
+    def emit_svg(self):
+        # Preview mirrors the drawing area, so it always uses borders.
+        self.svgCodeChanged.emit(scene_io.generate_svg(self, bordered=True))
 
     def save_state(self) -> dict:
         return scene_io.save_state(self)

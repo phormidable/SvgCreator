@@ -8,9 +8,7 @@ paths, dialogs, and user-facing success/failure messages.
 
 import json
 
-from PySide6.QtWidgets import (QApplication, QDialog, QDialogButtonBox,
-                               QFileDialog, QMessageBox, QPlainTextEdit,
-                               QVBoxLayout)
+from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QFileDialog, QMessageBox, QPlainTextEdit, QVBoxLayout
 from PySide6.QtGui import QFont
 
 
@@ -22,19 +20,52 @@ class FileIO:
     # ------------------------------------------------------------
     #  SVG export / preview
     # ------------------------------------------------------------
+    def _has_colored_shapes(self) -> bool:
+        return any(s.color is not None
+                   for s in self.scene.shape_manager.shapes)
+
     def export_svg(self):
         self.window.log("export_svg")
-        filepath, _ = QFileDialog.getSaveFileName(
-            self.window, "Save SVG", "", "SVG files (*.svg)")
+        bordered = False
+        if self._has_colored_shapes():
+            bordered = self._ask_stroke_style()
+        if bordered is None:
+            return  # user cancelled
+
+        filepath, _ = QFileDialog.getSaveFileName(self.window, "Save SVG", "", "SVG files (*.svg)")
         if not filepath:
             return
         try:
+            svg = self.scene.generate_svg(bordered=bordered)
             with open(filepath, "w", encoding="utf-8") as f:
-                f.write(self.scene.generate_svg())
+                f.write(svg)
             self.window.set_status(f"✅ Exported to {filepath}")
         except Exception as e:
-            QMessageBox.critical(self.window, "Error",
-                                 f"Could not save file:\n{e}")
+            QMessageBox.critical(self.window, "Error",f"Could not save file:\n{e}")
+
+    def _ask_stroke_style(self):
+        """Ask whether shaped curves should be stroked with a darker border
+        (drawing-area style) or flat (same as the fill). Returns True/False,
+        or None if the user cancelled."""
+        box = QMessageBox(self.window)
+        box.setWindowTitle("Export SVG")
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setText("How should shaped curves be stroked?")
+        box.setInformativeText(
+            "Borders — a darker shade of the fill, like the drawing area.\n"
+            "No borders (flat) — the fill color itself."
+        )
+        borders_btn = box.addButton("Borders", QMessageBox.ButtonRole.AcceptRole)
+        flat_btn = box.addButton("No borders (flat)", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(flat_btn)  # matches previous behaviour
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is borders_btn:
+            return True
+        if clicked is flat_btn:
+            return False
+        return None  # cancel or dialog closed
 
     def show_svg_code_dialog(self):
         svg_string = self.scene.generate_svg()

@@ -2,11 +2,11 @@
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor
 
-from settings import SVG_FILL, SVG_STROKE_COLOR, SVG_STROKE_WIDTH
+from settings import SVG_FILL, SVG_STROKE_COLOR, SVG_STROKE_WIDTH, SHAPE_BORDER_DARKEN
 from bezier_curve import BezierCurve
 from collections import defaultdict
 
-def generate_svg(scene) -> str:
+def generate_svg(scene, bordered: bool = False) -> str:
     # 1) Fills: one <path> per colored shape.
     shape_paths = []
     for shape in scene.shape_manager.shapes:
@@ -14,9 +14,7 @@ def generate_svg(scene) -> str:
             continue
         d = scene.shape_manager.shape_svg_path_string(shape)
         if d:
-            shape_paths.append(
-                f'<path d="{d}" fill="{shape.color.name()}" stroke="none"/>'
-            )
+            shape_paths.append(f'<path d="{d}" fill="{shape.color.name()}" stroke="none"/>')
 
     # 2) Strokes: group curves by their effective stroke color. A curve
     #    inside a colored shape is stroked with that shape's color; every
@@ -25,8 +23,12 @@ def generate_svg(scene) -> str:
     for shape in scene.shape_manager.shapes:
         if shape.color is None:
             continue
+        if bordered:
+            stroke = shape.color.darker(SHAPE_BORDER_DARKEN).name()
+        else:
+            stroke = shape.color.name()
         for curve in shape.curves:
-            curve_color[curve] = shape.color.name()
+            curve_color[curve] = stroke
 
     by_color: dict[str, list[str]] = defaultdict(list)
     for curve in scene.curves:
@@ -39,16 +41,14 @@ def generate_svg(scene) -> str:
     for color, ds in by_color.items():
         stroke_paths.append(
             f'<path d="{" ".join(ds)}" fill="{SVG_FILL}" '
-            f'stroke="{color}" stroke-width="{SVG_STROKE_WIDTH}"/>'
-        )
+            f'stroke="{color}" stroke-width="{SVG_STROKE_WIDTH}"/>')
 
     vb = scene.viewbox
     header = (
         f'<svg xmlns="http://www.w3.org/2000/svg" '
         f'viewBox="{vb.x():.2f} {vb.y():.2f} '
         f'{vb.width():.2f} {vb.height():.2f}" '
-        f'width="{vb.width():.2f}" height="{vb.height():.2f}">'
-    )
+        f'width="{vb.width():.2f}" height="{vb.height():.2f}">')
 
     body = "".join(shape_paths) + "".join(stroke_paths)
     if not body:
@@ -70,10 +70,7 @@ def save_state(scene) -> dict:
 
     state = {
         "version": 2,
-        "curves": [
-            [[round(p.x(), 3), round(p.y(), 3)] for p in curve.points]
-            for curve in scene.curves
-        ],
+        "curves": [[[round(p.x(), 3), round(p.y(), 3)] for p in curve.points] for curve in scene.curves],
     }
     shape_colors = []
     for shape in scene.shape_manager.shapes:
