@@ -30,7 +30,7 @@ VIEWBOX_BORDER_COLOR = QColor(120, 120, 120)
 VIEWBOX_BORDER_WIDTH = 1
 
 # ---- Hover highlight ----
-HOVER_TOLERANCE = 5
+HOVER_TOLERANCE = 10
 HOVER_CURVE_COLOR = QColor("green")
 HOVER_POINT_COLOR = QColor("green")
 HOVER_POINT_PEN_COLOR = QColor("darkred")

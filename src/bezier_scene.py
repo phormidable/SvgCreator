@@ -122,9 +122,20 @@ class BezierScene(QGraphicsScene):
             super().mousePressEvent(event)
             return
 
-        # Not a committed control point → drop any previous selection.
+        # Not on a point. Refresh hover for this exact scene position —
+        # mouseMoved normally keeps it current, but a click without a
+        # preceding move shouldn't be a no-op.
+        self._update_hover(event.scenePos())
+        if self.hovered_curve is not None:
+            add = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+            self.select_curve_under_hover(add=add)
+            event.accept()
+            return
+
+        # Nothing under the cursor → drop selection.
         self.set_selected_point(None)
         super().mousePressEvent(event)
+
 
     def _start_drag(self, primary):
         """Snapshot positions of every point that should follow this drag."""
