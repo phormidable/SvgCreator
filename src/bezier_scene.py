@@ -141,28 +141,20 @@ class BezierScene(QGraphicsScene):
         self.set_selected_point(None)
         super().mousePressEvent(event)
 
-
-    def _start_drag(self, primary):
-        """Snapshot positions of every point that should follow this drag."""
-        primary_group = set(self.link_manager.group_of(primary) or [])
-        primary_group.add(primary)
-
-        # Seeds: all selected points + the primary (in case primary wasn't selected).
-        seeds = set(self.selected_points)
-        seeds.add(primary)
-
-        # Expand to link-group siblings.
-        targets = set()
-        for pt in seeds:
-            targets.add(pt)
+    def _with_linked(self, points) -> set[ControlPoint]:
+        """Return `points` plus every link-group sibling of any of them."""
+        result = set(points)
+        for pt in points:
             group = self.link_manager.group_of(pt)
             if group:
-                targets.update(group)
+                result.update(group)
+        return result
 
-        # Primary and its group are moved by Qt + propagate_point_move — skip them.
-        targets -= primary_group
-
-        self._drag_targets = {pt: pt.pos() for pt in targets}
+    def _start_drag(self, primary):
+        primary_group = self._with_linked({primary})
+        seeds = set(self.selected_points) | {primary}
+        self._drag_targets = {pt: pt.pos()
+                              for pt in self._with_linked(seeds) - primary_group}
         self._drag_primary_start = primary.pos()
 
 
@@ -512,22 +504,11 @@ class BezierScene(QGraphicsScene):
             return self.curves[curve_idx].points
         return None
 
-
-
     def move_selected_points(self, dx: float, dy: float) -> bool:
         if not self.selected_points:
             return False
-
-        # Include link-group siblings so linked points stay coincident.
-        to_move = set()
-        for pt in self.selected_points:
-            to_move.add(pt)
-            group = self.link_manager.group_of(pt)
-            if group:
-                to_move.update(group)
-
         offset = QPointF(dx, dy)
-        for pt in to_move:
+        for pt in self._with_linked(self.selected_points):
             pt.setPos(pt.pos() + offset)
         return True
 
@@ -561,28 +542,26 @@ class BezierScene(QGraphicsScene):
     def is_rotating(self) -> bool:
         return self._rotation_pivot is not None
 
-    def _rotation_base_points(self) -> list[ControlPoint] | None:
-        shape = self.shape_manager.selected()
-        if shape is not None:
-            pts: set[ControlPoint] = set()
-            for curve in shape.curves:
-                pts.update(curve.points)
-            return list(pts)
-        pts = set()
-        for curve in self.curves:
-            if curve.curve_selected:
-                pts.update(curve.points)
-        return list(pts) if pts else None
-
-    # ------------------------------------------------------------
-    #  Mirror
-    # ------------------------------------------------------------
-    def _mirror_curves(self) -> list[BezierCurve]:
-        """Every curve currently part of the selection."""
+    def _selected_curves(self) -> list[BezierCurve]:
+        """Every curve currently part of the selection: the whole shape if
+        one is selected, otherwise each curve flagged curve_selected."""
         shape = self.shape_manager.selected()
         if shape is not None:
             return list(shape.curves)
         return [c for c in self.curves if c.curve_selected]
+
+    def _rotation_base_points(self) -> list[ControlPoint] | None:
+        curves = self._selected_curves()
+        if not curves:
+            return None
+        pts: set[ControlPoint] = set()
+        for c in curves:
+            pts.update(c.points)
+        return list(pts)
+
+    # ------------------------------------------------------------
+    #  Mirror
+    # ------------------------------------------------------------
 
     def mirror_selection(self, axis: str) -> bool:
         """Reflect the selection across the horizontal line (axis='x') or
@@ -591,7 +570,7 @@ class BezierScene(QGraphicsScene):
             self.messageLogged.emit("Finish the rotation first")
             return False
 
-        curves = self._mirror_curves()
+        curves = self._selected_curves()
         if not curves:
             self.messageLogged.emit(
                 "Nothing to mirror — select a curve (A or click) or a shape (S) first")
@@ -604,12 +583,7 @@ class BezierScene(QGraphicsScene):
         py = sum(p.pos().y() for p in base_pts) / len(base_pts)
 
         # Include linked siblings so they stay coincident (same rule as rotation).
-        targets: set[ControlPoint] = set()
-        for p in base_pts:
-            targets.add(p)
-            group = self.link_manager.group_of(p)
-            if group:
-                targets.update(group)
+        targets = self._with_linked(base_pts)
 
         if axis == "x":
             # Reflect across the horizontal line y = py → flip y.
@@ -678,12 +652,7 @@ class BezierScene(QGraphicsScene):
         self._rotation_pivot = QPointF(cx, cy)
 
         # Include linked siblings so they stay coincident.
-        targets: set[ControlPoint] = set()
-        for p in base:
-            targets.add(p)
-            group = self.link_manager.group_of(p)
-            if group:
-                targets.update(group)
+        targets = self._with_linked(base)
 
         self._rotation_starts = {p: p.pos() for p in targets}
         self._rotation_ref_angle = None  # captured on first mouse move
@@ -741,3 +710,4 @@ class BezierScene(QGraphicsScene):
         if self._rotation_pivot_item is not None:
             self.removeItem(self._rotation_pivot_item)
             self._rotation_pivot_item = None
+

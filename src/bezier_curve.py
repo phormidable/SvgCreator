@@ -129,17 +129,6 @@ class BezierCurve(QGraphicsItem):
 
         self.update()
 
-    # ---------------------------------------------------------------
-    #  Highlight / hover
-    # ---------------------------------------------------------------
-    # def set_highlighted(self, value):
-    #     if self.highlighted == value:
-    #         return
-    #     self.highlighted = value
-    #     self.update()
-    #     for pt in self.points:
-    #         pt.set_highlighted(value)
-
     def set_hovered(self, value):
         if self.hovered == value:
             return
