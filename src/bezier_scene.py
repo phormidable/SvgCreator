@@ -41,6 +41,7 @@ class BezierScene(QGraphicsScene):
         self._ensuring_visible = False
         self.background_item = None
         self.background_image_path = None
+        self.background_pixmap = None
 
         self._drag_targets: dict[ControlPoint, QPointF] = {}
         self._drag_primary_start: QPointF | None = None
@@ -362,6 +363,7 @@ class BezierScene(QGraphicsScene):
 
         self._remove_background_image()
         self.background_image_path = filepath
+        self.background_pixmap = pixmap
 
         item = QGraphicsPixmapItem(pixmap)
         item.setOpacity(0.35)
@@ -387,6 +389,7 @@ class BezierScene(QGraphicsScene):
             self.removeItem(self.background_item)
             self.background_item = None
             self.background_image_path = None
+            self.background_pixmap = None
 
     def _read_image(self, filepath):
         """Load a raster or SVG file into a QPixmap (or None on failure)."""

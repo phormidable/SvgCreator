@@ -253,12 +253,7 @@ class MainWindow(QMainWindow):
         self.refresh_preview_background()
 
     def refresh_preview_background(self):
-        path = self.scene.background_image_path
-        if not path:
-            self.preview_widget.set_background(None)
-            return
-        # Reuse the scene's reader so SVG backgrounds work here too.
-        self.preview_widget.set_background(self.scene._read_image(path))
+        self.preview_widget.set_background(self.scene.background_pixmap)
 
     # ------------------------------------------------------------
     #  Clear scene
