@@ -70,6 +70,8 @@ class MainWindow(QMainWindow):
         self.scene.svgCodeChanged.connect(self.update_preview)
         self.drawing_view.mouseMoved.connect(self.show_mouse_coordinates)
         self.drawing_view.mouseMoved.connect(self.scene.on_mouse_moved)
+        self.scene.rotationModeChanged.connect(self.drawing_view.set_rotation_mode)
+        self.drawing_view.rotationRightClick.connect(self.scene.end_rotation)
 
         # Initial state
         self.set_mode("create")
@@ -79,8 +81,16 @@ class MainWindow(QMainWindow):
         key = event.key()
 
         if key == Qt.Key.Key_Escape:
+            if self.scene.is_rotating():
+                self.scene.end_rotation(commit=False)
+                event.accept()
+                return
             self.scene.clear_selection()
             if self.scene.cancel_pending_curve():
+                event.accept()
+                return
+        elif key == Qt.Key.Key_R:
+            if self.scene.start_rotation():
                 event.accept()
                 return
         elif key == Qt.Key.Key_L:

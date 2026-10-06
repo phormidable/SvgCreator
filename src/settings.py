@@ -103,3 +103,7 @@ SHAPE_SELECTED_CURVE_PEN_WIDTH = 5
 SHAPE_BORDER_DARKEN = 130   # QColor.darker(factor); 100 = unchanged
 # ---- Transparency mode (selected shape) ----
 SHAPE_TRANSPARENT_OPACITY = 0.25
+
+# ---- Rotation ----
+ROTATION_PIVOT_RADIUS = 4
+ROTATION_PIVOT_COLOR = QColor("orange")

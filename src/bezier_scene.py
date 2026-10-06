@@ -1,15 +1,17 @@
 # bezier_scene.py
 from PySide6.QtCore import QRectF, Qt, Signal, QSize, QPointF
-from PySide6.QtGui import QPen, QPixmap, QImage, QPainter, QColor
-from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem
+from PySide6.QtGui import QPen, QPixmap, QImage, QPainter, QColor, QBrush
+from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem, QGraphicsEllipseItem
 from PySide6.QtSvg import QSvgRenderer
 
-from settings import ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH, DEFAULT_CURVE_COLOR
+from settings import (ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH,
+                      DEFAULT_CURVE_COLOR, ROTATION_PIVOT_RADIUS, ROTATION_PIVOT_COLOR)
 
 from link_manager import LinkManager
 from control_point import ControlPoint
 from bezier_curve import BezierCurve
 import scene_io
+import math
 from shape_manager import ShapeManager
 
 SHAPE_FILL_Z = -10
@@ -21,6 +23,7 @@ class BezierScene(QGraphicsScene):
     curveSelected = Signal(int)
     curveDragFinished = Signal()
     messageLogged = Signal(str)
+    rotationModeChanged = Signal(bool)
 
     def __init__(self):
         super().__init__()
@@ -57,6 +60,11 @@ class BezierScene(QGraphicsScene):
         self.addItem(self.viewbox_item)
         self.link_manager = LinkManager(self)
         self.shape_manager = ShapeManager(self)
+
+        self._rotation_pivot: QPointF | None = None
+        self._rotation_ref_angle: float | None = None
+        self._rotation_starts: dict[ControlPoint, QPointF] = {}
+        self._rotation_pivot_item: QGraphicsEllipseItem | None = None
 
     # ------------------------------------------------------------
     #  Mouse interaction
@@ -195,7 +203,9 @@ class BezierScene(QGraphicsScene):
     #  Hover tracking
     # ------------------------------------------------------------
     def on_mouse_moved(self, scene_pos):
-        """Called by the view's mouseMoved signal (scene_pos or None)."""
+        if self.is_rotating():
+            self._update_rotation(scene_pos)
+            return
         if self.dragging_point is not None:
             return
         self._update_hover(scene_pos)
@@ -319,6 +329,7 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     def clear_all(self):
         self._clear_hover()
+        self.end_rotation(commit=False)
         self.set_selected_point(None)
         if self.pending_curve is not None:
             self.pending_curve.dispose()
@@ -479,3 +490,100 @@ class BezierScene(QGraphicsScene):
             self.messageLogged.emit(f"Restored points on {n} curve(s)")
         return n
 
+    # ------------------------------------------------------------
+    #  Rotation
+    # ------------------------------------------------------------
+    def is_rotating(self) -> bool:
+        return self._rotation_pivot is not None
+
+    def _rotation_base_points(self) -> list[ControlPoint] | None:
+        """The points whose barycentre is the pivot: the selected shape's,
+        or the selected curve's. None if nothing suitable is selected."""
+        shape = self.shape_manager.selected()
+        if shape is not None:
+            pts: set[ControlPoint] = set()
+            for curve in shape.curves:
+                pts.update(curve.points)
+            return list(pts)
+        for curve in self.curves:
+            if curve.curve_selected:
+                return list(curve.points)
+        return None
+
+    def start_rotation(self) -> bool:
+        if self.is_rotating():
+            return True
+        base = self._rotation_base_points()
+        if not base:
+            self.messageLogged.emit(
+                "Nothing to rotate — select a curve (A) or a shape (S) first")
+            return False
+
+        cx = sum(p.pos().x() for p in base) / len(base)
+        cy = sum(p.pos().y() for p in base) / len(base)
+        self._rotation_pivot = QPointF(cx, cy)
+
+        # Include linked siblings so they stay coincident.
+        targets: set[ControlPoint] = set()
+        for p in base:
+            targets.add(p)
+            group = self.link_manager.group_of(p)
+            if group:
+                targets.update(group)
+
+        self._rotation_starts = {p: p.pos() for p in targets}
+        self._rotation_ref_angle = None  # captured on first mouse move
+
+        self._show_pivot(cx, cy)
+        self.rotationModeChanged.emit(True)
+        self.messageLogged.emit(
+            f"Rotating around ({cx:.1f}, {cy:.1f}) — right-click to validate, Esc to cancel")
+        return True
+
+    def end_rotation(self, commit: bool = True):
+        if not self.is_rotating():
+            return
+        if not commit:
+            for pt, start in self._rotation_starts.items():
+                pt.setPos(start)
+            self.on_curve_changed()  # one rebuild after restoring
+        self._rotation_pivot = None
+        self._rotation_ref_angle = None
+        self._rotation_starts = {}
+        self._hide_pivot()
+        self.rotationModeChanged.emit(False)
+        self.messageLogged.emit("Rotation validated" if commit else "Rotation cancelled")
+
+    def _update_rotation(self, scene_pos: QPointF):
+        if scene_pos is None or self._rotation_pivot is None:
+            return
+        px, py = self._rotation_pivot.x(), self._rotation_pivot.y()
+        dx, dy = scene_pos.x() - px, scene_pos.y() - py
+        if dx == 0.0 and dy == 0.0:
+            return
+        angle = math.atan2(dy, dx)
+        if self._rotation_ref_angle is None:
+            self._rotation_ref_angle = angle
+            return
+        delta = angle - self._rotation_ref_angle
+        cos_a, sin_a = math.cos(delta), math.sin(delta)
+        for pt, start in self._rotation_starts.items():
+            sx, sy = start.x() - px, start.y() - py
+            pt.setPos(px + sx * cos_a - sy * sin_a,
+                      py + sx * sin_a + sy * cos_a)
+
+    def _show_pivot(self, x: float, y: float):
+        r = ROTATION_PIVOT_RADIUS
+        item = QGraphicsEllipseItem(-r, -r, 2 * r, 2 * r)
+        item.setBrush(QBrush(ROTATION_PIVOT_COLOR))
+        item.setPen(QPen(Qt.PenStyle.NoPen))
+        item.setZValue(1000)
+        item.setPos(x, y)
+        item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self.addItem(item)
+        self._rotation_pivot_item = item
+
+    def _hide_pivot(self):
+        if self._rotation_pivot_item is not None:
+            self.removeItem(self._rotation_pivot_item)
+            self._rotation_pivot_item = None
