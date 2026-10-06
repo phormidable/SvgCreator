@@ -3,7 +3,7 @@ from PySide6.QtWidgets import QGraphicsItem
 from PySide6.QtGui import QPainterPath, QPainterPathStroker, QPen, QColor, QPainter
 from PySide6.QtCore import QRectF, Qt
 
-from settings import (CURVE_PEN_WIDTH, HOVER_COLOR_FOCUS, CURVE_SELECTED_PEN_COLOR, CURVE_SELECTED_PEN_WIDTH,
+from settings import (CURVE_PEN_WIDTH, HOVER_COLOR_FOCUS, CURVE_SELECTED_PEN_COLOR, CURVE_SELECTED_PEN_WIDTH, HOVER_COLOR,
                       HOVER_TOLERANCE, SVG_PRECISION, HIDDEN_CURVE_COLOR, SHAPE_SELECTED_CURVE_COLOR, SHAPE_SELECTED_CURVE_PEN_WIDTH)
 
 from control_point import ControlPoint
@@ -31,7 +31,7 @@ class BezierCurve(QGraphicsItem):
         self.curve_selected = False
         self.focused = False
         self._pen_normal = QPen(self.color, CURVE_PEN_WIDTH)
-        self._pen_hover = QPen(HOVER_COLOR_FOCUS, CURVE_PEN_WIDTH)
+        self._pen_hover = QPen(HOVER_COLOR, CURVE_PEN_WIDTH)
         self._pen_hidden = QPen(HIDDEN_CURVE_COLOR, CURVE_PEN_WIDTH)
         self._pen_shape_selected = QPen(SHAPE_SELECTED_CURVE_COLOR, SHAPE_SELECTED_CURVE_PEN_WIDTH)
         self._pen_curve_selected = QPen(CURVE_SELECTED_PEN_COLOR, CURVE_SELECTED_PEN_WIDTH)

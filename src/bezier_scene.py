@@ -225,25 +225,28 @@ class BezierScene(QGraphicsScene):
         if pos is not None:
             tol2 = HOVER_TOLERANCE * HOVER_TOLERANCE
             for curve in reversed(self.curves):
-                if curve.is_near(pos):
-                    new_hovered = curve
-                    # Which point (if any) is under the cursor?
-                    for pt in curve.points:
-                        p = pt.pos()
-                        dx, dy = p.x() - pos.x(), p.y() - pos.y()
-                        if dx * dx + dy * dy <= tol2:
-                            new_focused_pt = pt
-                            break
-                    break
+                if not curve.is_near(pos):
+                    continue
+                new_hovered = curve
+                # Is a point of THIS curve under the cursor?
+                for pt in curve.points:
+                    p = pt.pos()
+                    dx, dy = p.x() - pos.x(), p.y() - pos.y()
+                    if dx * dx + dy * dy <= tol2:
+                        new_focused_pt = pt
+                        break
+                break
 
+        # --- hover ---
         if new_hovered is not self.hovered_curve:
             if self.hovered_curve is not None:
                 self.hovered_curve.set_hovered(False)
-                self.hovered_curve.set_focused(False)
+                self.hovered_curve.set_focused(False)  # also drop old focus
             self.hovered_curve = new_hovered
             if new_hovered is not None:
                 new_hovered.set_hovered(True)
 
+        # --- point focus ---
         if new_focused_pt is not self.focused_point:
             if self.focused_point is not None:
                 self.focused_point.set_focused(False)
@@ -251,10 +254,10 @@ class BezierScene(QGraphicsScene):
             if new_focused_pt is not None:
                 new_focused_pt.set_focused(True)
 
-        # Curve stroke goes cyan only when the cursor is on the stroke
-        # itself, not on one of its points.
+        # --- curve focus ---
+        # Cyan only when the cursor is on the stroke AND not on a point.
         if self.hovered_curve is not None:
-            self.hovered_curve.set_focused(new_focused_pt is None)
+            self.hovered_curve.set_focused(self.focused_point is None)
 
     def clear_hover(self):
         if self.hovered_curve is not None:
