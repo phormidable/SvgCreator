@@ -1,8 +1,7 @@
 # main_window.py
-from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QColorDialog, QComboBox, QSizePolicy, QGraphicsOpacityEffect
+from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QColorDialog, QComboBox, QSizePolicy
 from PySide6.QtCore import QByteArray, Qt
-from PySide6.QtGui import QPainter, QActionGroup, QColor, QPixmap
-from PySide6.QtSvgWidgets import QSvgWidget
+from PySide6.QtGui import QPainter, QActionGroup, QColor
 
 from settings import DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
 from bezier_scene import BezierScene

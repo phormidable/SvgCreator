@@ -75,7 +75,7 @@ class ShapeManager:
     def select_from_hover(self) -> bool:
         """Toggle selection of the shape containing the hovered curve.
         Returns True if handled (so the caller can accept the key event)."""
-        hovered = self.scene._hovered_curve
+        hovered = self.scene.hovered_curve
         if hovered is None:
             return False
         shape = self.shape_of_curve(hovered)

@@ -1,7 +1,7 @@
 # control_point.py
 from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem
-from PySide6.QtGui import QBrush, QPen, QPainter, QColor
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import QBrush, QPen, QPainter
+from PySide6.QtCore import QPointF, Qt
 
 from settings import *
 

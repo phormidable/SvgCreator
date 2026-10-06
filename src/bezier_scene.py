@@ -37,7 +37,7 @@ class BezierScene(QGraphicsScene):
         self.selected_points: list[ControlPoint] = []
         self.selected_curve_idx = -1
         self.dragging_point = None
-        self._hovered_curve = None
+        self.hovered_curve = None
         self._ensuring_visible = False
         self.background_item = None
         self.background_image_path = None
@@ -202,18 +202,18 @@ class BezierScene(QGraphicsScene):
                 if curve.is_near(pos):
                     new_hovered = curve
                     break
-        if new_hovered is self._hovered_curve:
+        if new_hovered is self.hovered_curve:
             return
-        if self._hovered_curve is not None:
-            self._hovered_curve.set_hovered(False)
-        self._hovered_curve = new_hovered
+        if self.hovered_curve is not None:
+            self.hovered_curve.set_hovered(False)
+        self.hovered_curve = new_hovered
         if new_hovered is not None:
             new_hovered.set_hovered(True)
 
     def _clear_hover(self):
-        if self._hovered_curve is not None:
-            self._hovered_curve.set_hovered(False)
-            self._hovered_curve = None
+        if self.hovered_curve is not None:
+            self.hovered_curve.set_hovered(False)
+            self.hovered_curve = None
 
     # ------------------------------------------------------------
     #  Shape selection
@@ -247,9 +247,9 @@ class BezierScene(QGraphicsScene):
 
     def select_curve_under_hover(self) -> bool:
         """Toggle selection of the hovered curve. Returns True if handled."""
-        if self._hovered_curve is None:
+        if self.hovered_curve is None:
             return False
-        curve = self._hovered_curve
+        curve = self.hovered_curve
         already = (curve.curve_selected
                    and all(pt in self.selected_points for pt in curve.points))
         if already:
@@ -457,10 +457,10 @@ class BezierScene(QGraphicsScene):
     def hide_hovered_curve_points(self) -> bool:
         if self.dragging_point is not None:
             return False  # don't hide a curve whose point is mid-drag
-        if self._hovered_curve is None:
+        if self.hovered_curve is None:
             return False
-        self._hovered_curve.set_points_hidden(True)
-        self.messageLogged.emit(f"Points hidden on {self._hovered_curve.name}")
+        self.hovered_curve.set_points_hidden(True)
+        self.messageLogged.emit(f"Points hidden on {self.hovered_curve.name}")
         return True
 
     def show_all_points(self) -> int:

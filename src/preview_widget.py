@@ -203,7 +203,7 @@ class PreviewWidget(QWidget):
         else:
             ny = 0.5
 
-        return (nx, ny)
+        return nx, ny
 
     def _center_on_norm(self, norm):
         nx, ny = norm
