@@ -96,6 +96,9 @@ class MainWindow(QMainWindow):
                 self.scene.end_rotation(commit=False)
                 event.accept()
                 return
+            if self.scene.cancel_preset():
+                event.accept()
+                return
             self.scene.clear_selection()
             if self.scene.cancel_pending_curve():
                 event.accept()
@@ -234,6 +237,20 @@ class MainWindow(QMainWindow):
         show_all_action = toolbar.addAction("👁️ Show all points")
         show_all_action.setToolTip("Restore all hidden curve points")
         show_all_action.triggered.connect(self.show_all_points)
+
+        toolbar.addSeparator()
+        toolbar.addWidget(QLabel(" Moons: "))
+
+        for label, name in (
+            ("🌙↑", "up"),
+            ("🌙→", "right"),
+            ("🌙↓", "down"),
+            ("🌙←", "left"),
+        ):
+            action = toolbar.addAction(label)
+            action.setToolTip(
+                f"Place a '{name}' moon — next canvas click drops it centred there")
+            action.triggered.connect(lambda _=False, n=name: self.scene.arm_preset(n))
 
         mirror_x_action = toolbar.addAction("🪞 Mirror X")
         mirror_x_action.setToolTip(

@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem, 
 from PySide6.QtSvg import QSvgRenderer
 
 from settings import (ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH,
-                      DEFAULT_CURVE_COLOR, ROTATION_PIVOT_RADIUS, ROTATION_PIVOT_COLOR, HOVER_TOLERANCE)
+                      DEFAULT_CURVE_COLOR, ROTATION_PIVOT_RADIUS, ROTATION_PIVOT_COLOR, HOVER_TOLERANCE, MOON_PRESETS)
 
 from link_manager import LinkManager
 from control_point import ControlPoint
@@ -46,6 +46,7 @@ class BezierScene(QGraphicsScene):
         self.background_item = None
         self.background_image_path = None
         self.background_pixmap = None
+        self._preset_pending: str | None = None
 
         self._drag_targets: dict[ControlPoint, QPointF] = {}
         self._drag_primary_start: QPointF | None = None
@@ -75,6 +76,11 @@ class BezierScene(QGraphicsScene):
             super().mousePressEvent(event)
             return
 
+        # A pending preset consumes this click, whatever the mode.
+        if self._preset_pending is not None:
+            self._place_preset(event.scenePos())
+            return
+
         # ---- Create mode: left-click places a point, nothing else ----
         if self.mode == "create":
             if self.pending_curve is None:
@@ -102,10 +108,8 @@ class BezierScene(QGraphicsScene):
                 event.accept()
                 return
 
-            # Non-shift: if the clicked point isn't already in the selection,
-            # start fresh.
-            if item not in self.selected_points:
-                self.set_selected_point(item)
+            # Non-shift: selection collapses to exactly this point.
+            self.set_selected_point(item)
 
             self.clear_hover()
             # Setting dragging_point *before* calling super() is deliberate:
@@ -290,6 +294,10 @@ class BezierScene(QGraphicsScene):
         else:
             self.selected_points.append(point)
             point.set_selected(True)
+        # Keep the curve's "fully selected" flag consistent with the point set.
+        curve = point.curve
+        curve.set_curve_selected(
+            all(pt in self.selected_points for pt in curve.points))
 
     def clear_selection(self):
         for pt in self.selected_points:
@@ -617,6 +625,44 @@ class BezierScene(QGraphicsScene):
         self.messageLogged.emit(
             f"Mirrored across {axis.upper()} axis around ({px:.1f}, {py:.1f})")
         return True
+
+    # ------------------------------------------------------------
+    #  One-click curve presets
+    # ------------------------------------------------------------
+    def arm_preset(self, name: str) -> bool:
+        """Arm a one-click preset. The next left-click in the canvas places
+        it. Re-arming the same preset cancels it."""
+        if name not in MOON_PRESETS:
+            return False
+        if self._preset_pending == name:
+            self._preset_pending = None
+            self.messageLogged.emit("Preset cancelled")
+            return True
+        if self.pending_curve is not None:
+            self.messageLogged.emit("Finish or discard the current curve first")
+            return False
+        self._preset_pending = name
+        self.messageLogged.emit(f"Click the canvas to place a '{name}' moon")
+        return True
+
+    def cancel_preset(self) -> bool:
+        if self._preset_pending is None:
+            return False
+        self._preset_pending = None
+        self.messageLogged.emit("Preset cancelled")
+        return True
+
+    def _place_preset(self, center: QPointF):
+        name = self._preset_pending
+        self._preset_pending = None
+        curve = BezierCurve(self)
+        for dx, dy in MOON_PRESETS[name]:
+            curve.add_point(QPointF(center.x() + dx, center.y() + dy))
+        # Route through finalize_curve so committed flags, signals, and the
+        # curve list all get updated exactly like a normal curve.
+        self.pending_curve = curve
+        self.finalize_curve()
+        self.messageLogged.emit(f"{curve.name} placed ({name} moon)")
 
     def start_rotation(self) -> bool:
         if self.is_rotating():
