@@ -125,6 +125,14 @@ class MainWindow(QMainWindow):
             if self.scene.select_curve_under_hover(add=add):
                 event.accept()
                 return
+        elif key == Qt.Key.Key_X:
+            if self.scene.mirror_selection("x"):
+                event.accept()
+                return
+        elif key == Qt.Key.Key_Y:
+            if self.scene.mirror_selection("y"):
+                event.accept()
+                return
         elif key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
             self._step_zoom(+1)
             event.accept()
