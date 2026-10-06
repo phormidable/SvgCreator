@@ -1,7 +1,7 @@
 # main_window.py
 from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QColorDialog, QComboBox, QSizePolicy
 from PySide6.QtCore import QByteArray, Qt
-from PySide6.QtGui import QPainter, QActionGroup, QColor
+from PySide6.QtGui import QPainter, QActionGroup, QColor, QShortcut, QKeySequence
 
 from settings import DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
 from bezier_scene import BezierScene
@@ -53,6 +53,13 @@ class MainWindow(QMainWindow):
         # ---- Toolbar ----
         self._setup_toolbar()
 
+        # Why a shortcut and not a keyPressEvent branch: Qt intercepts Tab for focus
+        # traversal in QWidget::event() before keyPressEvent, so the drawing view would
+        # swallow it. A window-level QShortcut is dispatched earlier, so it always fires.
+        self._tab_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Tab), self)
+        self._tab_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
+        self._tab_shortcut.activated.connect(self._toggle_mode)
+
         # ---- Mouse coordinate label ----
         self.coord_label = QLabel(self.drawing_view.viewport())
         self.coord_label.setStyleSheet(
@@ -76,6 +83,10 @@ class MainWindow(QMainWindow):
         # Initial state
         self.set_mode("create")
         self.scene.emit_svg()
+
+    def _toggle_mode(self):
+        new_mode = "edit" if self.scene.mode == "create" else "create"
+        self.set_mode(new_mode)
 
     def keyPressEvent(self, event):
         key = event.key()
@@ -259,8 +270,10 @@ class MainWindow(QMainWindow):
         self.scene.clear_hover()
         self.scene.mode = mode
         if mode == "create":
+            self.create_action.setChecked(True)
             self.statusBar().showMessage("Create mode: left-click to place points. Right-drag to pan.")
         else:
+            self.edit_action.setChecked(True)
             self.statusBar().showMessage("Edit mode: drag points or edit coordinates. Right-drag to pan.")
 
         self.coord_label.show()

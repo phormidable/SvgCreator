@@ -4,10 +4,10 @@ from PySide6.QtGui import QBrush, QPen, QPainter, QColor
 from PySide6.QtCore import QPointF, Qt, QRectF
 
 from settings import (POINT_DIAMETER, LINKED_RING_EXTRA, LINKED_RING_PEN_WIDTH, POINT_RADIUS, HIGHLIGHT_POINT_COLOR,
-            HIGHLIGHT_POINT_PEN_COLOR, HOVER_POINT_COLOR, HOVER_POINT_PEN_COLOR, SELECTED_POINT_OUTER_COLOR, SELECTED_POINT_OUTER_WIDTH,
+            HIGHLIGHT_POINT_PEN_COLOR, HOVER_COLOR_FOCUS, HOVER_POINT_PEN_COLOR, SELECTED_POINT_OUTER_COLOR, SELECTED_POINT_OUTER_WIDTH,
                       SELECTED_POINT_COLOR, SELECTED_POINT_PEN_COLOR, LINKED_RING_COLOR, POINT_BLUE, ENDPOINT_ALPHA, ENDPOINT_PEN_COLOR,
                       CONTROL_POINT_OUTER_PEN_COLOR, CONTROL_POINT_MIDDLE_RADIUS, CONTROL_POINT_MIDDLE_COLOR, CONTROL_POINT_MIDDLE_PEN_COLOR,
-                      CONTROL_POINT_INNER_RADIUS, CONTROL_POINT_INNER_COLOR)
+                      CONTROL_POINT_INNER_RADIUS, CONTROL_POINT_INNER_COLOR, HOVER_COLOR)
 
 class ControlPoint(QGraphicsEllipseItem):
     def __init__(self, pos, curve, point_idx):
@@ -20,6 +20,7 @@ class ControlPoint(QGraphicsEllipseItem):
         self.hovered = False
         self.selected = False
         self.linked = False
+        self.focused = False
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
 
     def _is_endpoint(self):
@@ -38,6 +39,12 @@ class ControlPoint(QGraphicsEllipseItem):
         self.linked = value
         self.update()
 
+    def set_focused(self, value):
+        if self.focused == value:
+            return
+        self.focused = value
+        self.update()
+
     def paint(self, painter, option, widget=None):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
@@ -51,11 +58,14 @@ class ControlPoint(QGraphicsEllipseItem):
         if self.selected:
             self._draw_selected(painter)
             return
+        if self.focused:
+            self._draw_solid(painter, HOVER_COLOR_FOCUS, HOVER_POINT_PEN_COLOR)
+            return
         if self.highlighted:
             self._draw_solid(painter, HIGHLIGHT_POINT_COLOR, HIGHLIGHT_POINT_PEN_COLOR)
             return
         if self.hovered:
-            self._draw_solid(painter, HOVER_POINT_COLOR, HOVER_POINT_PEN_COLOR)
+            self._draw_solid(painter, HOVER_COLOR, HOVER_POINT_PEN_COLOR)
             return
 
         if self._is_endpoint():

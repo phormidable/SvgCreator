@@ -31,8 +31,8 @@ VIEWBOX_BORDER_WIDTH = 1
 
 # ---- Hover highlight ----
 HOVER_TOLERANCE = 10
-HOVER_CURVE_COLOR = QColor("green")
-HOVER_POINT_COLOR = QColor("green")
+HOVER_COLOR = QColor("green")
+HOVER_COLOR_FOCUS = QColor("cyan")
 HOVER_POINT_PEN_COLOR = QColor("darkred")
 
 # ---- Highlighted point colors (while dragging a curve) ----

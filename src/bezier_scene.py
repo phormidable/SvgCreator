@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem, 
 from PySide6.QtSvg import QSvgRenderer
 
 from settings import (ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH,
-                      DEFAULT_CURVE_COLOR, ROTATION_PIVOT_RADIUS, ROTATION_PIVOT_COLOR)
+                      DEFAULT_CURVE_COLOR, ROTATION_PIVOT_RADIUS, ROTATION_PIVOT_COLOR, HOVER_TOLERANCE)
 
 from link_manager import LinkManager
 from control_point import ControlPoint
@@ -40,6 +40,7 @@ class BezierScene(QGraphicsScene):
         self.selected_points: list[ControlPoint] = []
         self.selected_curve_idx = -1
         self.dragging_point = None
+        self.focused_point: ControlPoint | None = None
         self.hovered_curve = None
         self._ensuring_visible = False
         self.background_item = None
@@ -219,23 +220,50 @@ class BezierScene(QGraphicsScene):
 
     def _update_hover(self, pos):
         new_hovered = None
+        new_focused_pt = None
+
         if pos is not None:
+            tol2 = HOVER_TOLERANCE * HOVER_TOLERANCE
             for curve in reversed(self.curves):
                 if curve.is_near(pos):
                     new_hovered = curve
+                    # Which point (if any) is under the cursor?
+                    for pt in curve.points:
+                        p = pt.pos()
+                        dx, dy = p.x() - pos.x(), p.y() - pos.y()
+                        if dx * dx + dy * dy <= tol2:
+                            new_focused_pt = pt
+                            break
                     break
-        if new_hovered is self.hovered_curve:
-            return
+
+        if new_hovered is not self.hovered_curve:
+            if self.hovered_curve is not None:
+                self.hovered_curve.set_hovered(False)
+                self.hovered_curve.set_focused(False)
+            self.hovered_curve = new_hovered
+            if new_hovered is not None:
+                new_hovered.set_hovered(True)
+
+        if new_focused_pt is not self.focused_point:
+            if self.focused_point is not None:
+                self.focused_point.set_focused(False)
+            self.focused_point = new_focused_pt
+            if new_focused_pt is not None:
+                new_focused_pt.set_focused(True)
+
+        # Curve stroke goes cyan only when the cursor is on the stroke
+        # itself, not on one of its points.
         if self.hovered_curve is not None:
-            self.hovered_curve.set_hovered(False)
-        self.hovered_curve = new_hovered
-        if new_hovered is not None:
-            new_hovered.set_hovered(True)
+            self.hovered_curve.set_focused(new_focused_pt is None)
 
     def clear_hover(self):
         if self.hovered_curve is not None:
             self.hovered_curve.set_hovered(False)
+            self.hovered_curve.set_focused(False)
             self.hovered_curve = None
+        if self.focused_point is not None:
+            self.focused_point.set_focused(False)
+            self.focused_point = None
 
     # ------------------------------------------------------------
     #  Shape selection
