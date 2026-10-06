@@ -227,6 +227,16 @@ class MainWindow(QMainWindow):
         show_all_action.setToolTip("Restore all hidden curve points")
         show_all_action.triggered.connect(self.show_all_points)
 
+        mirror_x_action = toolbar.addAction("🪞 Mirror X")
+        mirror_x_action.setToolTip(
+            "Flip vertically — mirror across the horizontal line through the selection")
+        mirror_x_action.triggered.connect(lambda: self.scene.mirror_selection("x"))
+
+        mirror_y_action = toolbar.addAction("🪞 Mirror Y")
+        mirror_y_action.setToolTip(
+            "Flip horizontally — mirror across the vertical line through the selection")
+        mirror_y_action.triggered.connect(lambda: self.scene.mirror_selection("y"))
+
         generate_action = toolbar.addAction("📄 Show SVG code")
         generate_action.triggered.connect(self.file_io.show_svg_code_dialog)
 

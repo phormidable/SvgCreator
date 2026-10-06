@@ -566,6 +566,58 @@ class BezierScene(QGraphicsScene):
                 pts.update(curve.points)
         return list(pts) if pts else None
 
+    # ------------------------------------------------------------
+    #  Mirror
+    # ------------------------------------------------------------
+    def _mirror_curves(self) -> list[BezierCurve]:
+        """Every curve currently part of the selection."""
+        shape = self.shape_manager.selected()
+        if shape is not None:
+            return list(shape.curves)
+        return [c for c in self.curves if c.curve_selected]
+
+    def mirror_selection(self, axis: str) -> bool:
+        """Reflect the selection across the horizontal line (axis='x') or
+        vertical line (axis='y') through the barycentre of its points."""
+        if self.is_rotating():
+            self.messageLogged.emit("Finish the rotation first")
+            return False
+
+        curves = self._mirror_curves()
+        if not curves:
+            self.messageLogged.emit(
+                "Nothing to mirror — select a curve (A or click) or a shape (S) first")
+            return False
+
+        base_pts: set[ControlPoint] = set()
+        for c in curves:
+            base_pts.update(c.points)
+        px = sum(p.pos().x() for p in base_pts) / len(base_pts)
+        py = sum(p.pos().y() for p in base_pts) / len(base_pts)
+
+        # Include linked siblings so they stay coincident (same rule as rotation).
+        targets: set[ControlPoint] = set()
+        for p in base_pts:
+            targets.add(p)
+            group = self.link_manager.group_of(p)
+            if group:
+                targets.update(group)
+
+        if axis == "x":
+            # Reflect across the horizontal line y = py → flip y.
+            for p in targets:
+                pos = p.pos()
+                p.setPos(pos.x(), 2 * py - pos.y())
+        else:
+            # Reflect across the vertical line x = px → flip x.
+            for p in targets:
+                pos = p.pos()
+                p.setPos(2 * px - pos.x(), pos.y())
+
+        self.messageLogged.emit(
+            f"Mirrored across {axis.upper()} axis around ({px:.1f}, {py:.1f})")
+        return True
+
     def start_rotation(self) -> bool:
         if self.is_rotating():
             return True
