@@ -571,6 +571,29 @@ class BezierScene(QGraphicsScene):
             f"Click the canvas to place '{PRESETS[name].label}'")
         return True
 
+    def _place_preset(self, center: QPointF):
+        name = self._preset_pending
+        self._preset_pending = None
+        self.presetStateChanged.emit("")
+
+        preset = PRESETS[name]
+        degree = self.current_degree
+        curves = []
+        for cdef in preset.curves:
+            curve = BezierCurve(self, degree=degree)
+            for dx, dy in cdef.offsets_for_degree(degree):
+                curve.add_point(QPointF(center.x() + dx, center.y() + dy))
+            self.pending_curve = curve
+            self.finalize_curve()
+            curves.append(curve)
+
+        for (ci, pi), (cj, pj) in preset.links:
+            self.link_manager.link_points(curves[ci].points[pi],
+                                          curves[cj].points[pj])
+
+        kind = "cubic" if degree == 3 else "quadratic"
+        self.messageLogged.emit(f"{PRESETS[name].label} placed ({kind})")
+
     def cancel_preset(self) -> bool:
         if self._preset_pending is None:
             return False
