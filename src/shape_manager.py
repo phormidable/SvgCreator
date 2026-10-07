@@ -112,15 +112,13 @@ class ShapeManager:
     #  Detection
     # ------------------------------------------------------------
     def _pair_partner(self, pt):
-        """If `pt` is a curve endpoint whose link group is exactly {pt, other}
-        and `other` is also an endpoint, return `other`. Otherwise None."""
-        if pt.point_idx not in (0, 3):
+        if not pt.is_endpoint():
             return None
         g = self.scene.link_manager.group_of(pt)
         if g is None or len(g) != 2:
             return None
         other = g[0] if g[1] is pt else g[1]
-        if other.point_idx not in (0, 3):
+        if not other.is_endpoint():
             return None
         return other
 
@@ -139,8 +137,7 @@ class ShapeManager:
             if next_curve in visited:
                 return None                       # revisited without closing
             visited.append(next_curve)
-            other = (next_curve.points[3] if partner is next_curve.points[0]
-                     else next_curve.points[0])
+            other = (next_curve.points[-1] if partner is next_curve.points[0] else next_curve.points[0])
             if other is start_pt:
                 return frozenset(visited)         # closed
             current_pt = other
@@ -154,7 +151,7 @@ class ShapeManager:
         for curve in self.scene.curves:
             if len(curve.points) < 4:
                 continue                          # curve is being disposed
-            for idx in (0, 3):
+            for idx in (0, -1):
                 loop = self._trace_loop_from(curve.points[idx])
                 if loop and loop not in seen:
                     seen.add(loop)
@@ -232,14 +229,12 @@ class ShapeManager:
             return None
         start_pt = None
         for curve in shape.curves:
-            for idx in (0, 3):
+            for idx in (0, -1):
                 if self._pair_partner(curve.points[idx]) is not None:
                     start_pt = curve.points[idx]
                     break
             if start_pt is not None:
                 break
-        if start_pt is None:
-            return None
 
         segments = []
         current = start_pt
@@ -249,12 +244,7 @@ class ShapeManager:
             if curve in seen:
                 return None
             seen.add(curve)
-            if current is curve.points[0]:
-                c1, c2 = curve.points[1].pos(), curve.points[2].pos()
-                other = curve.points[3]
-            else:
-                c1, c2 = curve.points[2].pos(), curve.points[1].pos()
-                other = curve.points[0]
+            c1, c2, other = curve.cubic_segment(current)
             segments.append((c1, c2, other.pos()))
             nxt = self._pair_partner(other)
             if nxt is None:

@@ -5,8 +5,9 @@ from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem, 
 from PySide6.QtSvg import QSvgRenderer
 
 from settings import (ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH,
-                      DEFAULT_CURVE_COLOR, ROTATION_PIVOT_RADIUS, ROTATION_PIVOT_COLOR, HOVER_TOLERANCE, MOON_PRESETS)
+                      DEFAULT_CURVE_COLOR, ROTATION_PIVOT_RADIUS, ROTATION_PIVOT_COLOR, HOVER_TOLERANCE)
 
+from presets import PRESETS
 from link_manager import LinkManager
 from control_point import ControlPoint
 from bezier_curve import BezierCurve
@@ -24,6 +25,7 @@ class BezierScene(QGraphicsScene):
     curveDragFinished = Signal()
     messageLogged = Signal(str)
     rotationModeChanged = Signal(bool)
+    presetStateChanged = Signal(str)
 
     def __init__(self):
         super().__init__()
@@ -39,6 +41,7 @@ class BezierScene(QGraphicsScene):
         self.curve_color = QColor(DEFAULT_CURVE_COLOR)
         self.selected_points: list[ControlPoint] = []
         self.selected_curve_idx = -1
+        self.current_degree = 2
         self.dragging_point = None
         self.focused_point: ControlPoint | None = None
         self.hovered_curve = None
@@ -84,7 +87,7 @@ class BezierScene(QGraphicsScene):
         # ---- Create mode: left-click places a point, nothing else ----
         if self.mode == "create":
             if self.pending_curve is None:
-                self.pending_curve = BezierCurve(self)
+                self.pending_curve = BezierCurve(self, degree=self.current_degree)
             self.pending_curve.add_point(event.scenePos())
             if self.pending_curve.is_complete():
                 self.finalize_curve()
@@ -140,6 +143,14 @@ class BezierScene(QGraphicsScene):
         # Nothing under the cursor → drop selection.
         self.set_selected_point(None)
         super().mousePressEvent(event)
+
+    def set_degree(self, degree: int):
+        if degree not in (2, 3) or degree == self.current_degree:
+            return
+        self.current_degree = degree
+        if self.pending_curve is not None:
+            self.discard_current_points()
+        self.messageLogged.emit(f"Curve type → {'quadratic' if degree == 2 else 'cubic'}")
 
     def _with_linked(self, points) -> set[ControlPoint]:
         """Return `points` plus every link-group sibling of any of them."""
@@ -267,7 +278,6 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     #  Shape selection
     # ------------------------------------------------------------
-
     def set_selected_point(self, point):
         """Replace the whole selection with just `point` (or clear if None)."""
         if point is None:
@@ -603,40 +613,58 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     #  One-click curve presets
     # ------------------------------------------------------------
+    # ------------------------------------------------------------
+    #  One-click presets
+    # ------------------------------------------------------------
     def arm_preset(self, name: str) -> bool:
-        """Arm a one-click preset. The next left-click in the canvas places
-        it. Re-arming the same preset cancels it."""
-        if name not in MOON_PRESETS:
+        if name not in PRESETS:
             return False
         if self._preset_pending == name:
             self._preset_pending = None
+            self.presetStateChanged.emit("")
             self.messageLogged.emit("Preset cancelled")
             return True
         if self.pending_curve is not None:
+            # Refused: sync the panel back to whatever state we're actually in.
+            self.presetStateChanged.emit(self._preset_pending or "")
             self.messageLogged.emit("Finish or discard the current curve first")
             return False
         self._preset_pending = name
-        self.messageLogged.emit(f"Click the canvas to place a '{name}' moon")
+        self.presetStateChanged.emit(name)
+        self.messageLogged.emit(
+            f"Click the canvas to place '{PRESETS[name].label}'")
         return True
 
     def cancel_preset(self) -> bool:
         if self._preset_pending is None:
             return False
         self._preset_pending = None
+        self.presetStateChanged.emit("")
         self.messageLogged.emit("Preset cancelled")
         return True
 
     def _place_preset(self, center: QPointF):
         name = self._preset_pending
         self._preset_pending = None
-        curve = BezierCurve(self)
-        for dx, dy in MOON_PRESETS[name]:
-            curve.add_point(QPointF(center.x() + dx, center.y() + dy))
-        # Route through finalize_curve so committed flags, signals, and the
-        # curve list all get updated exactly like a normal curve.
-        self.pending_curve = curve
-        self.finalize_curve()
-        self.messageLogged.emit(f"{curve.name} placed ({name} moon)")
+        self.presetStateChanged.emit("")
+
+        preset = PRESETS[name]
+        degree = self.current_degree
+        curves = []
+        for cdef in preset.curves:
+            curve = BezierCurve(self, degree=degree)
+            for dx, dy in cdef.offsets_for_degree(degree):
+                curve.add_point(QPointF(center.x() + dx, center.y() + dy))
+            self.pending_curve = curve
+            self.finalize_curve()
+            curves.append(curve)
+
+        for (ci, pi), (cj, pj) in preset.links:
+            self.link_manager.link_points(curves[ci].points[pi],
+                                          curves[cj].points[pj])
+
+        kind = "cubic" if degree == 3 else "quadratic"
+        self.messageLogged.emit(f"{PRESETS[name].label} placed ({kind})")
 
     def start_rotation(self) -> bool:
         if self.is_rotating():

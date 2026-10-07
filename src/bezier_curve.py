@@ -16,12 +16,12 @@ if TYPE_CHECKING:
 class BezierCurve(QGraphicsItem):
     _next_id = 1
 
-    def __init__(self, scene):
+    def __init__(self, scene, degree: int = 3):
         super().__init__()
         self.id = BezierCurve._next_id
         BezierCurve._next_id += 1
         self.name = f"Curve {self.id}"
-
+        self.degree = degree
         self.color = QColor(scene.curve_color)
         self.points: list[ControlPoint] = []
         self.hovered = False
@@ -55,6 +55,9 @@ class BezierCurve(QGraphicsItem):
             return QRectF()
         pad = max(CURVE_PEN_WIDTH, SHAPE_SELECTED_CURVE_PEN_WIDTH, CURVE_SELECTED_PEN_WIDTH) / 2 + 1
         return self._hit_path.boundingRect().adjusted(-pad, -pad, pad, pad)
+
+    def is_complete(self):
+        return len(self.points) == self.degree + 1
 
     def shape(self):
         return self._hit_path
@@ -99,9 +102,6 @@ class BezierCurve(QGraphicsItem):
         self.rebuild_path()
         return pt
 
-    def is_complete(self):
-        return len(self.points) == 4
-
     # ---------------------------------------------------------------
     #  Geometry
     # ---------------------------------------------------------------
@@ -112,9 +112,12 @@ class BezierCurve(QGraphicsItem):
         self.prepareGeometryChange()     # tell the scene bounds are about to change
         pts = self.positions()
         path = QPainterPath()
-        if len(pts) == 4:
+        if len(pts) == self.degree + 1:
             path.moveTo(pts[0])
-            path.cubicTo(pts[1], pts[2], pts[3])
+            if self.degree == 2:
+                path.quadTo(pts[1], pts[2])
+            else:
+                path.cubicTo(pts[1], pts[2], pts[3])
         elif pts:
             path.moveTo(pts[0])
             for p in pts[1:]:
@@ -173,14 +176,45 @@ class BezierCurve(QGraphicsItem):
     #  SVG
     # ---------------------------------------------------------------
     def svg_path_string(self):
+
         if not self.is_complete():
             return ""
+        pts = self.positions()
+        if len(pts) != self.degree + 1:
+            return ""
+
         p = SVG_PRECISION
-        p0, p1, p2, p3 = self.positions()
+        if self.degree == 2:
+            p0, p1, p2 = pts
+            return (f"M {p0.x():.{p}f},{p0.y():.{p}f} "
+                    f"Q {p1.x():.{p}f},{p1.y():.{p}f} "
+                    f"{p2.x():.{p}f},{p2.y():.{p}f}")
+        p0, p1, p2, p3 = pts
         return (f"M {p0.x():.{p}f},{p0.y():.{p}f} "
                 f"C {p1.x():.{p}f},{p1.y():.{p}f} "
                 f"{p2.x():.{p}f},{p2.y():.{p}f} "
                 f"{p3.x():.{p}f},{p3.y():.{p}f}")
+
+    def cubic_segment(self, start_pt):
+        """Return (c1_pos, c2_pos, end_pt) describing a cubic that traces
+        the same path as this curve, starting from `start_pt` (which must
+        be one of the two endpoints). `end_pt` is the point at the other end.
+        Quadratics are converted to their exact cubic equivalent."""
+        pts = self.points
+        if start_pt is pts[0]:
+            ctrl = pts[1:-1]
+            end = pts[-1]
+        else:
+            ctrl = list(reversed(pts[1:-1]))
+            end = pts[0]
+        if self.degree == 3:
+            return ctrl[0].pos(), ctrl[1].pos(), end
+        p0 = start_pt.pos()
+        p1 = ctrl[0].pos()
+        p2 = end.pos()
+        c1 = p0 + (p1 - p0) * (2.0 / 3.0)
+        c2 = p2 + (p1 - p2) * (2.0 / 3.0)
+        return c1, c2, end
 
     # ---------------------------------------------------------------
     #  Callback from ControlPoint

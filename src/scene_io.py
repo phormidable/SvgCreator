@@ -153,9 +153,10 @@ def _restore_links(scene, links_data):
 
 
 def _build_curve_from_points(scene, points_data) -> BezierCurve:
-    if not isinstance(points_data, list) or len(points_data) != 4:
-        raise ValueError(f"Expected 4 points per curve, got {points_data!r}")
-    curve = BezierCurve(scene)
+    if not isinstance(points_data, list) or len(points_data) not in (3, 4):
+        raise ValueError(f"Expected 3 or 4 points per curve, got {points_data!r}")
+    degree = len(points_data) - 1
+    curve = BezierCurve(scene, degree=degree)
     curve.committed = True
     for i, coords in enumerate(points_data):
         try:

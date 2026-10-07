@@ -23,8 +23,8 @@ class ControlPoint(QGraphicsEllipseItem):
         self.focused = False
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
 
-    def _is_endpoint(self):
-        return self.point_idx == 0 or self.point_idx == 3
+    def is_endpoint(self):
+        return self.point_idx == 0 or self.point_idx == self.curve.degree
 
     def boundingRect(self):
         if self.linked:
@@ -68,7 +68,7 @@ class ControlPoint(QGraphicsEllipseItem):
             self._draw_solid(painter, HOVER_COLOR, HOVER_POINT_PEN_COLOR)
             return
 
-        if self._is_endpoint():
+        if self.is_endpoint():
             self._draw_endpoint(painter)
         else:
             self._draw_control_point(painter)

@@ -9,6 +9,7 @@ from custom_view import CustomGraphicsView
 from info_panel import InfoPanel
 from file_io import FileIO
 from preview_widget import PreviewWidget
+from preset_panel import PresetPanel
 
 ZOOM_LEVELS = [("0.5x", 0.5), ("1x", 1.0), ("2x", 2.0),
                ("4x", 4.0), ("8x", 8.0), ("16x", 16.0)]
@@ -44,8 +45,10 @@ class MainWindow(QMainWindow):
 
         self.preview_widget = PreviewWidget()
         self.preview_widget.setFixedSize(PREVIEW_WIDTH, PREVIEW_HEIGHT)
-
         right_col.addWidget(self.preview_widget)
+
+        self.preset_panel = PresetPanel()
+        right_col.addWidget(self.preset_panel)
 
         self.info_panel = InfoPanel(self.scene)
         right_col.addWidget(self.info_panel, 1)
@@ -79,6 +82,8 @@ class MainWindow(QMainWindow):
         self.drawing_view.mouseMoved.connect(self.scene.on_mouse_moved)
         self.scene.rotationModeChanged.connect(self.drawing_view.set_rotation_mode)
         self.drawing_view.rotationRightClick.connect(self.scene.end_rotation)
+        self.preset_panel.presetRequested.connect(self.scene.arm_preset)
+        self.scene.presetStateChanged.connect(self.preset_panel.sync_state)
 
         # Initial state
         self.set_mode("create")
@@ -191,6 +196,23 @@ class MainWindow(QMainWindow):
         self.edit_action = toolbar.addAction("🖱️ Edit")
         self.edit_action.setCheckable(True)
 
+        toolbar.addSeparator()
+        toolbar.addWidget(QLabel(" Type: "))
+
+        self.quadratic_action = toolbar.addAction("Quadratic")
+        self.quadratic_action.setCheckable(True)
+        self.cubic_action = toolbar.addAction("Cubic")
+        self.cubic_action.setCheckable(True)
+
+        self.degree_group = QActionGroup(self)
+        self.degree_group.setExclusive(True)
+        self.degree_group.addAction(self.quadratic_action)
+        self.degree_group.addAction(self.cubic_action)
+        self.quadratic_action.setChecked(True)
+
+        self.cubic_action.triggered.connect(lambda: self.scene.set_degree(3))
+        self.quadratic_action.triggered.connect(lambda: self.scene.set_degree(2))
+
         self.mode_group = QActionGroup(self)
         self.mode_group.setExclusive(True)
         self.mode_group.addAction(self.create_action)
@@ -237,20 +259,6 @@ class MainWindow(QMainWindow):
         show_all_action = toolbar.addAction("👁️ Show all points")
         show_all_action.setToolTip("Restore all hidden curve points")
         show_all_action.triggered.connect(self.show_all_points)
-
-        toolbar.addSeparator()
-        toolbar.addWidget(QLabel(" Moons: "))
-
-        for label, name in (
-            ("🌙↑", "up"),
-            ("🌙→", "right"),
-            ("🌙↓", "down"),
-            ("🌙←", "left"),
-        ):
-            action = toolbar.addAction(label)
-            action.setToolTip(
-                f"Place a '{name}' moon — next canvas click drops it centred there")
-            action.triggered.connect(lambda _=False, n=name: self.scene.arm_preset(n))
 
         mirror_x_action = toolbar.addAction("🪞 Mirror X")
         mirror_x_action.setToolTip(
