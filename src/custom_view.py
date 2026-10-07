@@ -6,7 +6,7 @@ from settings import CANVAS_BACKGROUND_COLOR
 
 class CustomGraphicsView(QGraphicsView):
     mouseMoved = Signal(object)
-    rotationRightClick = Signal()
+    transformLeftClick = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -18,15 +18,15 @@ class CustomGraphicsView(QGraphicsView):
         self._pan_start_h_scroll = 0
         self._pan_start_v_scroll = 0
         self._zoom_factor = 1.0
-        self._rotation_mode = False
+        self._transform_mode = False
 
         # Panning is done manually with the right button; never use a drag mode.
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            if self._rotation_mode:
-                self.rotationRightClick.emit()
+            if self._transform_mode:
+                self.transformLeftClick.emit()
                 event.accept()
                 return
         elif event.button() == Qt.MouseButton.RightButton:
@@ -49,8 +49,8 @@ class CustomGraphicsView(QGraphicsView):
         self.centerOn(anchor)
         self._zoom_factor = factor
 
-    def set_rotation_mode(self, active: bool):
-        self._rotation_mode = active
+    def set_transform_mode(self, active: bool):
+        self._transform_mode = active
         self.setCursor(Qt.CursorShape.SizeAllCursor if active
                        else Qt.CursorShape.ArrowCursor)
 

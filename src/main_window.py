@@ -80,8 +80,8 @@ class MainWindow(QMainWindow):
         self.scene.svgCodeChanged.connect(self.update_preview)
         self.drawing_view.mouseMoved.connect(self.show_mouse_coordinates)
         self.drawing_view.mouseMoved.connect(self.scene.on_mouse_moved)
-        self.scene.rotationModeChanged.connect(self.drawing_view.set_rotation_mode)
-        self.drawing_view.rotationRightClick.connect(self.scene.end_rotation)
+        self.scene.transformModeChanged.connect(self.drawing_view.set_transform_mode)
+        self.drawing_view.transformLeftClick.connect(self.scene.end_transform)
         self.preset_panel.presetRequested.connect(self.scene.arm_preset)
         self.scene.presetStateChanged.connect(self.preset_panel.sync_state)
 
@@ -98,7 +98,7 @@ class MainWindow(QMainWindow):
 
         if key == Qt.Key.Key_Escape:
             if self.scene.is_rotating():
-                self.scene.end_rotation(commit=False)
+                self.scene.end_transform(commit=False)
                 event.accept()
                 return
             if self.scene.cancel_preset():
@@ -110,6 +110,10 @@ class MainWindow(QMainWindow):
                 return
         elif key == Qt.Key.Key_R:
             if self.scene.start_rotation():
+                event.accept()
+                return
+        elif key == Qt.Key.Key_B:
+            if self.scene.start_scaling():
                 event.accept()
                 return
         elif key == Qt.Key.Key_L:
@@ -298,9 +302,9 @@ class MainWindow(QMainWindow):
     #  Mode switching
     # ------------------------------------------------------------
     def set_mode(self, mode):
-        if self.scene.is_rotating():
+        if self.scene.is_transforming():
             self.statusBar().showMessage(
-                "Finish the rotation first — right-click to validate, Esc to cancel")
+                "Finish the transform first — right-click to validate, Esc to cancel")
             # The toolbar already flipped the check state; put it back.
             if self.scene.mode == "create":
                 self.create_action.setChecked(True)

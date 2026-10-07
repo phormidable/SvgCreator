@@ -24,7 +24,7 @@ class BezierScene(QGraphicsScene):
     curveSelected = Signal(int)
     curveDragFinished = Signal()
     messageLogged = Signal(str)
-    rotationModeChanged = Signal(bool)
+    transformModeChanged = Signal(bool)
     presetStateChanged = Signal(str)
 
     def __init__(self):
@@ -66,10 +66,11 @@ class BezierScene(QGraphicsScene):
         self.link_manager = LinkManager(self)
         self.shape_manager = ShapeManager(self)
 
-        self._rotation_pivot: QPointF | None = None
-        self._rotation_ref_angle: float | None = None
-        self._rotation_starts: dict[ControlPoint, QPointF] = {}
-        self._rotation_pivot_item: QGraphicsEllipseItem | None = None
+        self._transform_mode: str | None = None  # "rotate" | "scale" | None
+        self._transform_pivot: QPointF | None = None
+        self._transform_ref: float | None = None  # ref angle (rotate) or dist (scale)
+        self._transform_starts: dict[ControlPoint, QPointF] = {}
+        self._transform_pivot_item: QGraphicsEllipseItem | None = None
 
     # ------------------------------------------------------------
     #  Mouse interaction
@@ -215,13 +216,16 @@ class BezierScene(QGraphicsScene):
     #  Hover tracking
     # ------------------------------------------------------------
     def on_mouse_moved(self, scene_pos):
-        if self.is_rotating():
-            self._update_rotation(scene_pos)
+        if self.is_transforming():
+            if self.is_rotating():
+                self._update_rotation(scene_pos)
+            else:
+                self._update_scaling(scene_pos)
             return
         if self.dragging_point is not None:
             return
         if self.mode == "create":
-            return  # no hover in create mode
+            return
         self._update_hover(scene_pos)
 
     def _update_hover(self, pos):
@@ -395,7 +399,7 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     def clear_all(self):
         self.clear_hover()
-        self.end_rotation(commit=False)
+        self.end_transform(commit=False)
         self.set_selected_point(None)
         if self.pending_curve is not None:
             self.pending_curve.dispose()
@@ -546,73 +550,6 @@ class BezierScene(QGraphicsScene):
         return n
 
     # ------------------------------------------------------------
-    #  Rotation
-    # ------------------------------------------------------------
-    def is_rotating(self) -> bool:
-        return self._rotation_pivot is not None
-
-    def _selected_curves(self) -> list[BezierCurve]:
-        """Every curve currently part of the selection: the whole shape if
-        one is selected, otherwise each curve flagged curve_selected."""
-        shape = self.shape_manager.selected()
-        if shape is not None:
-            return list(shape.curves)
-        return [c for c in self.curves if c.curve_selected]
-
-    def _rotation_base_points(self) -> list[ControlPoint] | None:
-        curves = self._selected_curves()
-        if not curves:
-            return None
-        pts: set[ControlPoint] = set()
-        for c in curves:
-            pts.update(c.points)
-        return list(pts)
-
-    # ------------------------------------------------------------
-    #  Mirror
-    # ------------------------------------------------------------
-
-    def mirror_selection(self, axis: str) -> bool:
-        """Reflect the selection across the horizontal line (axis='x') or
-        vertical line (axis='y') through the barycentre of its points."""
-        if self.is_rotating():
-            self.messageLogged.emit("Finish the rotation first")
-            return False
-
-        curves = self._selected_curves()
-        if not curves:
-            self.messageLogged.emit(
-                "Nothing to mirror — select a curve (A or click) or a shape (S) first")
-            return False
-
-        base_pts: set[ControlPoint] = set()
-        for c in curves:
-            base_pts.update(c.points)
-        px = sum(p.pos().x() for p in base_pts) / len(base_pts)
-        py = sum(p.pos().y() for p in base_pts) / len(base_pts)
-
-        # Include linked siblings so they stay coincident (same rule as rotation).
-        targets = self._with_linked(base_pts)
-
-        if axis == "x":
-            # Reflect across the horizontal line y = py → flip y.
-            for p in targets:
-                pos = p.pos()
-                p.setPos(pos.x(), 2 * py - pos.y())
-        else:
-            # Reflect across the vertical line x = px → flip x.
-            for p in targets:
-                pos = p.pos()
-                p.setPos(2 * px - pos.x(), pos.y())
-
-        self.messageLogged.emit(
-            f"Mirrored across {axis.upper()} axis around ({px:.1f}, {py:.1f})")
-        return True
-
-    # ------------------------------------------------------------
-    #  One-click curve presets
-    # ------------------------------------------------------------
-    # ------------------------------------------------------------
     #  One-click presets
     # ------------------------------------------------------------
     def arm_preset(self, name: str) -> bool:
@@ -642,85 +579,122 @@ class BezierScene(QGraphicsScene):
         self.messageLogged.emit("Preset cancelled")
         return True
 
-    def _place_preset(self, center: QPointF):
-        name = self._preset_pending
-        self._preset_pending = None
-        self.presetStateChanged.emit("")
+    # ------------------------------------------------------------
+    #  Transform: rotation and scaling share their machinery
+    # ------------------------------------------------------------
+    def is_rotating(self) -> bool:
+        return self._transform_mode == "rotate"
 
-        preset = PRESETS[name]
-        degree = self.current_degree
-        curves = []
-        for cdef in preset.curves:
-            curve = BezierCurve(self, degree=degree)
-            for dx, dy in cdef.offsets_for_degree(degree):
-                curve.add_point(QPointF(center.x() + dx, center.y() + dy))
-            self.pending_curve = curve
-            self.finalize_curve()
-            curves.append(curve)
+    def is_scaling(self) -> bool:
+        return self._transform_mode == "scale"
 
-        for (ci, pi), (cj, pj) in preset.links:
-            self.link_manager.link_points(curves[ci].points[pi],
-                                          curves[cj].points[pj])
+    def is_transforming(self) -> bool:
+        return self._transform_mode is not None
 
-        kind = "cubic" if degree == 3 else "quadratic"
-        self.messageLogged.emit(f"{PRESETS[name].label} placed ({kind})")
+    def _transform_base_points(self) -> set[ControlPoint] | None:
+        """The points whose barycentre is the pivot: the selected shape's, or
+        the selected curves'. None if nothing suitable is selected."""
+        curves = self._selected_curves()
+        if not curves:
+            return None
+        pts: set[ControlPoint] = set()
+        for c in curves:
+            pts.update(c.points)
+        return pts
 
-    def start_rotation(self) -> bool:
-        if self.is_rotating():
+    def _selected_curves(self) -> list[BezierCurve]:
+        """Every curve currently part of the selection: the whole shape if
+        one is selected, otherwise each curve flagged curve_selected."""
+        shape = self.shape_manager.selected()
+        if shape is not None:
+            return list(shape.curves)
+        return [c for c in self.curves if c.curve_selected]
+
+    def _start_transform(self, mode: str) -> bool:
+        if self.is_transforming():
             return True
-        base = self._rotation_base_points()
+        base = self._transform_base_points()
         if not base:
             self.messageLogged.emit(
-                "Nothing to rotate — select a curve (A) or a shape (S) first")
+                "Nothing to transform — select a curve (A or click) or a shape (S) first")
             return False
 
         cx = sum(p.pos().x() for p in base) / len(base)
         cy = sum(p.pos().y() for p in base) / len(base)
-        self._rotation_pivot = QPointF(cx, cy)
 
-        # Include linked siblings so they stay coincident.
-        targets = self._with_linked(base)
-
-        self._rotation_starts = {p: p.pos() for p in targets}
-        self._rotation_ref_angle = None  # captured on first mouse move
+        self._transform_mode = mode
+        self._transform_pivot = QPointF(cx, cy)
+        self._transform_ref = None  # captured on first move
+        self._transform_starts = {
+            p: p.pos() for p in self._with_linked(base)}
 
         self._show_pivot(cx, cy)
-        self.rotationModeChanged.emit(True)
+        self.transformModeChanged.emit(True)
+        verb = "Rotating" if mode == "rotate" else "Scaling"
         self.messageLogged.emit(
-            f"Rotating around ({cx:.1f}, {cy:.1f}) — right-click to validate, Esc to cancel")
+            f"{verb} around ({cx:.1f}, {cy:.1f}) — right-click to validate, Esc to cancel")
         return True
 
-    def end_rotation(self, commit: bool = True):
-        if not self.is_rotating():
+    def _end_transform(self, commit: bool = True):
+        if not self.is_transforming():
             return
+        mode = self._transform_mode
         if not commit:
-            for pt, start in self._rotation_starts.items():
+            for pt, start in self._transform_starts.items():
                 pt.setPos(start)
             self.on_curve_changed()  # one rebuild after restoring
-        self._rotation_pivot = None
-        self._rotation_ref_angle = None
-        self._rotation_starts = {}
+        self._transform_mode = None
+        self._transform_pivot = None
+        self._transform_ref = None
+        self._transform_starts = {}
         self._hide_pivot()
-        self.rotationModeChanged.emit(False)
-        self.messageLogged.emit("Rotation validated" if commit else "Rotation cancelled")
+        self.transformModeChanged.emit(False)
+        verb = "Rotation" if mode == "rotate" else "Scaling"
+        self.messageLogged.emit(f"{verb} validated" if commit else f"{verb} cancelled")
+
+    def start_rotation(self) -> bool:
+        return self._start_transform("rotate")
+
+    def start_scaling(self) -> bool:
+        return self._start_transform("scale")
+
+    def end_transform(self, commit: bool = True):
+        self._end_transform(commit)
 
     def _update_rotation(self, scene_pos: QPointF):
-        if scene_pos is None or self._rotation_pivot is None:
+        if scene_pos is None or self._transform_pivot is None:
             return
-        px, py = self._rotation_pivot.x(), self._rotation_pivot.y()
+        px, py = self._transform_pivot.x(), self._transform_pivot.y()
         dx, dy = scene_pos.x() - px, scene_pos.y() - py
         if dx == 0.0 and dy == 0.0:
             return
         angle = math.atan2(dy, dx)
-        if self._rotation_ref_angle is None:
-            self._rotation_ref_angle = angle
+        if self._transform_ref is None:
+            self._transform_ref = angle
             return
-        delta = angle - self._rotation_ref_angle
+        delta = angle - self._transform_ref
         cos_a, sin_a = math.cos(delta), math.sin(delta)
-        for pt, start in self._rotation_starts.items():
+        for pt, start in self._transform_starts.items():
             sx, sy = start.x() - px, start.y() - py
             pt.setPos(px + sx * cos_a - sy * sin_a,
                       py + sx * sin_a + sy * cos_a)
+
+    def _update_scaling(self, scene_pos: QPointF):
+        if scene_pos is None or self._transform_pivot is None:
+            return
+        px, py = self._transform_pivot.x(), self._transform_pivot.y()
+        dx, dy = scene_pos.x() - px, scene_pos.y() - py
+        dist = math.hypot(dx, dy)
+        if dist < 1e-6:
+            return
+        if self._transform_ref is None:
+            self._transform_ref = dist
+            return
+        ratio = dist / self._transform_ref
+        ratio = max(0.05, min(ratio, 50.0))  # guard against collapse/explosion
+        for pt, start in self._transform_starts.items():
+            sx, sy = start.x() - px, start.y() - py
+            pt.setPos(px + sx * ratio, py + sy * ratio)
 
     def _show_pivot(self, x: float, y: float):
         r = ROTATION_PIVOT_RADIUS
@@ -731,10 +705,10 @@ class BezierScene(QGraphicsScene):
         item.setPos(x, y)
         item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         self.addItem(item)
-        self._rotation_pivot_item = item
+        self._transform_pivot_item = item
 
     def _hide_pivot(self):
-        if self._rotation_pivot_item is not None:
-            self.removeItem(self._rotation_pivot_item)
-            self._rotation_pivot_item = None
+        if self._transform_pivot_item is not None:
+            self.removeItem(self._transform_pivot_item)
+            self._transform_pivot_item = None
 
