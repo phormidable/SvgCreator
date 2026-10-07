@@ -82,7 +82,8 @@ class BezierScene(QGraphicsScene):
 
         # A pending preset consumes this click, whatever the mode.
         if self._preset_pending is not None:
-            self._place_preset(event.scenePos())
+            keep = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+            self._place_preset(event.scenePos(), keep_armed=keep)
             return
 
         # ---- Create mode: left-click places a point, nothing else ----
@@ -440,6 +441,47 @@ class BezierScene(QGraphicsScene):
     def load_state(self, state: dict):
         scene_io.load_state(self, state)
 
+        # ------------------------------------------------------------
+        #  Mirror
+        # ------------------------------------------------------------
+
+    def mirror_selection(self, axis: str) -> bool:
+        """Reflect the selection across the horizontal line (axis='x') or
+        vertical line (axis='y') through the barycentre of its points."""
+        if self.is_rotating():
+            self.messageLogged.emit("Finish the rotation first")
+            return False
+
+        curves = self._selected_curves()
+        if not curves:
+            self.messageLogged.emit(
+                "Nothing to mirror — select a curve (A or click) or a shape (S) first")
+            return False
+
+        base_pts: set[ControlPoint] = set()
+        for c in curves:
+            base_pts.update(c.points)
+        px = sum(p.pos().x() for p in base_pts) / len(base_pts)
+        py = sum(p.pos().y() for p in base_pts) / len(base_pts)
+
+        # Include linked siblings so they stay coincident (same rule as rotation).
+        targets = self._with_linked(base_pts)
+
+        if axis == "x":
+            # Reflect across the horizontal line y = py → flip y.
+            for p in targets:
+                pos = p.pos()
+                p.setPos(pos.x(), 2 * py - pos.y())
+        else:
+            # Reflect across the vertical line x = px → flip x.
+            for p in targets:
+                pos = p.pos()
+                p.setPos(2 * px - pos.x(), pos.y())
+
+        self.messageLogged.emit(
+            f"Mirrored across {axis.upper()} axis around ({px:.1f}, {py:.1f})")
+        return True
+
     # ------------------------------------------------------------
     #  Background image
     # ------------------------------------------------------------
@@ -571,10 +613,11 @@ class BezierScene(QGraphicsScene):
             f"Click the canvas to place '{PRESETS[name].label}'")
         return True
 
-    def _place_preset(self, center: QPointF):
+    def _place_preset(self, center: QPointF, keep_armed: bool = False):
         name = self._preset_pending
-        self._preset_pending = None
-        self.presetStateChanged.emit("")
+        if not keep_armed:
+            self._preset_pending = None
+            self.presetStateChanged.emit("")
 
         preset = PRESETS[name]
         degree = self.current_degree
@@ -588,11 +631,14 @@ class BezierScene(QGraphicsScene):
             curves.append(curve)
 
         for (ci, pi), (cj, pj) in preset.links:
-            self.link_manager.link_points(curves[ci].points[pi],
-                                          curves[cj].points[pj])
+            self.link_manager.link_points(curves[ci].points[pi], curves[cj].points[pj])
 
         kind = "cubic" if degree == 3 else "quadratic"
-        self.messageLogged.emit(f"{PRESETS[name].label} placed ({kind})")
+        if keep_armed:
+            self.messageLogged.emit(
+                f"{preset.label} placed ({kind}) — still armed, release Shift to stop")
+        else:
+            self.messageLogged.emit(f"{preset.label} placed ({kind})")
 
     def cancel_preset(self) -> bool:
         if self._preset_pending is None:
@@ -601,6 +647,51 @@ class BezierScene(QGraphicsScene):
         self.presetStateChanged.emit("")
         self.messageLogged.emit("Preset cancelled")
         return True
+
+    def delete_selection(self) -> int:
+        """Delete every curve selected directly (curve_selected) or via a
+        selected shape. Returns the number of curves removed."""
+        to_delete: set[BezierCurve] = set()
+        for curve in self.curves:
+            if curve.curve_selected:
+                to_delete.add(curve)
+        for shape in self.shape_manager.selected_shapes():
+            to_delete.update(shape.curves)
+
+        if not to_delete:
+            self.messageLogged.emit("Nothing selected to delete")
+            return 0
+
+        self.clear_hover()
+
+        # Clear shape selection first: this also drops the shapes' points
+        # from selected_points, so the loop below only has to worry about
+        # points selected via curve_selected.
+        self.shape_manager.select(None)
+
+        curves = list(to_delete)
+        for curve in curves:
+            self.curves.remove(curve)
+            for pt in curve.points:
+                if pt in self.selected_points:
+                    self.selected_points.remove(pt)
+                pt.set_selected(False)
+            curve.set_curve_selected(False)
+
+        # dispose() unlinks each point, which triggers shape_manager.refresh()
+        # — any closed loop that used one of these curves dissolves naturally.
+        for curve in curves:
+            curve.dispose()
+
+        self.selected_curve_idx = -1
+        self.shape_manager.refresh()  # belt & braces; dispose already ran it
+        self.emit_svg()
+        self.pointsChanged.emit()
+        self.curveListChanged.emit()
+        n = len(curves)
+        self.messageLogged.emit(
+            f"Deleted {curves[0].name}" if n == 1 else f"Deleted {n} curves")
+        return n
 
     # ------------------------------------------------------------
     #  Transform: rotation and scaling share their machinery

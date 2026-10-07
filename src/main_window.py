@@ -154,10 +154,14 @@ class MainWindow(QMainWindow):
             self._step_zoom(-1)
             event.accept()
             return
-        if key == Qt.Key.Key_D:
+        elif key == Qt.Key.Key_D:
             self._debug_sizes()
             event.accept()
             return
+        elif key == Qt.Key.Key_Backspace:
+            if self.scene.delete_selection():
+                event.accept()
+                return
         elif key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
             dx = -1 if key == Qt.Key.Key_Left else 1 if key == Qt.Key.Key_Right else 0
             dy = -1 if key == Qt.Key.Key_Up else 1 if key == Qt.Key.Key_Down else 0

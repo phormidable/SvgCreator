@@ -19,7 +19,7 @@ class PresetPanel(QGroupBox):
         grid.setSpacing(2)
         grid.setContentsMargins(4, 2, 4, 2)
 
-        cols = 5
+        cols = 7
         for i, preset in enumerate(PRESETS.values()):
             btn = QToolButton()
             btn.setText(preset.label)

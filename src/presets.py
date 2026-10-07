@@ -65,6 +65,38 @@ def _polygon_preset(name, label, verts, tooltip=""):
     links = [((i, -1), ((i + 1) % n, 0)) for i in range(n)]
     return PresetDef(name=name, label=label, tooltip=tooltip, curves=curves, links=links)
 
+def _polyline_preset(name, label, verts, tooltip=""):
+    """Open polyline: one straight curve per segment, consecutive endpoints
+    linked. Unlike a polygon, no closing link — so no shape is formed."""
+    n = len(verts)
+    curves = []
+    for i in range(n - 1):
+        ax, ay = verts[i]
+        bx, by = verts[i + 1]
+        c1 = ((2 * ax + bx) / 3, (2 * ay + by) / 3)
+        c2 = ((ax + 2 * bx) / 3, (ay + 2 * by) / 3)
+        mid = ((ax + bx) / 2, (ay + by) / 2)
+        curves.append(CurveDef(
+            [(ax, ay), c1, c2, (bx, by)],
+            quadratic_offsets=[(ax, ay), mid, (bx, by)],
+        ))
+    links = [((i, -1), (i + 1, 0)) for i in range(n - 2)]
+    return PresetDef(name=name, label=label, tooltip=tooltip,
+                     curves=curves, links=links)
+
+
+def _line_preset(name, label, x0, y0, x1, y1, tooltip=""):
+    """Single straight segment, no links."""
+    c1 = ((2 * x0 + x1) / 3, (2 * y0 + y1) / 3)
+    c2 = ((x0 + 2 * x1) / 3, (y0 + 2 * y1) / 3)
+    mid = ((x0 + x1) / 2, (y0 + y1) / 2)
+    return PresetDef(
+        name=name, label=label, tooltip=tooltip,
+        curves=[CurveDef(
+            [(x0, y0), c1, c2, (x1, y1)],
+            quadratic_offsets=[(x0, y0), mid, (x1, y1)],
+        )],
+    )
 
 def _ellipse_preset(name, label, rx, ry, tooltip=""):
     """Ellipse as 4 cubic quarter-arcs."""
@@ -165,4 +197,34 @@ PRESETS = {
         [(40, -30), (-10, -30), (-10, -60), (-60, 0),
          (-10, 60), (-10, 30), (40, 30)],
         tooltip="Left arrow (7 curves linked into a shape)"),
+    # ---- Lines ----
+    "line_vertical": _line_preset(
+        "line_vertical", "│", 0, -50, 0, 50,
+        tooltip="Vertical straight line (single curve)"),
+    "line_horizontal": _line_preset(
+        "line_horizontal", "─", -50, 0, 50, 0,
+        tooltip="Horizontal straight line (single curve)"),
+
+    # ---- L shapes (2 linked curves, open) ----
+    # Corner positions per rotation; arms 100 units long.
+    # Standard "L": corner bottom-left, arms up and right.
+    "L": _polyline_preset(
+        "L", "└",
+        [(-50, -50), (-50, 50), (50, 50)],
+        tooltip="L shape (2 linked curves, corner bottom-left)"),
+    # Rotated 90° CW: corner top-left, arms right and down.
+    "L_90": _polyline_preset(
+        "L_90", "┌",
+        [(50, -50), (-50, -50), (-50, 50)],
+        tooltip="L shape rotated 90° (corner top-left)"),
+    # Rotated 180°: corner top-right, arms left and down.
+    "L_180": _polyline_preset(
+        "L_180", "┐",
+        [(-50, -50), (50, -50), (50, 50)],
+        tooltip="L shape rotated 180° (corner top-right)"),
+    # Rotated 270° CW: corner bottom-right, arms up and left.
+    "L_270": _polyline_preset(
+        "L_270", "┘",
+        [(50, -50), (50, 50), (-50, 50)],
+        tooltip="L shape rotated 270° (corner bottom-right)"),
 }
