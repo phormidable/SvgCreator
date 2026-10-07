@@ -626,12 +626,15 @@ class BezierScene(QGraphicsScene):
         return pts
 
     def _selected_curves(self) -> list[BezierCurve]:
-        """Every curve currently part of the selection: the whole shape if
-        one is selected, otherwise each curve flagged curve_selected."""
-        shape = self.shape_manager.selected()
-        if shape is not None:
-            return list(shape.curves)
-        return [c for c in self.curves if c.curve_selected]
+        """Every curve currently part of the selection — shape selection
+        (S) and curve selection (A / click) are independent and both count."""
+        curves: set[BezierCurve] = set()
+        for shape in self.shape_manager.selected_shapes():
+            curves.update(shape.curves)
+        for c in self.curves:
+            if c.curve_selected:
+                curves.add(c)
+        return list(curves)
 
     def _start_transform(self, mode: str) -> bool:
         if self.is_transforming():

@@ -121,7 +121,8 @@ class MainWindow(QMainWindow):
                 event.accept()
                 return
         elif key == Qt.Key.Key_S:
-            if self.scene.shape_manager.select_from_hover():
+            add = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+            if self.scene.shape_manager.select_from_hover(add=add):
                 event.accept()
                 return
         elif key == Qt.Key.Key_C:

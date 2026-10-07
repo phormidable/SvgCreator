@@ -21,7 +21,7 @@ class ShapeManager:
     def __init__(self, scene):
         self.scene = scene
         self.shapes: list[Shape] = []
-        self._selected: Shape | None = None
+        self._selected_shapes: set[Shape] = set()
         self._transparent = False
         self._shaped_curves: set = set()  # curves whose opacity we last set
         self._last_opacity: float = 1.0  # value we last applied to those curves
@@ -30,16 +30,36 @@ class ShapeManager:
     #  Selection
     # ------------------------------------------------------------
     def selected(self) -> Shape | None:
-        return self._selected
+        """First selected shape, or None. Convenience for single-selection UIs."""
+        return next(iter(self._selected_shapes), None)
 
-    def select(self, shape: Shape | None):
-        if shape is self._selected:
+    def selected_shapes(self) -> list[Shape]:
+        return list(self._selected_shapes)
+
+    def select(self, shape: Shape | None, add: bool = False):
+        if shape is None:
+            for s in self._selected_shapes:
+                s.set_selected(False)
+            self._selected_shapes.clear()
             return
-        if self._selected is not None:
-            self._selected.set_selected(False)
-        self._selected = shape
-        if shape is not None:
+        if add:
+            if shape not in self._selected_shapes:
+                self._selected_shapes.add(shape)
+                shape.set_selected(True)
+            return
+        # Replace: drop every other selected shape.
+        for s in list(self._selected_shapes):
+            if s is not shape:
+                s.set_selected(False)
+                self._selected_shapes.discard(s)
+        if shape not in self._selected_shapes:
+            self._selected_shapes.add(shape)
             shape.set_selected(True)
+
+    def deselect(self, shape: Shape):
+        if shape in self._selected_shapes:
+            shape.set_selected(False)
+            self._selected_shapes.discard(shape)
 
     def set_transparent(self, value: bool):
         """Enable/disable transparent rendering of every shape."""
@@ -90,9 +110,7 @@ class ShapeManager:
                 return shape
         return None
 
-    def select_from_hover(self) -> bool:
-        """Toggle selection of the shape containing the hovered curve.
-        Returns True if handled (so the caller can accept the key event)."""
+    def select_from_hover(self, add: bool = False) -> bool:
         hovered = self.scene.hovered_curve
         if hovered is None:
             return False
@@ -100,11 +118,22 @@ class ShapeManager:
         if shape is None:
             self.scene.messageLogged.emit(f"{hovered.name} is not part of a shape")
             return False
-        if shape is self._selected:
+
+        if add:
+            if shape in self._selected_shapes:
+                self.deselect(shape)
+                self.scene.messageLogged.emit(f"{shape.name} removed from selection")
+            else:
+                self.select(shape, add=True)
+                self.scene.messageLogged.emit(f"Added {shape.name} to selection")
+            return True
+
+        # No shift: replace, unless this shape is already the whole selection.
+        if self._selected_shapes == {shape}:
             self.select(None)
             self.scene.messageLogged.emit(f"{shape.name} deselected")
         else:
-            self.select(shape)
+            self.select(shape, add=False)
             self.scene.messageLogged.emit(f"{shape.name} selected")
         return True
 
@@ -168,20 +197,13 @@ class ShapeManager:
                 names = " + ".join(c.name for c in sorted(curves, key=lambda c: c.id))
                 self.scene.messageLogged.emit(f"{shape.name} formed from {names}")
 
-        for shape in self.shapes:
+        # Drop any selected shape that was dissolved.
+        for shape in list(self._selected_shapes):
             if shape not in new_shapes:
-                if shape.fill_item is not None:
-                    self.scene.removeItem(shape.fill_item)
-                    shape.fill_item = None
-                for curve in shape.curves:
-                    curve.set_color(self.scene.curve_color)
+                self.deselect(shape)
                 self.scene.messageLogged.emit(f"{shape.name} dissolved")
 
         self.shapes = new_shapes
-
-        # Drop the selection if the selected shape was dissolved.
-        if self._selected is not None and self._selected not in new_shapes:
-            self.select(None)
 
         self._apply_transparency_to_all()
         self.update_fills()
@@ -331,7 +353,7 @@ class ShapeManager:
                 self.scene.removeItem(shape.fill_item)
                 shape.fill_item = None
         self.shapes.clear()
-        self._selected = None
+        self._selected_shapes.clear()
         self._transparent = False
         self._shaped_curves = set()
         self._last_opacity = 1.0
