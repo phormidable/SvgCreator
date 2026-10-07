@@ -24,11 +24,12 @@ class CustomGraphicsView(QGraphicsView):
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.RightButton:
+        if event.button() == Qt.MouseButton.LeftButton:
             if self._rotation_mode:
                 self.rotationRightClick.emit()
                 event.accept()
                 return
+        elif event.button() == Qt.MouseButton.RightButton:
             self._panning = True
             self._pan_start = event.pos()
             self._pan_start_h_scroll = self.horizontalScrollBar().value()

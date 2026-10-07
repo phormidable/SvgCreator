@@ -203,7 +203,6 @@ class BezierScene(QGraphicsScene):
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             if self.dragging_point is not None:
-                #self.dragging_point.curve.set_highlighted(False)
                 self.dragging_point = None
                 self._drag_targets = {}
                 self._drag_primary_start = None

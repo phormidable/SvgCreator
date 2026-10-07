@@ -149,6 +149,10 @@ class MainWindow(QMainWindow):
             self._step_zoom(-1)
             event.accept()
             return
+        if key == Qt.Key.Key_D:
+            self._debug_sizes()
+            event.accept()
+            return
         elif key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
             dx = -1 if key == Qt.Key.Key_Left else 1 if key == Qt.Key.Key_Right else 0
             dy = -1 if key == Qt.Key.Key_Up else 1 if key == Qt.Key.Key_Down else 0
@@ -245,7 +249,7 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
 
         # ---- Left group ----
-        bg_action = toolbar.addAction("🖼️ Add Background Image")
+        bg_action = toolbar.addAction("🖼️ Add Background")
         bg_action.triggered.connect(self.file_io.load_background_image)
 
         color_action = toolbar.addAction("🎨 Curve Color")
@@ -376,3 +380,36 @@ class MainWindow(QMainWindow):
     def on_transparent_toggled(self, checked):
         self.scene.shape_manager.set_transparent(checked)
         self.log(f"Transparent mode: {'on' if checked else 'off'}")
+
+    def _debug_sizes(self):
+        pw = self.preview_widget
+        print("=== PreviewWidget ===")
+        print(f"  size:            {pw.width()} x {pw.height()}")
+        print(f"  minimumSizeHint: {pw.minimumSizeHint().width()} x {pw.minimumSizeHint().height()}")
+
+        tb = pw._toolbar
+        print(f"  toolbar size:    {tb.width()} x {tb.height()}")
+        print(f"  toolbar sizeHint:{tb.sizeHint().width()} x {tb.sizeHint().height()}")
+
+        scroll = pw._scroll
+        vp = scroll.viewport()
+        print(f"  scroll size:     {scroll.width()} x {scroll.height()}")
+        print(f"  scroll viewport: {vp.width()} x {vp.height()}   <-- white area")
+        print(f"  scroll frame w:  {scroll.frameWidth()}")
+
+        vbar = scroll.verticalScrollBar()
+        hbar = scroll.horizontalScrollBar()
+        print(f"  vScrollBar:      visible={vbar.isVisible()}, width={vbar.width()}")
+        print(f"  hScrollBar:      visible={hbar.isVisible()}, height={hbar.height()}")
+
+        canvas = pw._canvas
+        cs = canvas.content_size()
+        print(f"  canvas size:     {canvas.width()} x {canvas.height()}")
+        print(f"  content_size:    {cs.width():.1f} x {cs.height():.1f}")
+        print(f"  zoom:            {pw._zoom}")
+        print(f"  base_scale:      {pw._base_scale():.4f}")
+
+        print("=== Right column ===")
+        print(f"  preset_panel:    {self.preset_panel.width()} x {self.preset_panel.height()}")
+        print(f"  info_panel:      {self.info_panel.width()} x {self.info_panel.height()}")
+        print(f"  window:          {self.width()} x {self.height()}")

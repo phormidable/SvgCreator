@@ -16,17 +16,16 @@ class PresetPanel(QGroupBox):
         self._buttons: dict[str, QToolButton] = {}
 
         grid = QGridLayout()
-        grid.setSpacing(4)
-        grid.setContentsMargins(4, 4, 4, 4)
+        grid.setSpacing(2)
+        grid.setContentsMargins(4, 2, 4, 2)
 
-        cols = 4
+        cols = 5
         for i, preset in enumerate(PRESETS.values()):
             btn = QToolButton()
             btn.setText(preset.label)
             btn.setCheckable(True)
             btn.setToolTip(preset.tooltip)
-            btn.setMinimumSize(36, 32)
-            # setChecked fires toggled, not clicked; safe in sync_state below.
+            btn.setMinimumSize(34, 26)
             btn.clicked.connect(
                 lambda _checked, n=preset.name: self.presetRequested.emit(n))
             grid.addWidget(btn, i // cols, i % cols)

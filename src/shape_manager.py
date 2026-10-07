@@ -149,8 +149,8 @@ class ShapeManager:
         found: list[frozenset] = []
         seen: set[frozenset] = set()
         for curve in self.scene.curves:
-            if len(curve.points) < 4:
-                continue                          # curve is being disposed
+            if not curve.is_complete():
+                continue
             for idx in (0, -1):
                 loop = self._trace_loop_from(curve.points[idx])
                 if loop and loop not in seen:
