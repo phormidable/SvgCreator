@@ -36,29 +36,50 @@ class ShapeManager:
     def selected_shapes(self) -> list[Shape]:
         return list(self._selected_shapes)
 
+    def _sync_curve_points(self, curves, add: bool):
+        """Add or remove the points of `curves` from the scene's point
+        selection. Idempotent: safe to call when a point is already in the
+        desired state (e.g. covered by another selection)."""
+        pts = self.scene.selected_points
+        for curve in curves:
+            for pt in curve.points:
+                if add:
+                    if pt not in pts:
+                        pts.append(pt)
+                    pt.set_selected(True)
+                else:
+                    if pt in pts:
+                        pts.remove(pt)
+                    pt.set_selected(False)
+
     def select(self, shape: Shape | None, add: bool = False):
         if shape is None:
             for s in self._selected_shapes:
                 s.set_selected(False)
+                self._sync_curve_points(s.curves, add=False)
             self._selected_shapes.clear()
             return
         if add:
             if shape not in self._selected_shapes:
                 self._selected_shapes.add(shape)
                 shape.set_selected(True)
+                self._sync_curve_points(shape.curves, add=True)
             return
         # Replace: drop every other selected shape.
         for s in list(self._selected_shapes):
             if s is not shape:
                 s.set_selected(False)
+                self._sync_curve_points(s.curves, add=False)
                 self._selected_shapes.discard(s)
         if shape not in self._selected_shapes:
             self._selected_shapes.add(shape)
             shape.set_selected(True)
+            self._sync_curve_points(shape.curves, add=True)
 
     def deselect(self, shape: Shape):
         if shape in self._selected_shapes:
             shape.set_selected(False)
+            self._sync_curve_points(shape.curves, add=False)
             self._selected_shapes.discard(shape)
 
     def set_transparent(self, value: bool):

@@ -68,14 +68,15 @@ class BezierCurve(QGraphicsItem):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         #if self.highlighted:
          #   pen = self._pen_highlight
-        if self.shape_selected:
+        if self.hovered:
+            pen = self._pen_hover
+        elif self.shape_selected:
             pen = self._pen_shape_selected
         elif self.curve_selected:
             pen = self._pen_curve_selected
         elif self.focused:
             pen = self._pen_focus
-        elif self.hovered:
-            pen = self._pen_hover
+
         elif self.points_hidden:
             pen = self._pen_hidden
         else:

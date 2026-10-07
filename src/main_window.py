@@ -364,16 +364,21 @@ class MainWindow(QMainWindow):
         self.zoom_combo.setCurrentIndex(new_idx)
 
     def color_selected_shape(self):
-        shape = self.scene.shape_manager.selected()
-        if shape is None:
-            self.statusBar().showMessage("No shape selected — hover a curve and press S first")
+        shapes = self.scene.shape_manager.selected_shapes()
+        if not shapes:
+            self.statusBar().showMessage(
+                "No shape selected — hover a curve and press S first")
             return
-        initial = shape.color if shape.color is not None else QColor(180, 180, 180)
-        color = QColorDialog.getColor(initial, self, f"Color for {shape.name}")
+        initial = shapes[0].color if shapes[0].color is not None \
+            else QColor(180, 180, 180)
+        title = (f"Color for {shapes[0].name}" if len(shapes) == 1
+                 else f"Color for {len(shapes)} shapes")
+        color = QColorDialog.getColor(initial, self, title)
         if not color.isValid():
             return
-        self.scene.shape_manager.set_color(shape, color)
-        self.log(f"{shape.name} colored {color.name()}")
+        for shape in shapes:
+            self.scene.shape_manager.set_color(shape, color)
+        self.log(f"Colored {len(shapes)} shape(s) {color.name()}")
 
     def pick_curve_color(self):
         color = QColorDialog.getColor(self.scene.curve_color, self, "Curve Color")

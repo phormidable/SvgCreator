@@ -55,6 +55,9 @@ class ControlPoint(QGraphicsEllipseItem):
             painter.drawEllipse(QRectF(-r, -r, 2 * r, 2 * r))
 
         # Override states draw one solid disc and stop.
+        if self.hovered:
+            self._draw_solid(painter, HOVER_COLOR, HOVER_POINT_PEN_COLOR)
+            return
         if self.selected:
             self._draw_selected(painter)
             return
@@ -63,9 +66,6 @@ class ControlPoint(QGraphicsEllipseItem):
             return
         if self.highlighted:
             self._draw_solid(painter, HIGHLIGHT_POINT_COLOR, HIGHLIGHT_POINT_PEN_COLOR)
-            return
-        if self.hovered:
-            self._draw_solid(painter, HOVER_COLOR, HOVER_POINT_PEN_COLOR)
             return
 
         if self.is_endpoint():
