@@ -330,6 +330,16 @@ class BezierScene(QGraphicsScene):
         curve.set_curve_selected(
             all(pt in self.selected_points for pt in curve.points))
 
+    def _propagate_move(self, source, pos):
+        """Apply `pos` to every other point in source's link group.
+        Base implementation reads from LinkManager directly."""
+        group = self.link_manager.group_of(source)
+        if group is None:
+            return
+        for pt in group:
+            if pt is not source:
+                pt.setPos(pos)
+
     def clear_selection(self):
         for pt in self.selected_points:
             pt.set_selected(False)

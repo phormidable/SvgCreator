@@ -305,10 +305,14 @@ class Document:
 
         # Score all (existing, detected) pairings by overlap.
         # (overlap_size, detected_size, detected_index, existing_chain)
+        # Score all (existing, detected) pairings by overlap, comparing
+        # curve IDs (not objects) so identity survives across mirrors.
         triples = []
         for i, new in enumerate(detected):
+            new_ids = {c.id for c in new}
             for old in self.chains:
-                overlap = len(new & set(old.curves))
+                old_ids = {c.id for c in old.curves}
+                overlap = len(new_ids & old_ids)
                 if overlap > 0:
                     triples.append((overlap, len(new), i, old))
         triples.sort(key=lambda t: (t[0], t[1]), reverse=True)

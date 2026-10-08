@@ -83,14 +83,9 @@ class LinkManager:
         """Move every other point in source's group to `pos`."""
         if self._propagating:
             return
-        group = self.group_of(source)
-        if group is None:
-            return
         self._propagating = True
         try:
-            for pt in group:
-                if pt is not source:
-                    pt.setPos(pos)
+            self.scene._propagate_move(source, pos)
         finally:
             self._propagating = False
 

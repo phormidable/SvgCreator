@@ -30,6 +30,7 @@ class ShapeManagerV2(ShapeManager):
 
         # 2. Ask the model to detect shapes.
         self.scene.document.detect_shapes()
+        self.scene.document.detect_chains()
 
         # 3. Translate model shapes → UI shapes, preserving identity.
         new_shapes = []
@@ -76,6 +77,21 @@ class ShapeManagerV2(ShapeManager):
         self._apply_transparency_to_all()
         self.update_fills()
 
+    def _propagate_move(self, source, pos):
+        """Junction lookup via the model, then push the position to siblings."""
+        mp = self._model_by_pt.get(source)
+        if mp is None:
+            return
+        junction = self.document.junction_that_contains(mp)
+        if junction is None:
+            return
+        for mpt in junction.points:
+            if mpt is mp:
+                continue
+            item = self._pt_by_model.get(mpt)
+            if item is not None:
+                item.setPos(pos)
+
     def reset(self):
         super().reset()
         self._ui_by_model_id.clear()
@@ -90,6 +106,19 @@ class ShapeManagerV2(ShapeManager):
     def rebuild_from_links(self):
         self._ui_by_model_id.clear()
         super().rebuild_from_links()
+
+    def chain_of(self, curve):
+        """The chain containing `curve`, as UI curves. Reads from the model
+        (populated by refresh) rather than walking link groups directly."""
+        mcurve = self.scene._model_by_curve.get(curve)
+        if mcurve is None:
+            return [curve]
+        for mchain in self.scene.document.chains:
+            if mcurve in mchain.curves:
+                return [self.scene._curve_by_model[mc]
+                        for mc in mchain.curves
+                        if mc in self.scene._curve_by_model]
+        return [curve]
 
     # ------------------------------------------------------------
     #  Loop ordering — junction-tolerant
