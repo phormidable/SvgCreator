@@ -51,16 +51,23 @@ class ShapeManager:
 
     def _sync_curve_points_for_shapes(self, shapes, add: bool):
         pts = self.scene.selected_points
+        touched_curves = set()
         for shape in shapes:
             for curve in shape.curves:
+                touched_curves.add(curve)
                 for pt in curve.points:
                     if add:
                         if pt not in pts:
                             pts.append(pt)
+                        pt.update()
                     else:
                         if pt in pts:
                             pts.remove(pt)
-                    pt.update()
+                        pt.update()
+        # The transitional curve_selected flag still needs maintaining.
+        for curve in touched_curves:
+            curve.set_curve_selected(
+                all(p in pts for p in curve.points))
 
     def select(self, shape: Shape | None, add: bool = False):
         sel = self.scene.selection

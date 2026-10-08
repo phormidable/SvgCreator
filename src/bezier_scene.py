@@ -357,13 +357,6 @@ class BezierScene(QGraphicsScene):
             if pt is not source:
                 pt.setPos(pos)
 
-    # def clear_selection(self):
-    #     for pt in self.selected_points:
-    #         pt.set_selected(False)
-    #         pt.curve.set_curve_selected(False)  # idempotent; harmless if not set
-    #     self.selected_points.clear()
-    #     self.shape_manager.select(None)
-
     def select_curve_under_hover(self, add: bool = False) -> bool:
         """Toggle selection of the hovered curve. With `add`, the curve joins
         the existing selection instead of replacing it. Returns True if handled."""

@@ -26,7 +26,9 @@ class ControlPoint(QGraphicsEllipseItem):
     @property
     def selected(self):
         scene = self.curve.scene() if self.curve is not None else None
-        return scene is not None and scene.selection.is_point_selected(self)
+        if scene is None:
+            return False
+        return scene.selection.is_point_selected(self)
 
     def is_endpoint(self):
         return self.point_idx == 0 or self.point_idx == self.curve.degree
