@@ -378,7 +378,7 @@ class BezierScene(QGraphicsScene):
                 for pt in curve.points:
                     if pt in self.selected_points:
                         self.selected_points.remove(pt)
-                        pt.set_selected(False)
+                        pt.update()
                 curve.set_curve_selected(False)
                 self.messageLogged.emit(f"{curve.name} removed from selection")
             else:
@@ -386,7 +386,7 @@ class BezierScene(QGraphicsScene):
                 for pt in curve.points:
                     if pt not in self.selected_points:
                         self.selected_points.append(pt)
-                    pt.set_selected(True)
+                    pt.update()
                 self.messageLogged.emit(f"Added {curve.name} to selection")
             return True
 
@@ -399,7 +399,7 @@ class BezierScene(QGraphicsScene):
         curve.set_curve_selected(True)
         for pt in curve.points:
             self.selected_points.append(pt)
-            pt.set_selected(True)
+            pt.update()
         self.messageLogged.emit(f"Selected {curve.name} ({len(curve.points)} points)")
         return True
 
@@ -727,7 +727,7 @@ class BezierScene(QGraphicsScene):
             for pt in curve.points:
                 if pt in self.selected_points:
                     self.selected_points.remove(pt)
-                pt.set_selected(False)
+                pt.update()
             curve.set_curve_selected(False)
 
         # dispose() unlinks each point, which triggers shape_manager.refresh()

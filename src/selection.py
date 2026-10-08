@@ -38,31 +38,28 @@ class Selection:
     #  Point mutations
     # ------------------------------------------------------------
     def set_point(self, pt):
-        """Replace the point selection with just `pt`. Use None to clear."""
         self.clear_points()
         if pt is not None:
             self.points.append(pt)
-            pt.set_selected(True)
-            pt.curve.set_curve_selected(self.is_curve_selected(pt.curve))
+            pt.update()
+            pt.curve.update()
 
     def toggle_point(self, pt):
-        """Add or remove `pt` from the selection."""
         if pt in self.points:
             self.points.remove(pt)
-            pt.set_selected(False)
         else:
             self.points.append(pt)
-            pt.set_selected(True)
-        curve = pt.curve
-        curve.set_curve_selected(self.is_curve_selected(curve))
+        pt.update()
+        pt.curve.update()
+        pt.curve.set_curve_selected(self.is_curve_selected(pt.curve))
 
     def clear_points(self):
-        """Drop every selected point and clear the curve_selected flag
-        on every affected curve."""
-        for pt in self.points:
-            pt.set_selected(False)
-            pt.curve.set_curve_selected(False)
+        affected = list(self.points)
         self.points.clear()
+        for pt in affected:
+            pt.update()
+            pt.curve.update()
+            pt.curve.set_curve_selected(False)
 
     # ------------------------------------------------------------
     #  Shape queries

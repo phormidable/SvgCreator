@@ -18,10 +18,15 @@ class ControlPoint(QGraphicsEllipseItem):
         self.point_idx = point_idx # 0..3, fixed for the lifetime of the curve
         self.highlighted = False
         self.hovered = False
-        self.selected = False
+
         self.linked = False
         self.focused = False
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
+
+    @property
+    def selected(self):
+        scene = self.curve.scene() if self.curve is not None else None
+        return scene is not None and scene.selection.is_point_selected(self)
 
     def is_endpoint(self):
         return self.point_idx == 0 or self.point_idx == self.curve.degree
@@ -135,11 +140,7 @@ class ControlPoint(QGraphicsEllipseItem):
         self.hovered = value
         self.update()
 
-    def set_selected(self, value):
-        if self.selected == value:
-            return
-        self.selected = value
-        self.update()
+
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:

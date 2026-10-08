@@ -57,11 +57,10 @@ class ShapeManager:
                     if add:
                         if pt not in pts:
                             pts.append(pt)
-                        pt.set_selected(True)
                     else:
                         if pt in pts:
                             pts.remove(pt)
-                        pt.set_selected(False)
+                    pt.update()
 
     def select(self, shape: Shape | None, add: bool = False):
         sel = self.scene.selection
