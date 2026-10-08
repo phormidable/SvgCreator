@@ -28,7 +28,7 @@ class BezierCurve(QGraphicsItem):
         self.committed = False
         self.points_hidden = False
         self.shape_selected = False
-        self.curve_selected = False
+        #self.curve_selected = False
 
         self._pen_normal = QPen(self.color, CURVE_PEN_WIDTH)
         self._pen_hover = QPen(HOVER_COLOR, CURVE_PEN_WIDTH)
@@ -60,6 +60,13 @@ class BezierCurve(QGraphicsItem):
             return False
         return (scene.selection.hovered_curve is self
                 and scene.selection.focused_point is None)
+
+    @property
+    def curve_selected(self):
+        scene = self.scene()
+        if scene is None:
+            return False
+        return scene.selection.is_curve_selected(self)
 
     # ---------------------------------------------------------------
     #  QGraphicsItem API
@@ -150,12 +157,6 @@ class BezierCurve(QGraphicsItem):
         if self.shape_selected == value:
             return
         self.shape_selected = value
-        self.update()
-
-    def set_curve_selected(self, value):
-        if self.curve_selected == value:
-            return
-        self.curve_selected = value
         self.update()
 
     def is_near(self, pos):

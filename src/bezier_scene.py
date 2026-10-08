@@ -335,41 +335,38 @@ class BezierScene(QGraphicsScene):
                 pt.setPos(pos)
 
     def select_curve_under_hover(self, add: bool = False) -> bool:
-        """Toggle selection of the hovered curve. With `add`, the curve joins
-        the existing selection instead of replacing it. Returns True if handled."""
         if self.hovered_curve is None:
             return False
         curve = self.hovered_curve
-        in_selection = all(pt in self.selected_points for pt in curve.points)
+        sel = self.selection
+        in_selection = sel.is_curve_selected(curve)
 
         if add:
-            # Toggle membership; leave the rest of the selection alone.
             if in_selection:
                 for pt in curve.points:
-                    if pt in self.selected_points:
-                        self.selected_points.remove(pt)
+                    if pt in sel.points:
+                        sel.points.remove(pt)
                         pt.update()
-                curve.set_curve_selected(False)
+                curve.update()
                 self.messageLogged.emit(f"{curve.name} removed from selection")
             else:
-                curve.set_curve_selected(True)
                 for pt in curve.points:
-                    if pt not in self.selected_points:
-                        self.selected_points.append(pt)
+                    if pt not in sel.points:
+                        sel.points.append(pt)
                     pt.update()
+                curve.update()
                 self.messageLogged.emit(f"Added {curve.name} to selection")
             return True
 
-        # No shift: replace, unless this curve is already the whole selection.
-        if in_selection and len(self.selected_points) == len(curve.points):
+        if in_selection and len(sel.points) == len(curve.points):
             self.clear_selection()
             self.messageLogged.emit(f"{curve.name} deselected")
             return True
         self.clear_selection()
-        curve.set_curve_selected(True)
         for pt in curve.points:
-            self.selected_points.append(pt)
+            sel.points.append(pt)
             pt.update()
+        curve.update()
         self.messageLogged.emit(f"Selected {curve.name} ({len(curve.points)} points)")
         return True
 
@@ -698,7 +695,6 @@ class BezierScene(QGraphicsScene):
                 if pt in self.selected_points:
                     self.selected_points.remove(pt)
                 pt.update()
-            curve.set_curve_selected(False)
 
         # dispose() unlinks each point, which triggers shape_manager.refresh()
         # — any closed loop that used one of these curves dissolves naturally.

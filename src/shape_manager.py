@@ -49,23 +49,17 @@ class ShapeManager:
 
     def _sync_curve_points_for_shapes(self, shapes, add: bool):
         pts = self.scene.selected_points
-        touched_curves = set()
         for shape in shapes:
             for curve in shape.curves:
-                touched_curves.add(curve)
                 for pt in curve.points:
                     if add:
                         if pt not in pts:
                             pts.append(pt)
-                        pt.update()
                     else:
                         if pt in pts:
                             pts.remove(pt)
-                        pt.update()
-        # The transitional curve_selected flag still needs maintaining.
-        for curve in touched_curves:
-            curve.set_curve_selected(
-                all(p in pts for p in curve.points))
+                    pt.update()
+                curve.update()
 
     def select(self, shape: UIShape | None, add: bool = False):
         sel = self.scene.selection
@@ -187,32 +181,31 @@ class ShapeManager:
 
     def _select_chain(self, chain, add: bool) -> bool:
         scene = self.scene
+        sel = scene.selection
         if add:
-            # Toggle: if every curve in the chain is already flagged, drop them.
-            if all(c.curve_selected for c in chain):
+            if all(sel.is_curve_selected(c) for c in chain):
                 for c in chain:
-                    c.set_curve_selected(False)
                     for pt in c.points:
-                        if pt in scene.selected_points:
-                            scene.selected_points.remove(pt)
+                        if pt in sel.points:
+                            sel.points.remove(pt)
                         pt.update()
+                    c.update()
                 scene.messageLogged.emit("Chain removed from selection")
             else:
                 for c in chain:
-                    c.set_curve_selected(True)
                     for pt in c.points:
-                        if pt not in scene.selected_points:
-                            scene.selected_points.append(pt)
+                        if pt not in sel.points:
+                            sel.points.append(pt)
                         pt.update()
-                scene.messageLogged.emit(
-                    f"Added chain of {len(chain)} curves")
+                    c.update()
+                scene.messageLogged.emit(f"Added chain of {len(chain)} curves")
             return True
         scene.clear_selection()
         for c in chain:
-            c.set_curve_selected(True)
             for pt in c.points:
-                scene.selected_points.append(pt)
+                sel.points.append(pt)
                 pt.update()
+            c.update()
         scene.messageLogged.emit(f"Selected chain of {len(chain)} curves")
         return True
 

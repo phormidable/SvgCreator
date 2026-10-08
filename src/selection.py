@@ -51,7 +51,6 @@ class Selection:
             self.points.append(pt)
         pt.update()
         pt.curve.update()
-        pt.curve.set_curve_selected(self.is_curve_selected(pt.curve))
 
     def clear_points(self):
         affected = list(self.points)
@@ -59,7 +58,6 @@ class Selection:
         for pt in affected:
             pt.update()
             pt.curve.update()
-            pt.curve.set_curve_selected(False)
 
     # ------------------------------------------------------------
     #  Shape queries
