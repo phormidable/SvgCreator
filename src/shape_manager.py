@@ -22,78 +22,72 @@ class ShapeManager:
     def __init__(self, scene):
         self.scene = scene
         self.shapes: list[Shape] = []
-        self._selected_shapes: set[Shape] = set()
         self._transparent = False
         self._shaped_curves: set = set()  # curves whose opacity we last set
         self._last_opacity: float = 1.0  # value we last applied to those curves
         self._ui_by_model_id: dict[int, UIShape] = {}
+
 
     # ------------------------------------------------------------
     #  Selection
     # ------------------------------------------------------------
     def selected(self) -> Shape | None:
         """First selected shape, or None. Convenience for single-selection UIs."""
-        return next(iter(self._selected_shapes), None)
+        return self.scene.selection.first_selected_shape()
 
     def selected_shapes(self) -> list[Shape]:
-        return list(self._selected_shapes)
+        return self.scene.selection.selected_shapes_list()
 
     def shapes_in_selection(self) -> list[Shape]:
         """Shapes that are effectively part of the selection: explicitly
         S-selected ones, plus any shape whose every curve is curve_selected
         (e.g. reached via S on an open chain that includes the shape)."""
-        result = set(self._selected_shapes)
+        result = set(self.scene.selection.shapes)
         flagged = {c for c in self.scene.curves if c.curve_selected}
         for shape in self.shapes:
             if shape.curves and shape.curves <= flagged:
                 result.add(shape)
         return list(result)
 
-    def _sync_curve_points(self, curves, add: bool):
-        """Add or remove the points of `curves` from the scene's point
-        selection. Idempotent: safe to call when a point is already in the
-        desired state (e.g. covered by another selection)."""
+    def _sync_curve_points_for_shapes(self, shapes, add: bool):
         pts = self.scene.selected_points
-        for curve in curves:
-            for pt in curve.points:
-                if add:
-                    if pt not in pts:
-                        pts.append(pt)
-                    pt.set_selected(True)
-                else:
-                    if pt in pts:
-                        pts.remove(pt)
-                    pt.set_selected(False)
+        for shape in shapes:
+            for curve in shape.curves:
+                for pt in curve.points:
+                    if add:
+                        if pt not in pts:
+                            pts.append(pt)
+                        pt.set_selected(True)
+                    else:
+                        if pt in pts:
+                            pts.remove(pt)
+                        pt.set_selected(False)
 
     def select(self, shape: Shape | None, add: bool = False):
+        sel = self.scene.selection
         if shape is None:
-            for s in self._selected_shapes:
-                s.set_selected(False)
-                self._sync_curve_points(s.curves, add=False)
-            self._selected_shapes.clear()
+            to_remove = list(sel.shapes)
+            sel.clear_shapes()
+            self._sync_curve_points_for_shapes(to_remove, add=False)
             return
         if add:
-            if shape not in self._selected_shapes:
-                self._selected_shapes.add(shape)
-                shape.set_selected(True)
-                self._sync_curve_points(shape.curves, add=True)
+            if not sel.is_shape_selected(shape):
+                sel.toggle_shape(shape)
+                self._sync_curve_points_for_shapes([shape], add=True)
             return
-        # Replace: drop every other selected shape.
-        for s in list(self._selected_shapes):
-            if s is not shape:
-                s.set_selected(False)
-                self._sync_curve_points(s.curves, add=False)
-                self._selected_shapes.discard(s)
-        if shape not in self._selected_shapes:
-            self._selected_shapes.add(shape)
-            shape.set_selected(True)
-            self._sync_curve_points(shape.curves, add=True)
+        to_remove = [s for s in sel.shapes if s is not shape]
+        for s in to_remove:
+            sel.toggle_shape(s)  # removes
+        if not sel.is_shape_selected(shape):
+            sel.toggle_shape(shape)
+            self._sync_curve_points_for_shapes([shape], add=True)
+        if to_remove:
+            self._sync_curve_points_for_shapes(to_remove, add=False)
 
     def deselect(self, shape: Shape):
-        if shape in self._selected_shapes:
-            shape.set_selected(False)
-            self._sync_curve_points(shape.curves, add=False)
-            self._selected_shapes.discard(shape)
+        if self.scene.selection.is_shape_selected(shape):
+            self.scene.selection.toggle_shape(shape)
+            self._sync_curve_points_for_shapes([shape], add=False)
 
     def set_transparent(self, value: bool):
         """Enable/disable transparent rendering of every shape."""
@@ -163,7 +157,7 @@ class ShapeManager:
 
     def _select_shape(self, shape, add: bool) -> bool:
         if add:
-            if shape in self._selected_shapes:
+            if self.scene.selection.is_shape_selected(shape):
                 self.deselect(shape)
                 self.scene.messageLogged.emit(
                     f"{shape.name} removed from selection")
@@ -176,7 +170,7 @@ class ShapeManager:
         # No shift: this shape becomes the whole selection.
         # Toggle off only if it already was — i.e. no curve is also selected.
         any_curve_selected = any(c.curve_selected for c in self.scene.curves)
-        sole_selection = (self._selected_shapes == {shape}
+        sole_selection = (self.scene.selection.shapes == {shape}
                           and not any_curve_selected)
 
         self.scene.clear_selection()
@@ -343,7 +337,7 @@ class ShapeManager:
                     if curve not in curves_in_new_shapes:
                         curve.set_color(self.scene.curve_color)
                 shape.color = None
-            if shape in self._selected_shapes:
+            if self.scene.selection.is_shape_selected(shape):
                 self.deselect(shape)
             self.scene.messageLogged.emit(f"{shape.name} dissolved")
 
@@ -364,7 +358,7 @@ class ShapeManager:
                 curve.set_color(border)
 
     def reset(self):
-        super().reset()
+        #super().reset()
         self._ui_by_model_id.clear()
         doc = self.scene.document
         doc.extremities.clear()
@@ -373,6 +367,7 @@ class ShapeManager:
         doc.junctions.clear()
         doc.shapes.clear()
         doc.chains.clear()
+        self.scene.selection.clear_shapes()
 
     def rebuild_from_links(self):
         self._ui_by_model_id.clear()

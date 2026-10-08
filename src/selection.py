@@ -17,6 +17,7 @@ class Selection:
     def __init__(self, scene):
         self.scene = scene
         self.points: list = []   # ControlPoint, in selection order
+        self.shapes: set = set()   # UI Shape objects
 
     # ------------------------------------------------------------
     #  Queries
@@ -60,3 +61,38 @@ class Selection:
             pt.set_selected(False)
             pt.curve.set_curve_selected(False)
         self.points.clear()
+
+    # ------------------------------------------------------------
+    #  Shape queries
+    # ------------------------------------------------------------
+    def is_shape_selected(self, shape) -> bool:
+        return shape in self.shapes
+
+    def first_selected_shape(self):
+        return next(iter(self.shapes), None)
+
+    def selected_shapes_list(self) -> list:
+        return list(self.shapes)
+
+    # ------------------------------------------------------------
+    #  Shape mutations
+    # ------------------------------------------------------------
+    def set_shape(self, shape):
+        """Make `shape` the sole selected shape. Use None to clear."""
+        self.clear_shapes()
+        if shape is not None:
+            self.shapes.add(shape)
+            shape.set_selected(True)
+
+    def toggle_shape(self, shape):
+        if shape in self.shapes:
+            self.shapes.discard(shape)
+            shape.set_selected(False)
+        else:
+            self.shapes.add(shape)
+            shape.set_selected(True)
+
+    def clear_shapes(self):
+        for shape in self.shapes:
+            shape.set_selected(False)
+        self.shapes.clear()
