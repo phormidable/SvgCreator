@@ -97,7 +97,7 @@ class MainWindow(QMainWindow):
         key = event.key()
 
         if key == Qt.Key.Key_Escape:
-            if self.scene.is_rotating():
+            if self.scene.is_transforming():
                 self.scene.end_transform(commit=False)
                 event.accept()
                 return

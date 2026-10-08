@@ -52,7 +52,7 @@ class BezierScene(QGraphicsScene):
         self._preset_pending: str | None = None
         self._pending_collapse_point: ControlPoint | None = None
         self._drag_press_pos: QPointF | None = None
-
+        self._transform_last_pos: QPointF | None = None
         self._drag_targets: dict[ControlPoint, QPointF] = {}
         self._drag_primary_start: QPointF | None = None
 
@@ -473,10 +473,6 @@ class BezierScene(QGraphicsScene):
     def mirror_selection(self, axis: str) -> bool:
         """Reflect the selection across the horizontal line (axis='x') or
         vertical line (axis='y') through the barycentre of its points."""
-        if self.is_rotating():
-            self.messageLogged.emit("Finish the rotation first")
-            return False
-
         curves = self._selected_curves()
         if not curves:
             self.messageLogged.emit(
@@ -505,6 +501,8 @@ class BezierScene(QGraphicsScene):
 
         self.messageLogged.emit(
             f"Mirrored across {axis.upper()} axis around ({px:.1f}, {py:.1f})")
+        if self.is_transforming():
+            self._reanchor_transform()
         return True
 
     # ------------------------------------------------------------
@@ -772,6 +770,7 @@ class BezierScene(QGraphicsScene):
         self._transform_starts = {
             p: p.pos() for p in self._with_linked(base)}
 
+        self._transform_last_pos = None
         self._show_pivot(cx, cy)
         self.transformModeChanged.emit(True)
         verb = "Rotating" if mode == "rotate" else "Scaling"
@@ -805,9 +804,32 @@ class BezierScene(QGraphicsScene):
     def end_transform(self, commit: bool = True):
         self._end_transform(commit)
 
+    def _reanchor_transform(self):
+        """After an external change to positions (e.g. a mirror during an
+        active transform), realign the snapshot so the next update continues
+        from the current positions instead of the pre-transform ones."""
+        if self._transform_pivot is None:
+            return
+        for p in self._transform_starts:
+            self._transform_starts[p] = p.pos()
+        last = self._transform_last_pos
+        if last is None:
+            # No mouse move yet; let the first move capture a fresh reference.
+            self._transform_ref = None
+            return
+        px = self._transform_pivot.x()
+        py = self._transform_pivot.y()
+        dx, dy = last.x() - px, last.y() - py
+        if self.is_rotating():
+            self._transform_ref = math.atan2(dy, dx) if (dx or dy) else None
+        else:
+            dist = math.hypot(dx, dy)
+            self._transform_ref = dist if dist > 1e-6 else None
+
     def _update_rotation(self, scene_pos: QPointF):
         if scene_pos is None or self._transform_pivot is None:
             return
+        self._transform_last_pos = QPointF(scene_pos)
         px, py = self._transform_pivot.x(), self._transform_pivot.y()
         dx, dy = scene_pos.x() - px, scene_pos.y() - py
         if dx == 0.0 and dy == 0.0:
@@ -826,6 +848,7 @@ class BezierScene(QGraphicsScene):
     def _update_scaling(self, scene_pos: QPointF):
         if scene_pos is None or self._transform_pivot is None:
             return
+        self._transform_last_pos = QPointF(scene_pos)
         px, py = self._transform_pivot.x(), self._transform_pivot.y()
         dx, dy = scene_pos.x() - px, scene_pos.y() - py
         dist = math.hypot(dx, dy)
