@@ -368,7 +368,7 @@ class MainWindow(QMainWindow):
         self.zoom_combo.setCurrentIndex(new_idx)
 
     def color_selected_shape(self):
-        shapes = self.scene.shape_manager.selected_shapes()
+        shapes = self.scene.shape_manager.shapes_in_selection()
         if not shapes:
             self.statusBar().showMessage(
                 "No shape selected — hover a curve and press S first")

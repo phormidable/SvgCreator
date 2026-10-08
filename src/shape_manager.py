@@ -36,6 +36,17 @@ class ShapeManager:
     def selected_shapes(self) -> list[Shape]:
         return list(self._selected_shapes)
 
+    def shapes_in_selection(self) -> list[Shape]:
+        """Shapes that are effectively part of the selection: explicitly
+        S-selected ones, plus any shape whose every curve is curve_selected
+        (e.g. reached via S on an open chain that includes the shape)."""
+        result = set(self._selected_shapes)
+        flagged = {c for c in self.scene.curves if c.curve_selected}
+        for shape in self.shapes:
+            if shape.curves and shape.curves <= flagged:
+                result.add(shape)
+        return list(result)
+
     def _sync_curve_points(self, curves, add: bool):
         """Add or remove the points of `curves` from the scene's point
         selection. Idempotent: safe to call when a point is already in the
