@@ -3,8 +3,8 @@ from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem
 from PySide6.QtGui import QBrush, QPen, QPainter, QColor
 from PySide6.QtCore import QPointF, Qt, QRectF
 
-from settings import (POINT_DIAMETER, LINKED_RING_EXTRA, LINKED_RING_PEN_WIDTH, POINT_RADIUS, HIGHLIGHT_POINT_COLOR,
-            HIGHLIGHT_POINT_PEN_COLOR, HOVER_COLOR_FOCUS, HOVER_POINT_PEN_COLOR, SELECTED_POINT_OUTER_COLOR, SELECTED_POINT_OUTER_WIDTH,
+from settings import (POINT_DIAMETER, LINKED_RING_EXTRA, LINKED_RING_PEN_WIDTH, POINT_RADIUS,
+                      HOVER_COLOR_FOCUS, HOVER_POINT_PEN_COLOR, SELECTED_POINT_OUTER_COLOR, SELECTED_POINT_OUTER_WIDTH,
                       SELECTED_POINT_COLOR, SELECTED_POINT_PEN_COLOR, LINKED_RING_COLOR, POINT_BLUE, ENDPOINT_ALPHA, ENDPOINT_PEN_COLOR,
                       CONTROL_POINT_OUTER_PEN_COLOR, CONTROL_POINT_MIDDLE_RADIUS, CONTROL_POINT_MIDDLE_COLOR, CONTROL_POINT_MIDDLE_PEN_COLOR,
                       CONTROL_POINT_INNER_RADIUS, CONTROL_POINT_INNER_COLOR, HOVER_COLOR)
@@ -16,9 +16,6 @@ class ControlPoint(QGraphicsEllipseItem):
         self.setPos(pos)
         self.curve = curve
         self.point_idx = point_idx # 0..3, fixed for the lifetime of the curve
-        self.highlighted = False
-
-
         self.linked = False
 
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
@@ -87,10 +84,6 @@ class ControlPoint(QGraphicsEllipseItem):
         if self.focused:
             self._draw_solid(painter, HOVER_COLOR_FOCUS, HOVER_POINT_PEN_COLOR)
             return
-        if self.highlighted:
-            self._draw_solid(painter, HIGHLIGHT_POINT_COLOR, HIGHLIGHT_POINT_PEN_COLOR)
-            return
-
         if self.is_endpoint():
             self._draw_endpoint(painter)
         else:
@@ -137,12 +130,6 @@ class ControlPoint(QGraphicsEllipseItem):
         painter.setBrush(QBrush(CONTROL_POINT_INNER_COLOR))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawEllipse(QRectF(-r, -r, 2 * r, 2 * r))
-
-    def set_highlighted(self, value):
-        if self.highlighted == value:
-            return
-        self.highlighted = value
-        self.update()
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:

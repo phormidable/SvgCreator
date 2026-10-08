@@ -13,14 +13,13 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QPainterPath, QPen
 from PySide6.QtWidgets import QGraphicsPathItem
 from settings import SVG_PRECISION, SHAPE_BORDER_DARKEN, SHAPE_TRANSPARENT_OPACITY
-from shape import Shape
 from shape import Shape as UIShape
 SHAPE_FILL_Z = -10
 
 class ShapeManager:
     def __init__(self, scene):
         self.scene = scene
-        self.shapes: list[Shape] = []
+        self.shapes: list[UIShape] = []
         self._transparent = False
         self._shaped_curves: set = set()  # curves whose opacity we last set
         self._last_opacity: float = 1.0  # value we last applied to those curves
@@ -30,14 +29,14 @@ class ShapeManager:
     # ------------------------------------------------------------
     #  Selection
     # ------------------------------------------------------------
-    def selected(self) -> Shape | None:
+    def selected(self) -> UIShape | None:
         """First selected shape, or None. Convenience for single-selection UIs."""
         return self.scene.selection.first_selected_shape()
 
-    def selected_shapes(self) -> list[Shape]:
+    def selected_shapes(self) -> list[UIShape]:
         return self.scene.selection.selected_shapes_list()
 
-    def shapes_in_selection(self) -> list[Shape]:
+    def shapes_in_selection(self) -> list[UIShape]:
         """Shapes that are effectively part of the selection: explicitly
         S-selected ones, plus any shape whose every curve is curve_selected
         (e.g. reached via S on an open chain that includes the shape)."""
@@ -68,7 +67,7 @@ class ShapeManager:
             curve.set_curve_selected(
                 all(p in pts for p in curve.points))
 
-    def select(self, shape: Shape | None, add: bool = False):
+    def select(self, shape: UIShape | None, add: bool = False):
         sel = self.scene.selection
         if shape is None:
             to_remove = list(sel.shapes)
@@ -89,7 +88,7 @@ class ShapeManager:
         if to_remove:
             self._sync_curve_points_for_shapes(to_remove, add=False)
 
-    def deselect(self, shape: Shape):
+    def deselect(self, shape: UIShape):
         if self.scene.selection.is_shape_selected(shape):
             self.scene.selection.toggle_shape(shape)
             self._sync_curve_points_for_shapes([shape], add=False)
@@ -137,7 +136,7 @@ class ShapeManager:
         for pt in curve.points:
             pt.setOpacity(opacity)
 
-    def shape_of_curve(self, curve) -> Shape | None:
+    def shape_of_curve(self, curve) -> UIShape | None:
         for shape in self.shapes:
             if curve in shape.curves:
                 return shape
@@ -196,7 +195,7 @@ class ShapeManager:
                     for pt in c.points:
                         if pt in scene.selected_points:
                             scene.selected_points.remove(pt)
-                        pt.set_selected(False)
+                        pt.update()
                 scene.messageLogged.emit("Chain removed from selection")
             else:
                 for c in chain:
@@ -204,7 +203,7 @@ class ShapeManager:
                     for pt in c.points:
                         if pt not in scene.selected_points:
                             scene.selected_points.append(pt)
-                        pt.set_selected(True)
+                        pt.update()
                 scene.messageLogged.emit(
                     f"Added chain of {len(chain)} curves")
             return True
@@ -213,7 +212,7 @@ class ShapeManager:
             c.set_curve_selected(True)
             for pt in c.points:
                 scene.selected_points.append(pt)
-                pt.set_selected(True)
+                pt.update()
         scene.messageLogged.emit(f"Selected chain of {len(chain)} curves")
         return True
 
@@ -391,13 +390,13 @@ class ShapeManager:
             names = " + ".join(c.name for c in sorted(shape.curves, key=lambda c: c.id))
             self.scene.messageLogged.emit(f"{shape.name} formed from {names}")
 
-    def _border_color(self, shape: Shape):
+    def _border_color(self, shape: UIShape):
         """Darker variant of the shape's fill, or the scene default."""
         if shape.color is None:
             return self.scene.curve_color
         return shape.color.darker(SHAPE_BORDER_DARKEN)
 
-    def shape_path(self, shape: Shape) -> QPainterPath:
+    def shape_path(self, shape: UIShape) -> QPainterPath:
         result = self._loop_segments(shape)
         if result is None:
             return QPainterPath()
@@ -409,7 +408,7 @@ class ShapeManager:
         path.closeSubpath()
         return path
 
-    def shape_svg_path_string(self, shape: Shape) -> str:
+    def shape_svg_path_string(self, shape: UIShape) -> str:
         """SVG `d` attribute for a closed shape. '' if the loop is broken."""
         result = self._loop_segments(shape)
         if result is None:
@@ -426,7 +425,7 @@ class ShapeManager:
         parts.append("Z")
         return " ".join(parts)
 
-    def _rebuild_fill(self, shape: Shape):
+    def _rebuild_fill(self, shape: UIShape):
         if shape.color is None:
             return
         path = self.shape_path(shape)
@@ -450,7 +449,7 @@ class ShapeManager:
         for shape in self.shapes:
             self._rebuild_fill(shape)
 
-    def set_color(self, shape: Shape, color: QColor | None):
+    def set_color(self, shape: UIShape, color: QColor | None):
         shape.color = QColor(color) if color is not None else None
         if shape.color is None:
             if shape.fill_item is not None:

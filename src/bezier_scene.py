@@ -205,7 +205,6 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     #  Shape detection
     # ------------------------------------------------------------
-
     def cancel_pending_curve(self) -> bool:
         if self.mode == "create" and self.pending_curve is not None:
             self.discard_current_points()
@@ -324,28 +323,6 @@ class BezierScene(QGraphicsScene):
     def clear_selection(self):
         self.selection.clear_points()
         self.shape_manager.select(None)
-    # def set_selected_point(self, point):
-    #     """Replace the whole selection with just `point` (or clear if None)."""
-    #     if point is None:
-    #         self.clear_selection()
-    #         return
-    #     if len(self.selected_points) == 1 and self.selected_points[0] is point:
-    #         return
-    #     self.clear_selection()
-    #     self.selected_points.append(point)
-    #     point.set_selected(True)
-    #
-    # def toggle_selection(self, point):
-    #     if point in self.selected_points:
-    #         self.selected_points.remove(point)
-    #         point.set_selected(False)
-    #     else:
-    #         self.selected_points.append(point)
-    #         point.set_selected(True)
-    #     # Keep the curve's "fully selected" flag consistent with the point set.
-    #     curve = point.curve
-    #     curve.set_curve_selected(
-    #         all(pt in self.selected_points for pt in curve.points))
 
     def _propagate_move(self, source, pos):
         """Apply `pos` to every other point in source's link group.

@@ -43,10 +43,6 @@ HOVER_COLOR = QColor("green")
 HOVER_COLOR_FOCUS = QColor("cyan")
 HOVER_POINT_PEN_COLOR = QColor("darkred")
 
-# ---- Highlighted point colors (while dragging a curve) ----
-HIGHLIGHT_POINT_COLOR = QColor("green")
-HIGHLIGHT_POINT_PEN_COLOR = QColor("darkgreen")
-
 # ---- Curve style ----
 CURVE_PEN_WIDTH = 2
 
