@@ -16,74 +16,54 @@ from link_indicator import LinkIndicator
 class LinkManager:
     def __init__(self, scene):
         self.scene = scene
-        # Skip the assignment when a subclass has overridden `groups`
-        # as a property (V2 reads junctions from the model).
-        if not hasattr(type(self), "groups"):
-            self.groups = []
         self._propagating = False
         self._proximity_target = None
         self.indicator = LinkIndicator()
         scene.addItem(self.indicator)
 
-    # ------------------------------------------------------------
-    #  Group lookup
-    # ------------------------------------------------------------
     def group_of(self, point):
-        """Return the link group containing `point`, or None."""
-        for group in self.groups:
-            for pt in group:
-                if pt is point:
-                    return group
-        return None
+        mp = self.scene._model_by_pt.get(point)
+        if mp is None:
+            return None
+        junction = self.scene.document.junction_that_contains(mp)
+        if junction is None:
+            return None
+        return [self.scene._pt_by_model[m] for m in junction.points
+                if m in self.scene._pt_by_model]
+
+    @property
+    def groups(self):
+        return [
+            [self.scene._pt_by_model[m] for m in j.points
+             if m in self.scene._pt_by_model]
+            for j in self.scene.document.junctions
+        ]
 
     # ------------------------------------------------------------
     #  Linking / unlinking
     # ------------------------------------------------------------
     def link_points(self, a, b):
-        """Merge a's and b's link groups (creating one if needed)."""
-        ga = self.group_of(a)
-        gb = self.group_of(b)
-
-        if ga is not None and ga is gb:
-            return  # already linked
-
-        if ga is None and gb is None:
-            group = [a, b]
-            self.groups.append(group)
-        elif ga is None:
-            gb.append(a)
-            group = gb
-        elif gb is None:
-            ga.append(b)
-            group = ga
-        else:
-            ga.extend(gb)
-            self.groups.remove(gb)
-            group = ga
-
-        for pt in group:
-            pt.set_linked(True)
-
+        self.scene._mirror_to_document()
+        ma = self.scene._model_by_pt.get(a)
+        mb = self.scene._model_by_pt.get(b)
+        if ma is None or mb is None:
+            return
+        self.scene.document.link(ma, mb)
+        self._sync_linked_flags()
         self.scene.shape_manager.refresh()
 
     def unlink_point(self, point):
-        """Remove `point` from its group. Dissolve the group if <2 remain."""
-        for gi, group in enumerate(self.groups):
-            for pi, pt in enumerate(group):
-                if pt is point:
-                    del group[pi]
-                    if len(group) < 2:
-                        for remaining in group:
-                            remaining.set_linked(False)
-                        del self.groups[gi]
-                    self.scene.shape_manager.refresh()
-                    return
+        self.scene._mirror_to_document()
+        mp = self.scene._model_by_pt.get(point)
+        if mp is not None:
+            self.scene.document.unlink(mp)
+        self._sync_linked_flags()
+        self.scene.shape_manager.refresh()
 
     # ------------------------------------------------------------
     #  Propagation (moving linked siblings together)
     # ------------------------------------------------------------
     def propagate_move(self, source, pos):
-        """Move every other point in source's group to `pos`."""
         if self._propagating:
             return
         self._propagating = True
@@ -156,7 +136,17 @@ class LinkManager:
     #  Reset
     # ------------------------------------------------------------
     def reset(self):
-        """Drop every group and hide the indicator (used by clear_all)."""
         self.clear_proximity()
-        self.groups.clear()
+        self.scene.document.junctions.clear()
+        self._sync_linked_flags()
         self._propagating = False
+
+    def _sync_linked_flags(self):
+        linked_items = set()
+        for j in self.scene.document.junctions:
+            for m in j.points:
+                item = self.scene._pt_by_model.get(m)
+                if item is not None:
+                    linked_items.add(item)
+        for item in self.scene._model_by_pt:
+            item.set_linked(item in linked_items)

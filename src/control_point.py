@@ -26,6 +26,14 @@ class ControlPoint(QGraphicsEllipseItem):
     def is_endpoint(self):
         return self.point_idx == 0 or self.point_idx == self.curve.degree
 
+    def pos(self):
+        scene = self.curve.scene() if self.curve is not None else None
+        if scene is not None:
+            mp = scene._model_by_pt.get(self)
+            if mp is not None:
+                return QPointF(mp.x, mp.y)
+        return super().pos()
+
     def boundingRect(self):
         if self.linked:
             half = POINT_DIAMETER / 2 + LINKED_RING_EXTRA + LINKED_RING_PEN_WIDTH
@@ -145,7 +153,14 @@ class ControlPoint(QGraphicsEllipseItem):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
             scene = self.curve.scene()
             if scene is not None:
+                # New: persist the clamped Qt position into the model.
+                mp = scene._model_by_pt.get(self)
+                if mp is not None:
+                    p = super().pos()
+                    mp.x = p.x()
+                    mp.y = p.y()
+                # Existing: propagate and notify.
                 scene.link_manager.propagate_move(self, self.pos())
                 self.curve.on_point_moved()
-                scene.on_point_moved(self)  # ← new: notify about *this* point
+                scene.on_point_moved(self)
         return super().itemChange(change, value)

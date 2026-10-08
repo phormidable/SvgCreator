@@ -14,6 +14,8 @@ from bezier_curve import BezierCurve
 import scene_io
 import math
 from shape_manager import ShapeManager
+from new_data_model import Document, Point, Junction, Curve
+from selection import Selection
 
 SHAPE_FILL_Z = -10
 
@@ -29,6 +31,11 @@ class BezierScene(QGraphicsScene):
 
     def __init__(self):
         super().__init__()
+        self.document = Document()
+        self._curve_by_model: dict = {}
+        self._model_by_curve: dict = {}
+        self._pt_by_model: dict = {}
+        self._model_by_pt: dict = {}
 
         # ---- Static geometry ----
         self.artboard = ARTBOARD_RECT   # full working area (scene rect)
@@ -39,7 +46,8 @@ class BezierScene(QGraphicsScene):
         self.pending_curve = None     # BezierCurve currently being placed
         self.mode = "create"
         self.curve_color = QColor(DEFAULT_CURVE_COLOR)
-        self.selected_points: list[ControlPoint] = []
+        self.selection = Selection(self)
+
         self.selected_curve_idx = -1
         self.current_degree = 2
         self.dragging_point = None
@@ -55,6 +63,7 @@ class BezierScene(QGraphicsScene):
         self._transform_last_pos: QPointF | None = None
         self._drag_targets: dict[ControlPoint, QPointF] = {}
         self._drag_primary_start: QPointF | None = None
+
 
         # ---- Scene rect = artboard, never changes during editing ----
         self.setSceneRect(self.artboard)
@@ -74,6 +83,9 @@ class BezierScene(QGraphicsScene):
         self._transform_starts: dict[ControlPoint, QPointF] = {}
         self._transform_pivot_item: QGraphicsEllipseItem | None = None
 
+    @property
+    def selected_points(self):
+        return self.selection.points
     # ------------------------------------------------------------
     #  Mouse interaction
     # ------------------------------------------------------------
@@ -312,23 +324,39 @@ class BezierScene(QGraphicsScene):
         if point is None:
             self.clear_selection()
             return
-        if len(self.selected_points) == 1 and self.selected_points[0] is point:
+        if len(self.selection.points) == 1 and self.selection.points[0] is point:
             return
         self.clear_selection()
-        self.selected_points.append(point)
-        point.set_selected(True)
+        self.selection.set_point(point)
 
     def toggle_selection(self, point):
-        if point in self.selected_points:
-            self.selected_points.remove(point)
-            point.set_selected(False)
-        else:
-            self.selected_points.append(point)
-            point.set_selected(True)
-        # Keep the curve's "fully selected" flag consistent with the point set.
-        curve = point.curve
-        curve.set_curve_selected(
-            all(pt in self.selected_points for pt in curve.points))
+        self.selection.toggle_point(point)
+
+    def clear_selection(self):
+        self.selection.clear_points()
+        self.shape_manager.select(None)
+    # def set_selected_point(self, point):
+    #     """Replace the whole selection with just `point` (or clear if None)."""
+    #     if point is None:
+    #         self.clear_selection()
+    #         return
+    #     if len(self.selected_points) == 1 and self.selected_points[0] is point:
+    #         return
+    #     self.clear_selection()
+    #     self.selected_points.append(point)
+    #     point.set_selected(True)
+    #
+    # def toggle_selection(self, point):
+    #     if point in self.selected_points:
+    #         self.selected_points.remove(point)
+    #         point.set_selected(False)
+    #     else:
+    #         self.selected_points.append(point)
+    #         point.set_selected(True)
+    #     # Keep the curve's "fully selected" flag consistent with the point set.
+    #     curve = point.curve
+    #     curve.set_curve_selected(
+    #         all(pt in self.selected_points for pt in curve.points))
 
     def _propagate_move(self, source, pos):
         """Apply `pos` to every other point in source's link group.
@@ -340,12 +368,12 @@ class BezierScene(QGraphicsScene):
             if pt is not source:
                 pt.setPos(pos)
 
-    def clear_selection(self):
-        for pt in self.selected_points:
-            pt.set_selected(False)
-            pt.curve.set_curve_selected(False)  # idempotent; harmless if not set
-        self.selected_points.clear()
-        self.shape_manager.select(None)
+    # def clear_selection(self):
+    #     for pt in self.selected_points:
+    #         pt.set_selected(False)
+    #         pt.curve.set_curve_selected(False)  # idempotent; harmless if not set
+    #     self.selected_points.clear()
+    #     self.shape_manager.select(None)
 
     def select_curve_under_hover(self, add: bool = False) -> bool:
         """Toggle selection of the hovered curve. With `add`, the curve joins
@@ -889,3 +917,57 @@ class BezierScene(QGraphicsScene):
             self.removeItem(self._transform_pivot_item)
             self._transform_pivot_item = None
 
+
+    def on_shift_released(self):
+        """Releasing shift after shift-click placement unarms the preset."""
+        if self._preset_pending is not None:
+            self.cancel_preset()
+
+    def _mirror_to_document(self):
+        """Sync the model with the scene's current items. Additive: model
+        Curve/Point objects persist across calls so identity is stable."""
+        doc = self.document
+        current = set(self.curves)
+
+        # --- 1. Remove model curves whose UI items are gone. ---
+        for curve_item in list(self._model_by_curve):
+            if curve_item in current:
+                continue
+            mc = self._model_by_curve.pop(curve_item)
+            self._curve_by_model.pop(mc, None)
+            for mp in (*mc.extremities, *mc.controls):
+                j = doc.junction_that_contains(mp)
+                if j is not None:
+                    doc.unlink(mp)
+                item = self._pt_by_model.pop(mp, None)
+                if item is not None:
+                    self._model_by_pt.pop(item, None)
+                if mp in doc.extremities:
+                    doc.extremities.remove(mp)
+                elif mp in doc.controls:
+                    doc.controls.remove(mp)
+            if mc in doc.curves:
+                doc.curves.remove(mc)
+
+        # --- 2. Add new curves / refresh positions on existing ones. ---
+        for curve_item in self.curves:
+            if not curve_item.is_complete():
+                continue
+            ui_pts = curve_item.points
+            mc = self._model_by_curve.get(curve_item)
+            if mc is None:
+                mps = []
+                for pt_item in ui_pts:
+                    mp = Point(pt_item.pos().x(), pt_item.pos().y())
+                    mps.append(mp)
+                    self._pt_by_model[mp] = pt_item
+                    self._model_by_pt[pt_item] = mp
+                extremities = (mps[0], mps[-1])
+                controls = mps[1:-1]
+                mc = Curve(extremities, controls, curve_item.degree)
+                mc.id = curve_item.id
+                doc.curves.append(mc)
+                doc.extremities.extend(extremities)
+                doc.controls.extend(controls)
+                self._model_by_curve[curve_item] = mc
+                self._curve_by_model[mc] = curve_item

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QGraphicsPathItem
 from settings import SVG_PRECISION, SHAPE_BORDER_DARKEN, SHAPE_TRANSPARENT_OPACITY
 from shape import Shape
 from bezier_curve import BezierCurve
+from shape import Shape as UIShape
 SHAPE_FILL_Z = -10
 
 class ShapeManager:
@@ -25,6 +26,7 @@ class ShapeManager:
         self._transparent = False
         self._shaped_curves: set = set()  # curves whose opacity we last set
         self._last_opacity: float = 1.0  # value we last applied to those curves
+        self._ui_by_model_id: dict[int, UIShape] = {}
 
     # ------------------------------------------------------------
     #  Selection
@@ -216,104 +218,137 @@ class ShapeManager:
         scene.messageLogged.emit(f"Selected chain of {len(chain)} curves")
         return True
 
-    # ------------------------------------------------------------
-    #  Detection
-    # ------------------------------------------------------------
-    def _pair_partner(self, pt):
-        if not pt.is_endpoint():
-            return None
-        g = self.scene.link_manager.group_of(pt)
-        if g is None or len(g) != 2:
-            return None
-        other = g[0] if g[1] is pt else g[1]
-        if not other.is_endpoint():
-            return None
-        return other
+    def chain_of(self, curve):
+        """The chain containing `curve`, as UI curves. Reads from the model
+        (populated by refresh) rather than walking link groups directly."""
+        mcurve = self.scene._model_by_curve.get(curve)
+        if mcurve is None:
+            return [curve]
+        for mchain in self.scene.document.chains:
+            if mcurve in mchain.curves:
+                return [self.scene._curve_by_model[mc]
+                        for mc in mchain.curves
+                        if mc in self.scene._curve_by_model]
+        return [curve]
 
-    def _all_partners(self, pt):
-        """Every other endpoint in pt's link group. Unlike _pair_partner,
-        tolerates junctions with 3+ linked points. Returns [] if pt isn't
-        an endpoint or isn't linked."""
-        if not pt.is_endpoint():
-            return []
-        g = self.scene.link_manager.group_of(pt)
-        if g is None:
-            return []
-        return [other for other in g
-                if other is not pt and other.is_endpoint()]
-
-    def _trace_loop_from(self, start_pt):
-        """Walk from `start_pt` through link partners. Return the frozenset of
-        curves if the walk returns to `start_pt`; otherwise None."""
-        if self._pair_partner(start_pt) is None:
+    # ------------------------------------------------------------
+    #  Loop ordering — junction-tolerant
+    # ------------------------------------------------------------
+    def _ordered_loop(self, shape):
+        """Return [(curve, enter_i), ...] in cyclic order, or None.
+        `enter_i` is the index (0 or 1) of the curve's endpoint we enter at."""
+        curves = list(shape.curves)
+        if not curves:
             return None
-        current_pt = start_pt
-        visited: list = []
+        if len(curves) == 1:
+            return [(curves[0], 0)]
+
+        def neighbor(c, exit_i):
+            end = c.points[0] if exit_i == 0 else c.points[-1]
+            g = self.scene.link_manager.group_of(end)
+            if g is None:
+                return None
+            options = []
+            for other in curves:
+                if other is c:
+                    continue
+                for i, oe in ((0, other.points[0]), (1, other.points[-1])):
+                    if oe in g:
+                        options.append((other, i))
+                        break
+            if len(options) != 1:
+                return None  # branching shape → not a simple cycle
+            return options[0]
+
+        start = curves[0]
+        order = [(start, 0)]
+        visited = {start}
+        cur, enter_i = start, 0
         while True:
-            partner = self._pair_partner(current_pt)
-            if partner is None:
-                return None                       # dead end
-            next_curve = partner.curve
-            if next_curve in visited:
-                return None                       # revisited without closing
-            visited.append(next_curve)
-            other = (next_curve.points[-1] if partner is next_curve.points[0] else next_curve.points[0])
-            if other is start_pt:
-                return frozenset(visited)         # closed
-            current_pt = other
+            exit_i = 1 - enter_i
+            n = neighbor(cur, exit_i)
+            if n is None:
+                return None
+            nxt, arrive_i = n
+            if nxt is start:
+                break
+            if nxt in visited:
+                return None
+            order.append((nxt, arrive_i))
+            visited.add(nxt)
+            cur, enter_i = nxt, arrive_i
+        if len(order) != len(curves):
+            return None
+        return order
 
-    def chain_of(self, curve) -> list[BezierCurve]:
-        """Every curve reachable from `curve` through link partners —
-        the whole connected component, including branches. Tolerates
-        junctions with any number of linked points."""
-        visited = [curve]
-        seen = {curve}
-        stack = [curve]
-        while stack:
-            c = stack.pop()
-            for endpoint in (c.points[0], c.points[-1]):
-                for partner in self._all_partners(endpoint):
-                    nxt = partner.curve
-                    if nxt in seen:
-                        continue
-                    seen.add(nxt)
-                    visited.append(nxt)
-                    stack.append(nxt)
-        return visited
+    def _loop_segments(self, shape):
+        order = self._ordered_loop(shape)
+        if order is None:
+            return None
+        if len(order) == 1:
+            c, _ = order[0]
+            start_pt = c.points[0]
+            c1, c2, end_pt = c.cubic_segment(start_pt)
+            return start_pt.pos(), [(c1, c2, end_pt.pos())]
+
+        first_curve, first_enter = order[0]
+        start_pt = first_curve.points[first_enter]
+        segments = []
+        for curve, enter_i in order:
+            pt = curve.points[enter_i]
+            c1, c2, other = curve.cubic_segment(pt)
+            segments.append((c1, c2, other.pos()))
+        return start_pt.pos(), segments
 
     def refresh(self):
-        """Rebuild self.shapes from the current link topology. Existing Shape
-        objects (and their names) are reused when the loop is unchanged.
-        Emits 'formed' / 'dissolved' messages for the diff."""
-        found: list[frozenset] = []
-        seen: set[frozenset] = set()
-        for curve in self.scene.curves:
-            if not curve.is_complete():
+        # 1. Sync the model from the scene's current items.
+        self.scene._mirror_to_document()
+
+        # 2. Ask the model to detect shapes.
+        self.scene.document.detect_shapes()
+        self.scene.document.detect_chains()
+
+        # 3. Translate model shapes → UI shapes, preserving identity.
+        new_shapes = []
+        new_by_id = {}
+        for mshape in self.scene.document.shapes:
+            ui_shape = self._ui_by_model_id.get(mshape.id)
+            ui_curves = frozenset(
+                self.scene._curve_by_model[mc] for mc in mshape.curves
+            )
+            if ui_shape is None:
+                ui_shape = UIShape(ui_curves)
+                ui_shape.name = mshape.name
+                names = " + ".join(
+                    c.name for c in sorted(ui_curves, key=lambda c: c.id))
+                self.scene.messageLogged.emit(
+                    f"{ui_shape.name} formed from {names}")
+            new_shapes.append(ui_shape)
+            new_by_id[mshape.id] = ui_shape
+
+        # 4. Clean up any UI shape that dissolved: remove its fill, revert
+        # its curves to the scene's default colour, and drop its selection.
+        curves_in_new_shapes = set()
+        for s in new_shapes:
+            curves_in_new_shapes.update(s.curves)
+
+        for shape in list(self.shapes):
+            if shape in new_shapes:
                 continue
-            for idx in (0, -1):
-                loop = self._trace_loop_from(curve.points[idx])
-                if loop and loop not in seen:
-                    seen.add(loop)
-                    found.append(loop)
-
-        existing = {shape.curves: shape for shape in self.shapes}
-        new_shapes: list[Shape] = []
-        for curves in found:
-            if curves in existing:
-                new_shapes.append(existing[curves])
-            else:
-                shape = Shape(curves)
-                new_shapes.append(shape)
-                names = " + ".join(c.name for c in sorted(curves, key=lambda c: c.id))
-                self.scene.messageLogged.emit(f"{shape.name} formed from {names}")
-
-        # Drop any selected shape that was dissolved.
-        for shape in list(self._selected_shapes):
-            if shape not in new_shapes:
+            if shape.fill_item is not None:
+                self.scene.removeItem(shape.fill_item)
+                shape.fill_item = None
+            if shape.color is not None:
+                for curve in shape.curves:
+                    if curve not in curves_in_new_shapes:
+                        curve.set_color(self.scene.curve_color)
+                shape.color = None
+            if shape in self._selected_shapes:
                 self.deselect(shape)
-                self.scene.messageLogged.emit(f"{shape.name} dissolved")
+            self.scene.messageLogged.emit(f"{shape.name} dissolved")
 
         self.shapes = new_shapes
+        self._ui_by_model_id = new_by_id
 
         self._apply_transparency_to_all()
         self.update_fills()
@@ -328,15 +363,20 @@ class ShapeManager:
             for curve in shape.curves:
                 curve.set_color(border)
 
+    def reset(self):
+        super().reset()
+        self._ui_by_model_id.clear()
+        doc = self.scene.document
+        doc.extremities.clear()
+        doc.controls.clear()
+        doc.curves.clear()
+        doc.junctions.clear()
+        doc.shapes.clear()
+        doc.chains.clear()
+
     def rebuild_from_links(self):
-        """Reset shape state and re-detect all loops (used after loading)."""
-        for shape in self.shapes:
-            if shape.fill_item is not None:
-                self.scene.removeItem(shape.fill_item)
-                shape.fill_item = None
-        self.shapes.clear()
-        Shape._next_id = 1
-        self.refresh()
+        self._ui_by_model_id.clear()
+        super().rebuild_from_links()
 
     def log_shapes(self):
         """Emit one 'formed from …' message per current shape. Used after
@@ -350,40 +390,6 @@ class ShapeManager:
         if shape.color is None:
             return self.scene.curve_color
         return shape.color.darker(SHAPE_BORDER_DARKEN)
-
-    # ------------------------------------------------------------
-    #  Fill
-    # ------------------------------------------------------------
-    def _loop_segments(self, shape: Shape):
-        """Return (start_pos, [(c1, c2, end_pos), ...]) for the closed loop,
-        or None if the topology is broken."""
-        if not shape.curves:
-            return None
-        start_pt = None
-        for curve in shape.curves:
-            for idx in (0, -1):
-                if self._pair_partner(curve.points[idx]) is not None:
-                    start_pt = curve.points[idx]
-                    break
-            if start_pt is not None:
-                break
-
-        segments = []
-        current = start_pt
-        seen: set = set()
-        while True:
-            curve = current.curve
-            if curve in seen:
-                return None
-            seen.add(curve)
-            c1, c2, other = curve.cubic_segment(current)
-            segments.append((c1, c2, other.pos()))
-            nxt = self._pair_partner(other)
-            if nxt is None:
-                return None
-            if nxt is start_pt:
-                return start_pt.pos(), segments
-            current = nxt
 
     def shape_path(self, shape: Shape) -> QPainterPath:
         result = self._loop_segments(shape)
@@ -453,18 +459,3 @@ class ShapeManager:
                 curve.set_color(border)
         self.scene.emit_svg()
 
-    # ------------------------------------------------------------
-    #  Reset
-    # ------------------------------------------------------------
-    def reset(self):
-        """Drop every shape and its fill (used by clear_all)."""
-        for shape in self.shapes:
-            if shape.fill_item is not None:
-                self.scene.removeItem(shape.fill_item)
-                shape.fill_item = None
-        self.shapes.clear()
-        self._selected_shapes.clear()
-        self._transparent = False
-        self._shaped_curves = set()
-        self._last_opacity = 1.0
-        Shape._next_id = 1
