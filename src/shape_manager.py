@@ -14,7 +14,7 @@ from PySide6.QtGui import QBrush, QColor, QPainterPath, QPen
 from PySide6.QtWidgets import QGraphicsPathItem
 from settings import SVG_PRECISION, SHAPE_BORDER_DARKEN, SHAPE_TRANSPARENT_OPACITY
 from shape import Shape
-
+from bezier_curve import BezierCurve
 SHAPE_FILL_Z = -10
 
 class ShapeManager:
@@ -135,27 +135,74 @@ class ShapeManager:
         hovered = self.scene.hovered_curve
         if hovered is None:
             return False
-        shape = self.shape_of_curve(hovered)
-        if shape is None:
-            self.scene.messageLogged.emit(f"{hovered.name} is not part of a shape")
-            return False
 
+        shape = self.shape_of_curve(hovered)
+        if shape is not None:
+            return self._select_shape(shape, add=add)
+
+        # Not in a closed loop — try an open chain.
+        chain = self.chain_of(hovered)
+        if len(chain) < 2:
+            self.scene.messageLogged.emit(
+                f"{hovered.name} is not linked to anything")
+            return False
+        return self._select_chain(chain, add=add)
+
+    def _select_shape(self, shape, add: bool) -> bool:
         if add:
             if shape in self._selected_shapes:
                 self.deselect(shape)
-                self.scene.messageLogged.emit(f"{shape.name} removed from selection")
+                self.scene.messageLogged.emit(
+                    f"{shape.name} removed from selection")
             else:
                 self.select(shape, add=True)
-                self.scene.messageLogged.emit(f"Added {shape.name} to selection")
+                self.scene.messageLogged.emit(
+                    f"Added {shape.name} to selection")
             return True
 
-        # No shift: replace, unless this shape is already the whole selection.
-        if self._selected_shapes == {shape}:
-            self.select(None)
+        # No shift: this shape becomes the whole selection.
+        # Toggle off only if it already was — i.e. no curve is also selected.
+        any_curve_selected = any(c.curve_selected for c in self.scene.curves)
+        sole_selection = (self._selected_shapes == {shape}
+                          and not any_curve_selected)
+
+        self.scene.clear_selection()
+        if sole_selection:
             self.scene.messageLogged.emit(f"{shape.name} deselected")
         else:
             self.select(shape, add=False)
             self.scene.messageLogged.emit(f"{shape.name} selected")
+        return True
+
+    def _select_chain(self, chain, add: bool) -> bool:
+        scene = self.scene
+        if add:
+            # Toggle: if every curve in the chain is already flagged, drop them.
+            if all(c.curve_selected for c in chain):
+                for c in chain:
+                    c.set_curve_selected(False)
+                    for pt in c.points:
+                        if pt in scene.selected_points:
+                            scene.selected_points.remove(pt)
+                        pt.set_selected(False)
+                scene.messageLogged.emit("Chain removed from selection")
+            else:
+                for c in chain:
+                    c.set_curve_selected(True)
+                    for pt in c.points:
+                        if pt not in scene.selected_points:
+                            scene.selected_points.append(pt)
+                        pt.set_selected(True)
+                scene.messageLogged.emit(
+                    f"Added chain of {len(chain)} curves")
+            return True
+        scene.clear_selection()
+        for c in chain:
+            c.set_curve_selected(True)
+            for pt in c.points:
+                scene.selected_points.append(pt)
+                pt.set_selected(True)
+        scene.messageLogged.emit(f"Selected chain of {len(chain)} curves")
         return True
 
     # ------------------------------------------------------------
@@ -171,6 +218,18 @@ class ShapeManager:
         if not other.is_endpoint():
             return None
         return other
+
+    def _all_partners(self, pt):
+        """Every other endpoint in pt's link group. Unlike _pair_partner,
+        tolerates junctions with 3+ linked points. Returns [] if pt isn't
+        an endpoint or isn't linked."""
+        if not pt.is_endpoint():
+            return []
+        g = self.scene.link_manager.group_of(pt)
+        if g is None:
+            return []
+        return [other for other in g
+                if other is not pt and other.is_endpoint()]
 
     def _trace_loop_from(self, start_pt):
         """Walk from `start_pt` through link partners. Return the frozenset of
@@ -191,6 +250,25 @@ class ShapeManager:
             if other is start_pt:
                 return frozenset(visited)         # closed
             current_pt = other
+
+    def chain_of(self, curve) -> list[BezierCurve]:
+        """Every curve reachable from `curve` through link partners —
+        the whole connected component, including branches. Tolerates
+        junctions with any number of linked points."""
+        visited = [curve]
+        seen = {curve}
+        stack = [curve]
+        while stack:
+            c = stack.pop()
+            for endpoint in (c.points[0], c.points[-1]):
+                for partner in self._all_partners(endpoint):
+                    nxt = partner.curve
+                    if nxt in seen:
+                        continue
+                    seen.add(nxt)
+                    visited.append(nxt)
+                    stack.append(nxt)
+        return visited
 
     def refresh(self):
         """Rebuild self.shapes from the current link topology. Existing Shape

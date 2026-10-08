@@ -50,6 +50,8 @@ class BezierScene(QGraphicsScene):
         self.background_image_path = None
         self.background_pixmap = None
         self._preset_pending: str | None = None
+        self._pending_collapse_point: ControlPoint | None = None
+        self._drag_press_pos: QPointF | None = None
 
         self._drag_targets: dict[ControlPoint, QPointF] = {}
         self._drag_primary_start: QPointF | None = None
@@ -114,7 +116,15 @@ class BezierScene(QGraphicsScene):
                 return
 
             # Non-shift: selection collapses to exactly this point.
-            self.set_selected_point(item)
+            # If the point is already part of a multi-point selection, defer
+            # the collapse to release: a click collapses, a drag keeps the
+            # whole selection and moves everything together.
+            if item in self.selected_points and len(self.selected_points) > 1:
+                self._pending_collapse_point = item
+            else:
+                self.set_selected_point(item)
+                self._pending_collapse_point = None
+            self._drag_press_pos = event.scenePos()
 
             self.clear_hover()
             # Setting dragging_point *before* calling super() is deliberate:
@@ -184,6 +194,13 @@ class BezierScene(QGraphicsScene):
     def mouseMoveEvent(self, event):
         super().mouseMoveEvent(event)
 
+        if self._pending_collapse_point is not None and self._drag_press_pos is not None:
+            press = self._drag_press_pos
+            cur = event.scenePos()
+            dx, dy = cur.x() - press.x(), cur.y() - press.y()
+            if dx * dx + dy * dy > 25:  # ~5 px — real movement, not jitter
+                self._pending_collapse_point = None
+
         if self.dragging_point is not None:
             # Qt just moved the primary; mirror its delta onto the rest.
             delta = self.dragging_point.pos() - self._drag_primary_start
@@ -205,10 +222,18 @@ class BezierScene(QGraphicsScene):
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             if self.dragging_point is not None:
+                pending = self._pending_collapse_point
+                self._pending_collapse_point = None
+                self._drag_press_pos = None
                 self.dragging_point = None
                 self._drag_targets = {}
                 self._drag_primary_start = None
                 self.link_manager.clear_proximity()
+
+                if pending is not None:
+                    # No movement: it was a click. Collapse now.
+                    self.set_selected_point(pending)
+
                 self._update_hover(event.scenePos())
                 self.curveDragFinished.emit()
         super().mouseReleaseEvent(event)
@@ -467,16 +492,16 @@ class BezierScene(QGraphicsScene):
         # Include linked siblings so they stay coincident (same rule as rotation).
         targets = self._with_linked(base_pts)
 
+        # Snapshot before moving: setPos on a linked point propagates to its
+        # sibling, so reading pos() inside the loop would read already-moved
+        # values. Compute every target from the pre-mirror positions.
+        starts = {p: p.pos() for p in targets}
         if axis == "x":
-            # Reflect across the horizontal line y = py → flip y.
-            for p in targets:
-                pos = p.pos()
-                p.setPos(pos.x(), 2 * py - pos.y())
+            for p, start in starts.items():
+                p.setPos(start.x(), 2 * py - start.y())
         else:
-            # Reflect across the vertical line x = px → flip x.
-            for p in targets:
-                pos = p.pos()
-                p.setPos(2 * px - pos.x(), pos.y())
+            for p, start in starts.items():
+                p.setPos(2 * px - start.x(), start.y())
 
         self.messageLogged.emit(
             f"Mirrored across {axis.upper()} axis around ({px:.1f}, {py:.1f})")
@@ -563,8 +588,10 @@ class BezierScene(QGraphicsScene):
         if not self.selected_points:
             return False
         offset = QPointF(dx, dy)
-        for pt in self._with_linked(self.selected_points):
-            pt.setPos(pt.pos() + offset)
+        targets = self._with_linked(self.selected_points)
+        starts = {p: p.pos() for p in targets}
+        for p, start in starts.items():
+            p.setPos(start + offset)
         return True
 
     def on_point_moved(self, point):
