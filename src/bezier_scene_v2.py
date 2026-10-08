@@ -11,6 +11,7 @@ and the base class goes away.
 
 from bezier_scene import BezierScene
 from shape_manager import ShapeManager
+from link_manager import LinkManager
 from shape import Shape as UIShape
 from new_data_model import Document, Point, Junction, Curve
 
@@ -190,6 +191,68 @@ class ShapeManagerV2(ShapeManager):
         return start_pt.pos(), segments
 
 
+
+class LinkManagerV2(LinkManager):
+    def group_of(self, point):
+        """Read from the model instead of the local groups list."""
+        mp = self.scene._model_by_pt.get(point)
+        if mp is None:
+            return None
+        junction = self.scene.document.junction_that_contains(mp)
+        if junction is None:
+            return None
+        return [self.scene._pt_by_model[m] for m in junction.points
+                if m in self.scene._pt_by_model]
+
+    @property
+    def groups(self):
+        """Read-only view: link groups as lists of UI points."""
+        return [
+            [self.scene._pt_by_model[m] for m in j.points
+             if m in self.scene._pt_by_model]
+            for j in self.scene.document.junctions
+        ]
+
+    def link_points(self, a, b):
+        self.scene._mirror_to_document()
+        ma = self.scene._model_by_pt.get(a)
+        mb = self.scene._model_by_pt.get(b)
+        if ma is None or mb is None:
+            return
+        self.scene.document.link(ma, mb)
+        self._sync_linked_flags()
+        self.scene.shape_manager.refresh()
+
+    def unlink_point(self, point):
+        self.scene._mirror_to_document()
+        mp = self.scene._model_by_pt.get(point)
+        if mp is None:
+            return
+        self.scene.document.unlink(mp)
+        self._sync_linked_flags()
+        self.scene.shape_manager.refresh()
+
+    def reset(self):
+        self.clear_proximity()
+        self.scene.document.junctions.clear()
+        self._sync_linked_flags()
+        self._propagating = False
+
+    def _sync_linked_flags(self):
+        """Set `linked` on every UI point that's in a junction, clear it
+        on every other UI point."""
+        linked_items = set()
+        for j in self.scene.document.junctions:
+            for m in j.points:
+                item = self.scene._pt_by_model.get(m)
+                if item is not None:
+                    linked_items.add(item)
+        for item in self.scene._model_by_pt:
+            item.set_linked(item in linked_items)
+
+
+
+
 class BezierSceneV2(BezierScene):
     def __init__(self):
         super().__init__()
@@ -199,6 +262,7 @@ class BezierSceneV2(BezierScene):
         self._pt_by_model: dict[Point, "ControlPoint"] = {}
         self._model_by_pt: dict["ControlPoint", Point] = {}
         self.shape_manager = ShapeManagerV2(self)
+        self.link_manager = LinkManagerV2(self)
 
     def on_shift_released(self):
         """Releasing shift after shift-click placement unarms the preset."""
@@ -256,10 +320,5 @@ class BezierSceneV2(BezierScene):
                     mp.x = pt_item.pos().x()
                     mp.y = pt_item.pos().y()
 
-        # --- 3. Rebuild junctions from the current link groups. ---
-        doc.junctions.clear()
-        for group in self.link_manager.groups:
-            jpoints = [self._model_by_pt[g] for g in group
-                       if g in self._model_by_pt]
-            if len(jpoints) >= 2:
-                doc.junctions.append(Junction(jpoints))
+        # --- 3. Sync junction membership into the linked flag on UI points. ---
+        # self.link_manager._sync_linked_flags() # not needed anymore ?

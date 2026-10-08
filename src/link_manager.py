@@ -16,7 +16,10 @@ from link_indicator import LinkIndicator
 class LinkManager:
     def __init__(self, scene):
         self.scene = scene
-        self.groups: list[list] = []
+        # Skip the assignment when a subclass has overridden `groups`
+        # as a property (V2 reads junctions from the model).
+        if not hasattr(type(self), "groups"):
+            self.groups = []
         self._propagating = False
         self._proximity_target = None
         self.indicator = LinkIndicator()
