@@ -4,7 +4,9 @@ from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QPainter, QActionGroup, QColor, QShortcut, QKeySequence
 
 from settings import DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
-from bezier_scene import BezierScene
+
+#from bezier_scene import BezierScene
+from bezier_scene_v2 import BezierSceneV2 as BezierScene
 from custom_view import CustomGraphicsView
 from info_panel import InfoPanel
 from file_io import FileIO
