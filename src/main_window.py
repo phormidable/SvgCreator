@@ -86,6 +86,7 @@ class MainWindow(QMainWindow):
         self.drawing_view.transformLeftClick.connect(self.scene.end_transform)
         self.preset_panel.presetRequested.connect(self.scene.arm_preset)
         self.scene.presetStateChanged.connect(self.preset_panel.sync_state)
+        self.drawing_view.shiftReleased.connect(self.scene.on_shift_released)
 
         # Initial state
         self.set_mode("create")

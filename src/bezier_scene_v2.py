@@ -49,11 +49,26 @@ class ShapeManagerV2(ShapeManager):
             new_shapes.append(ui_shape)
             new_by_id[mshape.id] = ui_shape
 
-        # 4. Deselect any selected shape that dissolved.
-        for shape in list(self._selected_shapes):
-            if shape not in new_shapes:
+        # 4. Clean up any UI shape that dissolved: remove its fill, revert
+        # its curves to the scene's default colour, and drop its selection.
+        curves_in_new_shapes = set()
+        for s in new_shapes:
+            curves_in_new_shapes.update(s.curves)
+
+        for shape in list(self.shapes):
+            if shape in new_shapes:
+                continue
+            if shape.fill_item is not None:
+                self.scene.removeItem(shape.fill_item)
+                shape.fill_item = None
+            if shape.color is not None:
+                for curve in shape.curves:
+                    if curve not in curves_in_new_shapes:
+                        curve.set_color(self.scene.curve_color)
+                shape.color = None
+            if shape in self._selected_shapes:
                 self.deselect(shape)
-                self.scene.messageLogged.emit(f"{shape.name} dissolved")
+            self.scene.messageLogged.emit(f"{shape.name} dissolved")
 
         self.shapes = new_shapes
         self._ui_by_model_id = new_by_id
@@ -76,50 +91,146 @@ class ShapeManagerV2(ShapeManager):
         self._ui_by_model_id.clear()
         super().rebuild_from_links()
 
+    # ------------------------------------------------------------
+    #  Loop ordering — junction-tolerant
+    # ------------------------------------------------------------
+    def _ordered_loop(self, shape):
+        """Return [(curve, enter_i), ...] in cyclic order, or None.
+        `enter_i` is the index (0 or 1) of the curve's endpoint we enter at."""
+        curves = list(shape.curves)
+        if not curves:
+            return None
+        if len(curves) == 1:
+            return [(curves[0], 0)]
+
+        def neighbor(c, exit_i):
+            end = c.points[0] if exit_i == 0 else c.points[-1]
+            g = self.scene.link_manager.group_of(end)
+            if g is None:
+                return None
+            options = []
+            for other in curves:
+                if other is c:
+                    continue
+                for i, oe in ((0, other.points[0]), (1, other.points[-1])):
+                    if oe in g:
+                        options.append((other, i))
+                        break
+            if len(options) != 1:
+                return None      # branching shape → not a simple cycle
+            return options[0]
+
+        start = curves[0]
+        order = [(start, 0)]
+        visited = {start}
+        cur, enter_i = start, 0
+        while True:
+            exit_i = 1 - enter_i
+            n = neighbor(cur, exit_i)
+            if n is None:
+                return None
+            nxt, arrive_i = n
+            if nxt is start:
+                break
+            if nxt in visited:
+                return None
+            order.append((nxt, arrive_i))
+            visited.add(nxt)
+            cur, enter_i = nxt, arrive_i
+        if len(order) != len(curves):
+            return None
+        return order
+
+    def _loop_segments(self, shape):
+        order = self._ordered_loop(shape)
+        if order is None:
+            return None
+        if len(order) == 1:
+            c, _ = order[0]
+            start_pt = c.points[0]
+            c1, c2, end_pt = c.cubic_segment(start_pt)
+            return start_pt.pos(), [(c1, c2, end_pt.pos())]
+
+        first_curve, first_enter = order[0]
+        start_pt = first_curve.points[first_enter]
+        segments = []
+        for curve, enter_i in order:
+            pt = curve.points[enter_i]
+            c1, c2, other = curve.cubic_segment(pt)
+            segments.append((c1, c2, other.pos()))
+        return start_pt.pos(), segments
+
 
 class BezierSceneV2(BezierScene):
     def __init__(self):
         super().__init__()
         self.document = Document()
         self._curve_by_model: dict[Curve, "BezierCurve"] = {}
-        # Replace the base ShapeManager with the model-routed one.
+        self._model_by_curve: dict["BezierCurve", Curve] = {}
+        self._pt_by_model: dict[Point, "ControlPoint"] = {}
+        self._model_by_pt: dict["ControlPoint", Point] = {}
         self.shape_manager = ShapeManagerV2(self)
 
+    def on_shift_released(self):
+        """Releasing shift after shift-click placement unarms the preset."""
+        if self._preset_pending is not None:
+            self.cancel_preset()
+
     def _mirror_to_document(self):
-        """Rebuild the model's lists from the scene's current items.
-        Temporary bridge — goes away when the model becomes authoritative."""
+        """Sync the model with the scene's current items. Additive: model
+        Curve/Point objects persist across calls so identity is stable."""
         doc = self.document
-        doc.extremities.clear()
-        doc.controls.clear()
-        doc.curves.clear()
-        doc.junctions.clear()
+        current = set(self.curves)
 
-        pt_map: dict = {}
-        self._curve_by_model.clear()
+        # --- 1. Remove model curves whose UI items are gone. ---
+        for curve_item in list(self._model_by_curve):
+            if curve_item in current:
+                continue
+            mc = self._model_by_curve.pop(curve_item)
+            self._curve_by_model.pop(mc, None)
+            for mp in (*mc.extremities, *mc.controls):
+                item = self._pt_by_model.pop(mp, None)
+                if item is not None:
+                    self._model_by_pt.pop(item, None)
+                if mp in doc.extremities:
+                    doc.extremities.remove(mp)
+                elif mp in doc.controls:
+                    doc.controls.remove(mp)
+            if mc in doc.curves:
+                doc.curves.remove(mc)
 
+        # --- 2. Add new curves / refresh positions on existing ones. ---
         for curve_item in self.curves:
             if not curve_item.is_complete():
                 continue
-            pts = curve_item.points
-            mps = []
-            for pt_item in pts:
-                mp = Point(pt_item.pos().x(), pt_item.pos().y())
-                pt_map[pt_item] = mp
-                mps.append(mp)
+            ui_pts = curve_item.points
+            mc = self._model_by_curve.get(curve_item)
+            if mc is None:
+                mps = []
+                for pt_item in ui_pts:
+                    mp = Point(pt_item.pos().x(), pt_item.pos().y())
+                    mps.append(mp)
+                    self._pt_by_model[mp] = pt_item
+                    self._model_by_pt[pt_item] = mp
+                extremities = (mps[0], mps[-1])
+                controls = mps[1:-1]
+                mc = Curve(extremities, controls, curve_item.degree)
+                mc.id = curve_item.id
+                doc.curves.append(mc)
+                doc.extremities.extend(extremities)
+                doc.controls.extend(controls)
+                self._model_by_curve[curve_item] = mc
+                self._curve_by_model[mc] = curve_item
+            else:
+                for mp, pt_item in zip(
+                        (*mc.extremities, *mc.controls), ui_pts):
+                    mp.x = pt_item.pos().x()
+                    mp.y = pt_item.pos().y()
 
-            extremities = (mps[0], mps[-1])
-            controls = mps[1:-1]
-            mc = Curve(extremities, controls, curve_item.degree)
-            # Align IDs with the UI curve IDs so shape identity survives
-            # across mirrors (the model matches shapes by curve-ID set).
-            mc.id = curve_item.id
-            doc.curves.append(mc)
-            self._curve_by_model[mc] = curve_item
-
-            doc.extremities.extend(extremities)
-            doc.controls.extend(controls)
-
+        # --- 3. Rebuild junctions from the current link groups. ---
+        doc.junctions.clear()
         for group in self.link_manager.groups:
-            jpoints = [pt_map[g] for g in group if g in pt_map]
+            jpoints = [self._model_by_pt[g] for g in group
+                       if g in self._model_by_pt]
             if len(jpoints) >= 2:
                 doc.junctions.append(Junction(jpoints))

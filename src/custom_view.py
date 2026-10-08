@@ -7,6 +7,7 @@ from settings import CANVAS_BACKGROUND_COLOR
 class CustomGraphicsView(QGraphicsView):
     mouseMoved = Signal(object)
     transformLeftClick = Signal()
+    shiftReleased = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -84,3 +85,11 @@ class CustomGraphicsView(QGraphicsView):
             event.ignore()
             return
         super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event):
+        # Auto-repeat sends repeated keyReleaseEvent for held keys; the
+        # isAutoRepeat flag lets us ignore those. Modifier keys usually
+        # don't auto-repeat, but checking is cheap and correct.
+        if event.key() == Qt.Key.Key_Shift and not event.isAutoRepeat():
+            self.shiftReleased.emit()
+        super().keyReleaseEvent(event)
