@@ -14,7 +14,7 @@ from bezier_curve import BezierCurve
 import scene_io
 import math
 from shape_manager import ShapeManager
-from new_data_model import Document, Point, Junction, Curve
+from new_data_model import Document, Point, Curve
 from selection import Selection
 
 SHAPE_FILL_Z = -10
@@ -905,7 +905,7 @@ class BezierScene(QGraphicsScene):
         if self._preset_pending is not None:
             self.cancel_preset()
 
-    def _mirror_to_document(self):
+    def _sync_model_registry(self):
         """Sync the model with the scene's current items. Additive: model
         Curve/Point objects persist across calls so identity is stable."""
         doc = self.document

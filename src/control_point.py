@@ -17,10 +17,10 @@ class ControlPoint(QGraphicsEllipseItem):
         self.curve = curve
         self.point_idx = point_idx # 0..3, fixed for the lifetime of the curve
         self.highlighted = False
-        self.hovered = False
+
 
         self.linked = False
-        self.focused = False
+
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
 
     @property
@@ -29,6 +29,20 @@ class ControlPoint(QGraphicsEllipseItem):
         if scene is None:
             return False
         return scene.selection.is_point_selected(self)
+
+    @property
+    def hovered(self):
+        scene = self.curve.scene() if self.curve is not None else None
+        if scene is None:
+            return False
+        return scene.selection.hovered_curve is self.curve
+
+    @property
+    def focused(self):
+        scene = self.curve.scene() if self.curve is not None else None
+        if scene is None:
+            return False
+        return scene.selection.focused_point is self
 
     def is_endpoint(self):
         return self.point_idx == 0 or self.point_idx == self.curve.degree
@@ -52,12 +66,6 @@ class ControlPoint(QGraphicsEllipseItem):
             return
         self.prepareGeometryChange()  # boundingRect() is about to change
         self.linked = value
-        self.update()
-
-    def set_focused(self, value):
-        if self.focused == value:
-            return
-        self.focused = value
         self.update()
 
     def paint(self, painter, option, widget=None):
@@ -135,14 +143,6 @@ class ControlPoint(QGraphicsEllipseItem):
             return
         self.highlighted = value
         self.update()
-
-    def set_hovered(self, value):
-        if self.hovered == value:
-            return
-        self.hovered = value
-        self.update()
-
-
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:

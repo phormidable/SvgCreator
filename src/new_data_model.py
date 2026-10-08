@@ -368,7 +368,7 @@ if __name__ == "__main__":
     Junction._next_id = 1
     Curve._next_id = 1
     Shape._next_id = 1
-    doc = Document()
+
     A, B, C = (-80, 40), (80, 40), (0, -80)
     c1 = doc.add_curve(A, B, [(0, 40)], degree=2)
     c2 = doc.add_curve(B, C, [(40, -20)], degree=2)

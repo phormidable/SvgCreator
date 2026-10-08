@@ -100,34 +100,28 @@ class Selection:
     #  Hover
     # ------------------------------------------------------------
     def set_hover(self, curve, point):
-        """Set the hovered curve and the focused point. Either can be None.
+        """Set the hovered curve and the focused point.
 
-        Invariants maintained here:
-        - When the hovered curve changes, the old curve's hovered and
-          focused flags are cleared, and the new curve's hovered flag is
-          set (which propagates to its points).
-        - When the focused point changes, the old point's focused flag is
-          cleared and the new one's is set.
-        - The hovered curve's focused flag is True iff no point is focused,
-          i.e. the cursor is on the stroke and not on a point.
+        The item flags are derived properties (see ControlPoint.hovered,
+        BezierCurve.hovered, etc.), so we only need to update our own state
+        and trigger repaints on the affected items.
         """
-        if curve is not self.hovered_curve:
-            if self.hovered_curve is not None:
-                self.hovered_curve.set_hovered(False)
-                self.hovered_curve.set_focused(False)
-            self.hovered_curve = curve
-            if curve is not None:
-                curve.set_hovered(True)
+        affected = set()
+        for c in (self.hovered_curve, curve):
+            if c is not None:
+                affected.add(c)
+                affected.update(c.points)
+        for p in (self.focused_point, point):
+            if p is not None:
+                affected.add(p)
+                if p.curve is not None:
+                    affected.add(p.curve)
 
-        if point is not self.focused_point:
-            if self.focused_point is not None:
-                self.focused_point.set_focused(False)
-            self.focused_point = point
-            if point is not None:
-                point.set_focused(True)
+        self.hovered_curve = curve
+        self.focused_point = point
 
-        if self.hovered_curve is not None:
-            self.hovered_curve.set_focused(self.focused_point is None)
+        for item in affected:
+            item.update()
 
     def clear_hover(self):
         self.set_hover(None, None)

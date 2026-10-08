@@ -14,7 +14,6 @@ from PySide6.QtGui import QBrush, QColor, QPainterPath, QPen
 from PySide6.QtWidgets import QGraphicsPathItem
 from settings import SVG_PRECISION, SHAPE_BORDER_DARKEN, SHAPE_TRANSPARENT_OPACITY
 from shape import Shape
-from bezier_curve import BezierCurve
 from shape import Shape as UIShape
 SHAPE_FILL_Z = -10
 
@@ -302,7 +301,7 @@ class ShapeManager:
 
     def refresh(self):
         # 1. Sync the model from the scene's current items.
-        self.scene._mirror_to_document()
+        self.scene._sync_model_registry()
 
         # 2. Ask the model to detect shapes.
         self.scene.document.detect_shapes()
@@ -376,8 +375,14 @@ class ShapeManager:
         self.scene.selection.clear_shapes()
 
     def rebuild_from_links(self):
-        self._ui_by_model_id.clear()
-        super().rebuild_from_links()
+        """Reset shape state and re-detect all loops (used after loading)."""
+        for shape in self.shapes:
+            if shape.fill_item is not None:
+                self.scene.removeItem(shape.fill_item)
+                shape.fill_item = None
+        self.shapes.clear()
+        self.scene.selection.clear_shapes()
+        self.refresh()
 
     def log_shapes(self):
         """Emit one 'formed from …' message per current shape. Used after

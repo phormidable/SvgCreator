@@ -43,7 +43,7 @@ class LinkManager:
     #  Linking / unlinking
     # ------------------------------------------------------------
     def link_points(self, a, b):
-        self.scene._mirror_to_document()
+        self.scene._sync_model_registry()
         ma = self.scene._model_by_pt.get(a)
         mb = self.scene._model_by_pt.get(b)
         if ma is None or mb is None:
@@ -53,7 +53,7 @@ class LinkManager:
         self.scene.shape_manager.refresh()
 
     def unlink_point(self, point):
-        self.scene._mirror_to_document()
+        self.scene._sync_model_registry()
         mp = self.scene._model_by_pt.get(point)
         if mp is not None:
             self.scene.document.unlink(mp)

@@ -24,12 +24,12 @@ class BezierCurve(QGraphicsItem):
         self.degree = degree
         self.color = QColor(scene.curve_color)
         self.points: list[ControlPoint] = []
-        self.hovered = False
+
         self.committed = False
         self.points_hidden = False
         self.shape_selected = False
         self.curve_selected = False
-        self.focused = False
+
         self._pen_normal = QPen(self.color, CURVE_PEN_WIDTH)
         self._pen_hover = QPen(HOVER_COLOR, CURVE_PEN_WIDTH)
         self._pen_hidden = QPen(HIDDEN_CURVE_COLOR, CURVE_PEN_WIDTH)
@@ -46,6 +46,20 @@ class BezierCurve(QGraphicsItem):
     def _scene(self) -> "BezierScene":
         return cast("BezierScene", super().scene())
 
+    @property
+    def hovered(self):
+        scene = self.scene()
+        if scene is None:
+            return False
+        return scene.selection.hovered_curve is self
+
+    @property
+    def focused(self):
+        scene = self.scene()
+        if scene is None:
+            return False
+        return (scene.selection.hovered_curve is self
+                and scene.selection.focused_point is None)
 
     # ---------------------------------------------------------------
     #  QGraphicsItem API
@@ -85,13 +99,7 @@ class BezierCurve(QGraphicsItem):
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(self._path)
 
-
-    def set_focused(self, value):
-        if self.focused == value:
-            return
-        self.focused = value
-        self.update()
-    # ---------------------------------------------------------------
+# ---------------------------------------------------------------
     #  Construction
     # ---------------------------------------------------------------
     def add_point(self, pos):
@@ -132,14 +140,6 @@ class BezierCurve(QGraphicsItem):
         self._hit_path = stroker.createStroke(path)
 
         self.update()
-
-    def set_hovered(self, value):
-        if self.hovered == value:
-            return
-        self.hovered = value
-        self.update()
-        for pt in self.points:
-            pt.set_hovered(value)
 
     def set_color(self, color):
         self.color = QColor(color)
