@@ -140,16 +140,15 @@ def _restore_links(scene, links_data):
     if not isinstance(links_data, list):
         return
     for group_data in links_data:
-        if not isinstance(group_data, list):
+        if not isinstance(group_data, list) or len(group_data) < 2:
             continue
         try:
-            group = [scene.curves[ci].points[pi] for ci, pi in group_data]
+            points = [scene.curves[ci].points[pi] for ci, pi in group_data]
         except (TypeError, ValueError, IndexError):
             continue
-        if len(group) >= 2:
-            scene.link_manager.groups.append(group)
-            for pt in group:
-                pt.set_linked(True)
+        # Merge consecutive points into one junction via the model.
+        for i in range(len(points) - 1):
+            scene.link_manager.link_points(points[i], points[i + 1])
 
 
 def _build_curve_from_points(scene, points_data) -> BezierCurve:

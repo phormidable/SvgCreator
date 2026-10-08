@@ -14,7 +14,50 @@ from shape_manager import ShapeManager
 from link_manager import LinkManager
 from shape import Shape as UIShape
 from new_data_model import Document, Point, Junction, Curve
+from PySide6.QtCore import QPointF
+from PySide6.QtWidgets import QGraphicsItem
+from control_point import ControlPoint
+from bezier_curve import BezierCurve
 
+def _add_point_v2(self, pos):
+    pt = ControlPointV2(pos, self, len(self.points))
+    self._scene.addItem(pt)
+    self.points.append(pt)
+    if self.committed:
+        pt.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
+    self.rebuild_path()
+    return pt
+
+BezierCurve.add_point = _add_point_v2
+
+class ControlPointV2(ControlPoint):
+    """ControlPoint whose position lives in the model once mapped.
+
+    - pos() reads from the model (falls back to Qt's internal position
+      before the point has been mirrored, and after it's been removed).
+    - itemChange(ItemPositionHasChanged) writes the clamped Qt position
+      into the model BEFORE the base class runs propagation, so any
+      pos() read inside propagate_move/on_point_moved sees the new value.
+    """
+
+    def pos(self):
+        scene = self.curve.scene() if self.curve is not None else None
+        if scene is not None:
+            mp = scene._model_by_pt.get(self)
+            if mp is not None:
+                return QPointF(mp.x, mp.y)
+        return super().pos()
+
+    def itemChange(self, change, value):
+        if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
+            scene = self.curve.scene() if self.curve is not None else None
+            if scene is not None:
+                mp = scene._model_by_pt.get(self)
+                if mp is not None:
+                    p = super().pos()   # Qt's internal = post-clamp value
+                    mp.x = p.x()
+                    mp.y = p.y()
+        return super().itemChange(change, value)
 
 class ShapeManagerV2(ShapeManager):
     """Routes shape detection through the model, but keeps the UI Shape
@@ -226,9 +269,8 @@ class LinkManagerV2(LinkManager):
     def unlink_point(self, point):
         self.scene._mirror_to_document()
         mp = self.scene._model_by_pt.get(point)
-        if mp is None:
-            return
-        self.scene.document.unlink(mp)
+        if mp is not None:
+            self.scene.document.unlink(mp)
         self._sync_linked_flags()
         self.scene.shape_manager.refresh()
 
@@ -282,6 +324,9 @@ class BezierSceneV2(BezierScene):
             mc = self._model_by_curve.pop(curve_item)
             self._curve_by_model.pop(mc, None)
             for mp in (*mc.extremities, *mc.controls):
+                j = doc.junction_that_contains(mp)
+                if j is not None:
+                    doc.unlink(mp)
                 item = self._pt_by_model.pop(mp, None)
                 if item is not None:
                     self._model_by_pt.pop(item, None)
@@ -314,11 +359,8 @@ class BezierSceneV2(BezierScene):
                 doc.controls.extend(controls)
                 self._model_by_curve[curve_item] = mc
                 self._curve_by_model[mc] = curve_item
-            else:
-                for mp, pt_item in zip(
-                        (*mc.extremities, *mc.controls), ui_pts):
-                    mp.x = pt_item.pos().x()
-                    mp.y = pt_item.pos().y()
-
-        # --- 3. Sync junction membership into the linked flag on UI points. ---
-        # self.link_manager._sync_linked_flags() # not needed anymore ?
+            # else:
+            #     for mp, pt_item in zip(
+            #             (*mc.extremities, *mc.controls), ui_pts):
+            #         mp.x = pt_item.pos().x()
+            #         mp.y = pt_item.pos().y()
