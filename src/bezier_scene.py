@@ -51,8 +51,8 @@ class BezierScene(QGraphicsScene):
         self.selected_curve_idx = -1
         self.current_degree = 2
         self.dragging_point = None
-        self.focused_point: ControlPoint | None = None
-        self.hovered_curve = None
+
+
         self._ensuring_visible = False
         self.background_item = None
         self.background_image_path = None
@@ -86,6 +86,15 @@ class BezierScene(QGraphicsScene):
     @property
     def selected_points(self):
         return self.selection.points
+
+    @property
+    def hovered_curve(self):
+        return self.selection.hovered_curve
+
+    @property
+    def focused_point(self):
+        return self.selection.focused_point
+
     # ------------------------------------------------------------
     #  Mouse interaction
     # ------------------------------------------------------------
@@ -285,36 +294,16 @@ class BezierScene(QGraphicsScene):
                         break
                 break
 
-        # --- hover ---
-        if new_hovered is not self.hovered_curve:
-            if self.hovered_curve is not None:
-                self.hovered_curve.set_hovered(False)
-                self.hovered_curve.set_focused(False)  # also drop old focus
-            self.hovered_curve = new_hovered
-            if new_hovered is not None:
-                new_hovered.set_hovered(True)
+        # Only the stroke counts as a curve hover — when a point is under
+        # the cursor, focus moves to that point and the curve does not
+        # count as hovered.
+        if new_focused_pt is not None:
+            new_hovered = None
 
-        # --- point focus ---
-        if new_focused_pt is not self.focused_point:
-            if self.focused_point is not None:
-                self.focused_point.set_focused(False)
-            self.focused_point = new_focused_pt
-            if new_focused_pt is not None:
-                new_focused_pt.set_focused(True)
-
-        # --- curve focus ---
-        # Cyan only when the cursor is on the stroke AND not on a point.
-        if self.hovered_curve is not None:
-            self.hovered_curve.set_focused(self.focused_point is None)
+        self.selection.set_hover(new_hovered, new_focused_pt)
 
     def clear_hover(self):
-        if self.hovered_curve is not None:
-            self.hovered_curve.set_hovered(False)
-            self.hovered_curve.set_focused(False)
-            self.hovered_curve = None
-        if self.focused_point is not None:
-            self.focused_point.set_focused(False)
-            self.focused_point = None
+        self.selection.clear_hover()
 
     # ------------------------------------------------------------
     #  Shape selection

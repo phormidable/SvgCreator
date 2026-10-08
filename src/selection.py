@@ -18,6 +18,8 @@ class Selection:
         self.scene = scene
         self.points: list = []   # ControlPoint, in selection order
         self.shapes: set = set()   # UI Shape objects
+        self.hovered_curve = None    # BezierCurve | None
+        self.focused_point = None    # ControlPoint | None
 
     # ------------------------------------------------------------
     #  Queries
@@ -96,3 +98,39 @@ class Selection:
         for shape in self.shapes:
             shape.set_selected(False)
         self.shapes.clear()
+
+    # ------------------------------------------------------------
+    #  Hover
+    # ------------------------------------------------------------
+    def set_hover(self, curve, point):
+        """Set the hovered curve and the focused point. Either can be None.
+
+        Invariants maintained here:
+        - When the hovered curve changes, the old curve's hovered and
+          focused flags are cleared, and the new curve's hovered flag is
+          set (which propagates to its points).
+        - When the focused point changes, the old point's focused flag is
+          cleared and the new one's is set.
+        - The hovered curve's focused flag is True iff no point is focused,
+          i.e. the cursor is on the stroke and not on a point.
+        """
+        if curve is not self.hovered_curve:
+            if self.hovered_curve is not None:
+                self.hovered_curve.set_hovered(False)
+                self.hovered_curve.set_focused(False)
+            self.hovered_curve = curve
+            if curve is not None:
+                curve.set_hovered(True)
+
+        if point is not self.focused_point:
+            if self.focused_point is not None:
+                self.focused_point.set_focused(False)
+            self.focused_point = point
+            if point is not None:
+                point.set_focused(True)
+
+        if self.hovered_curve is not None:
+            self.hovered_curve.set_focused(self.focused_point is None)
+
+    def clear_hover(self):
+        self.set_hover(None, None)
