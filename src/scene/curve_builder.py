@@ -5,7 +5,7 @@ curve-construction pipeline (used by presets too)."""
 from PySide6.QtCore import QPointF
 from PySide6.QtWidgets import QGraphicsItem
 
-from bezier_curve import BezierCurve
+from scene.items.bezier_curve import BezierCurve
 
 
 class CurveBuilder:

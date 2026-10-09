@@ -2,8 +2,8 @@
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor
 
-from settings import SVG_FILL, SVG_STROKE_COLOR, SVG_STROKE_WIDTH, SHAPE_BORDER_DARKEN
-from bezier_curve import BezierCurve
+from core.settings import SVG_FILL, SVG_STROKE_COLOR, SVG_STROKE_WIDTH, SHAPE_BORDER_DARKEN
+from scene.items.bezier_curve import BezierCurve
 from collections import defaultdict
 
 def generate_svg(scene, bordered: bool = False) -> str:

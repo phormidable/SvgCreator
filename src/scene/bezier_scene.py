@@ -4,21 +4,20 @@ from PySide6.QtGui import QPen, QPixmap, QImage, QPainter, QColor
 from PySide6.QtWidgets import (QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem)
 from PySide6.QtSvg import QSvgRenderer
 
-from settings import (ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH,
-                      DEFAULT_CURVE_COLOR, HOVER_TOLERANCE)
+from scene.scene_io import generate_svg, save_state, load_state
+from src.core.settings import ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH, DEFAULT_CURVE_COLOR, HOVER_TOLERANCE
+from src.scene.link_manager import LinkManager
+from src.scene.items.control_point import ControlPoint
+from src.scene.items.bezier_curve import BezierCurve
+from src.scene.shape_manager import ShapeManager
+from src.scene.selection import Selection
+from src.core.model import Document
+from .transform_controller import TransformController
+from .preset_controller import PresetController
+from .model_registry import ModelRegistry
+from .curve_builder import CurveBuilder
 
-from link_manager import LinkManager
-from control_point import ControlPoint
-from bezier_curve import BezierCurve
-from shape_manager import ShapeManager
-from selection import Selection
-from new_data_model import Document
-from transform_controller import TransformController
-from preset_controller import PresetController
-from model_registry import ModelRegistry
-from curve_builder import CurveBuilder
 
-import scene_io
 
 
 class BezierScene(QGraphicsScene):
@@ -412,17 +411,17 @@ class BezierScene(QGraphicsScene):
     #  Save / load / SVG
     # ------------------------------------------------------------
     def generate_svg(self, bordered: bool = False):
-        return scene_io.generate_svg(self, bordered=bordered)
+        return generate_svg(self, bordered=bordered)
 
     def emit_svg(self):
         # Preview mirrors the drawing area, so it always uses borders.
-        self.svgCodeChanged.emit(scene_io.generate_svg(self, bordered=True))
+        self.svgCodeChanged.emit(generate_svg(self, bordered=True))
 
     def save_state(self) -> dict:
-        return scene_io.save_state(self)
+        return save_state(self)
 
     def load_state(self, state: dict):
-        scene_io.load_state(self, state)
+        load_state(self, state)
 
     # ------------------------------------------------------------
     #  Mirror

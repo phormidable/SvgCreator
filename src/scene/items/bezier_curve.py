@@ -3,10 +3,10 @@ from PySide6.QtWidgets import QGraphicsItem
 from PySide6.QtGui import QPainterPath, QPainterPathStroker, QPen, QColor, QPainter
 from PySide6.QtCore import QRectF, Qt
 
-from settings import (CURVE_PEN_WIDTH, HOVER_COLOR_FOCUS, CURVE_SELECTED_PEN_COLOR, CURVE_SELECTED_PEN_WIDTH, HOVER_COLOR,
+from core.settings import (CURVE_PEN_WIDTH, HOVER_COLOR_FOCUS, CURVE_SELECTED_PEN_COLOR, CURVE_SELECTED_PEN_WIDTH, HOVER_COLOR,
                       HOVER_TOLERANCE, SVG_PRECISION, HIDDEN_CURVE_COLOR, SHAPE_SELECTED_CURVE_COLOR, SHAPE_SELECTED_CURVE_PEN_WIDTH)
 
-from control_point import ControlPoint
+from scene.items.control_point import ControlPoint
 
 from typing import TYPE_CHECKING, cast
 if TYPE_CHECKING:

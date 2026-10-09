@@ -3,7 +3,7 @@ from PySide6.QtWidgets import QGraphicsEllipseItem
 from PySide6.QtGui import QPen, QPainterPath
 from PySide6.QtCore import QTimer, Qt, QPointF
 
-from settings import (LINK_INDICATOR_RADIUS, LINK_INDICATOR_COLOR,
+from core.settings import (LINK_INDICATOR_RADIUS, LINK_INDICATOR_COLOR,
     LINK_INDICATOR_PEN_WIDTH, LINK_INDICATOR_FLASH_INTERVAL)
 
 

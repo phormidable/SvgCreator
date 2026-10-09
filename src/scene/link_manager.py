@@ -9,8 +9,8 @@ one. Groups with fewer than 2 members are dissolved.
 Owned state: groups, _propagating, _proximity_target, indicator.
 """
 
-from settings import LINK_PROXIMITY_TOLERANCE
-from link_indicator import LinkIndicator
+from core.settings import LINK_PROXIMITY_TOLERANCE
+from scene.items.link_indicator import LinkIndicator
 
 
 class LinkManager:

@@ -4,7 +4,7 @@ from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QBrush, QPen
 from PySide6.QtWidgets import QGraphicsEllipseItem
 
-from settings import ROTATION_PIVOT_RADIUS, ROTATION_PIVOT_COLOR
+from core.settings import ROTATION_PIVOT_RADIUS, ROTATION_PIVOT_COLOR
 
 
 class TransformController:

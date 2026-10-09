@@ -2,7 +2,7 @@
 from PySide6.QtWidgets import QGraphicsView
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QTransform
-from settings import CANVAS_BACKGROUND_COLOR
+from core.settings import CANVAS_BACKGROUND_COLOR
 
 class CustomGraphicsView(QGraphicsView):
     mouseMoved = Signal(object)

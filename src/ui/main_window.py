@@ -3,14 +3,14 @@ from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QL
 from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QPainter, QActionGroup, QColor, QShortcut, QKeySequence
 
-from settings import DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
+from core.settings import DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
 
-from bezier_scene import BezierScene
-from custom_view import CustomGraphicsView
-from info_panel import InfoPanel
-from file_io import FileIO
-from preview_widget import PreviewWidget
-from preset_panel import PresetPanel
+from scene.bezier_scene import BezierScene
+from ui.custom_view import CustomGraphicsView
+from ui.info_panel import InfoPanel
+from core.file_io import FileIO
+from ui.preview_widget import PreviewWidget
+from ui.preset_panel import PresetPanel
 
 ZOOM_LEVELS = [("0.5x", 0.5), ("1x", 1.0), ("2x", 2.0), ("4x", 4.0), ("8x", 8.0), ("16x", 16.0)]
 
@@ -155,10 +155,6 @@ class MainWindow(QMainWindow):
             self._step_zoom(-1)
             event.accept()
             return
-        # elif key == Qt.Key.Key_D:
-        #     self._debug_sizes()
-        #     event.accept()
-        #     return
         elif key == Qt.Key.Key_Backspace:
             if self.scene.delete_selection():
                 event.accept()
@@ -395,36 +391,3 @@ class MainWindow(QMainWindow):
     def on_transparent_toggled(self, checked):
         self.scene.shape_manager.set_transparent(checked)
         self.log(f"Transparent mode: {'on' if checked else 'off'}")
-
-    # def _debug_sizes(self):
-    #     pw = self.preview_widget
-    #     print("=== PreviewWidget ===")
-    #     print(f"  size:            {pw.width()} x {pw.height()}")
-    #     print(f"  minimumSizeHint: {pw.minimumSizeHint().width()} x {pw.minimumSizeHint().height()}")
-    #
-    #     tb = pw._toolbar
-    #     print(f"  toolbar size:    {tb.width()} x {tb.height()}")
-    #     print(f"  toolbar sizeHint:{tb.sizeHint().width()} x {tb.sizeHint().height()}")
-    #
-    #     scroll = pw._scroll
-    #     vp = scroll.viewport()
-    #     print(f"  scroll size:     {scroll.width()} x {scroll.height()}")
-    #     print(f"  scroll viewport: {vp.width()} x {vp.height()}   <-- white area")
-    #     print(f"  scroll frame w:  {scroll.frameWidth()}")
-    #
-    #     vbar = scroll.verticalScrollBar()
-    #     hbar = scroll.horizontalScrollBar()
-    #     print(f"  vScrollBar:      visible={vbar.isVisible()}, width={vbar.width()}")
-    #     print(f"  hScrollBar:      visible={hbar.isVisible()}, height={hbar.height()}")
-    #
-    #     canvas = pw._canvas
-    #     cs = canvas.content_size()
-    #     print(f"  canvas size:     {canvas.width()} x {canvas.height()}")
-    #     print(f"  content_size:    {cs.width():.1f} x {cs.height():.1f}")
-    #     print(f"  zoom:            {pw._zoom}")
-    #     print(f"  base_scale:      {pw._base_scale():.4f}")
-    #
-    #     print("=== Right column ===")
-    #     print(f"  preset_panel:    {self.preset_panel.width()} x {self.preset_panel.height()}")
-    #     print(f"  info_panel:      {self.info_panel.width()} x {self.info_panel.height()}")
-    #     print(f"  window:          {self.width()} x {self.height()}")

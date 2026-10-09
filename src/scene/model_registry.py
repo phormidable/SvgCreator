@@ -6,7 +6,7 @@ Qt-free model (Point, Curve), plus the sync routine that keeps them
 current with scene.curves.
 """
 
-from new_data_model import Point, Curve
+from core.model import Point, Curve
 
 
 class ModelRegistry:
@@ -23,8 +23,8 @@ class ModelRegistry:
     def model_point_for(self, ui_pt):
         return self._model_by_pt.get(ui_pt)
 
-    def ui_point_for(self, model_pt):
-        return self._pt_by_model.get(model_pt)
+    # def ui_point_for(self, model_pt):
+    #     return self._pt_by_model.get(model_pt)
 
     def ui_points_for(self, model_pts):
         """Translate a list of model points to UI points, dropping any

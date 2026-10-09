@@ -1,8 +1,8 @@
 # preset_controller.py
 from PySide6.QtCore import QPointF
 
-from presets import PRESETS
-from bezier_curve import BezierCurve
+from core.presets import PRESETS
+from scene.items.bezier_curve import BezierCurve
 
 
 class PresetController:

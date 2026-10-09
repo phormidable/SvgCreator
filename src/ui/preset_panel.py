@@ -2,7 +2,7 @@
 from PySide6.QtWidgets import QGroupBox, QGridLayout, QToolButton
 from PySide6.QtCore import Signal
 
-from presets import PRESETS
+from core.presets import PRESETS
 
 
 class PresetPanel(QGroupBox):

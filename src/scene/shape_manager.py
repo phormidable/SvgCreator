@@ -12,8 +12,8 @@ Owned state: shapes, _selected.
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QPainterPath, QPen
 from PySide6.QtWidgets import QGraphicsPathItem
-from settings import SVG_PRECISION, SHAPE_BORDER_DARKEN, SHAPE_TRANSPARENT_OPACITY
-from new_data_model import Shape
+from core.settings import SVG_PRECISION, SHAPE_BORDER_DARKEN, SHAPE_TRANSPARENT_OPACITY
+from core.model import Shape
 
 SHAPE_FILL_Z = -10
 

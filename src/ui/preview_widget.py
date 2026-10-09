@@ -15,7 +15,7 @@ from PySide6.QtCore import Qt, QByteArray, QPointF, QSizeF, Signal, QTimer
 from PySide6.QtGui import QPainter, QPixmap, QColor
 from PySide6.QtSvg import QSvgRenderer
 
-from settings import ZOOM_LEVELS, PREVIEW_FIT_MARGIN, PREVIEW_WIDTH, PREVIEW_HEIGHT
+from core.settings import ZOOM_LEVELS, PREVIEW_FIT_MARGIN, PREVIEW_WIDTH, PREVIEW_HEIGHT
 
 BACKGROUND_OPACITY = 0.35
 DEFAULT_CONTENT_SIZE = QSizeF(1024, 1024)
