@@ -27,7 +27,7 @@ def generate_svg(scene, bordered: bool = False) -> str:
             stroke = shape.color.darker(SHAPE_BORDER_DARKEN).name()
         else:
             stroke = shape.color.name()
-        for curve in shape.curves:
+        for curve in scene.ui_curves(shape):
             curve_color[curve] = stroke
 
     by_color: dict[str, list[str]] = defaultdict(list)
@@ -77,7 +77,7 @@ def save_state(scene) -> dict:
         if shape.color is None:
             continue
         shape_colors.append({
-            "curves": sorted(scene.curves.index(c) for c in shape.curves),
+            "curves": sorted(scene.curves.index(c) for c in scene.ui_curves(shape)),
             "color": shape.color.name(),
         })
     if shape_colors:
@@ -131,7 +131,7 @@ def _restore_shape_colors(scene, shapes_data):
         if not color.isValid():
             continue
         for shape in scene.shape_manager.shapes:
-            if shape.curves == curves:
+            if frozenset(scene.ui_curves(shape)) == curves:
                 scene.shape_manager.set_color(shape, color)
                 break
 

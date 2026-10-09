@@ -55,7 +55,7 @@ class BezierCurve(QGraphicsItem):
         scene = self.scene()
         if scene is None:
             return False
-        return (scene.selection.hovered_curve is self and scene.selection.focused_point is None)
+        return scene.selection.hovered_curve is self and scene.selection.focused_point is None
 
     @property
     def curve_selected(self):

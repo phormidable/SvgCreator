@@ -8,7 +8,6 @@ class InfoPanel(QGroupBox):
     def __init__(self, scene, parent=None):
         super().__init__(parent)
         self.scene = scene
-        self.updating_combobox = False
 
         outer = QVBoxLayout()
         outer.setSpacing(6)
@@ -27,7 +26,3 @@ class InfoPanel(QGroupBox):
     def log(self, message: str):
         self.console.appendPlainText(message)
 
-    def on_curve_selected(self, index):
-        if self.updating_combobox:
-            return
-        self.scene.selected_curve_idx = index

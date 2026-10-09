@@ -17,13 +17,9 @@ from shape_manager import ShapeManager
 from new_data_model import Document, Point, Curve
 from selection import Selection
 
-SHAPE_FILL_Z = -10
 
 class BezierScene(QGraphicsScene):
     svgCodeChanged = Signal(str)
-
-
-
 
     messageLogged = Signal(str)
     transformModeChanged = Signal(bool)
@@ -47,12 +43,8 @@ class BezierScene(QGraphicsScene):
         self.mode = "create"
         self.curve_color = QColor(DEFAULT_CURVE_COLOR)
         self.selection = Selection(self)
-
-
         self.current_degree = 2
         self.dragging_point = None
-
-
         self._ensuring_visible = False
         self.background_item = None
         self.background_image_path = None
@@ -63,7 +55,6 @@ class BezierScene(QGraphicsScene):
         self._transform_last_pos: QPointF | None = None
         self._drag_targets: dict[ControlPoint, QPointF] = {}
         self._drag_primary_start: QPointF | None = None
-
 
         # ---- Scene rect = artboard, never changes during editing ----
         self.setSceneRect(self.artboard)
@@ -133,7 +124,6 @@ class BezierScene(QGraphicsScene):
         item = self.itemAt(event.scenePos(), views[0].transform())
 
         if isinstance(item, ControlPoint) and item.curve.committed:
-            curve = item.curve
             shift = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
 
             if shift:
@@ -162,8 +152,6 @@ class BezierScene(QGraphicsScene):
             # position.
             self.dragging_point = item
             self._start_drag(item)
-
-
 
             super().mousePressEvent(event)
             return
@@ -394,9 +382,7 @@ class BezierScene(QGraphicsScene):
             pt.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
         curve.rebuild_path()
         self.curves.append(curve)
-
         self.emit_svg()
-
 
 
     # ------------------------------------------------------------
@@ -404,7 +390,6 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     def on_curve_changed(self):
         self.emit_svg()
-
         self.shape_manager.update_fills()
 
     # ------------------------------------------------------------
@@ -416,7 +401,6 @@ class BezierScene(QGraphicsScene):
         self.pending_curve.dispose()
         self.pending_curve = None
         self.emit_svg()
-
         self.messageLogged.emit("Incomplete curve discarded")
 
     # ------------------------------------------------------------
@@ -437,16 +421,12 @@ class BezierScene(QGraphicsScene):
             self.curves.pop().dispose()
         self.curves.clear()  # harmless, keeps intent obvious
         self.curve_color = QColor(DEFAULT_CURVE_COLOR)
-
         BezierCurve._next_id = 1 # c'est mieux de repartir à 1.
         self.dragging_point = None
         self._remove_background_image()
         self.emit_svg()
-
-
         self.link_manager.reset()
         self.shape_manager.reset()
-
         self.messageLogged.emit("Scene cleared")
 
     # ------------------------------------------------------------
@@ -465,31 +445,20 @@ class BezierScene(QGraphicsScene):
     def load_state(self, state: dict):
         scene_io.load_state(self, state)
 
-        # ------------------------------------------------------------
-        #  Mirror
-        # ------------------------------------------------------------
-
+    # ------------------------------------------------------------
+    #  Mirror
+    # ------------------------------------------------------------
     def mirror_selection(self, axis: str) -> bool:
-        """Reflect the selection across the horizontal line (axis='x') or
-        vertical line (axis='y') through the barycentre of its points."""
-        curves = self._selected_curves()
-        if not curves:
+        if not self.selected_points:
             self.messageLogged.emit(
                 "Nothing to mirror — select a curve (A or click) or a shape (S) first")
             return False
 
-        base_pts: set[ControlPoint] = set()
-        for c in curves:
-            base_pts.update(c.points)
+        base_pts = set(self.selected_points)
         px = sum(p.pos().x() for p in base_pts) / len(base_pts)
         py = sum(p.pos().y() for p in base_pts) / len(base_pts)
 
-        # Include linked siblings so they stay coincident (same rule as rotation).
         targets = self._with_linked(base_pts)
-
-        # Snapshot before moving: setPos on a linked point propagates to its
-        # sibling, so reading pos() inside the loop would read already-moved
-        # values. Compute every target from the pre-mirror positions.
         starts = {p: p.pos() for p in targets}
         if axis == "x":
             for p, start in starts.items():
@@ -572,14 +541,6 @@ class BezierScene(QGraphicsScene):
 
         pixmap = QPixmap(filepath)
         return pixmap if not pixmap.isNull() else None
-
-    # ------------------------------------------------------------
-    #  Access to curves for info panel
-    # ------------------------------------------------------------
-    # def get_curve_points(self, curve_idx):
-    #     if 0 <= curve_idx < len(self.curves):
-    #         return self.curves[curve_idx].points
-    #     return None
 
     def move_selected_points(self, dx: float, dy: float) -> bool:
         if not self.selected_points:
@@ -706,10 +667,8 @@ class BezierScene(QGraphicsScene):
         for curve in curves:
             curve.dispose()
 
-
         self.shape_manager.refresh()  # belt & braces; dispose already ran it
         self.emit_svg()
-
 
         n = len(curves)
         self.messageLogged.emit(

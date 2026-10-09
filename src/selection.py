@@ -1,15 +1,6 @@
 # selection.py
 """Selection: authoritative selection state for the scene.
 
-Stage A: only the point selection. Shapes, hover, and focus will migrate
-here in later stages. Until then, this object coexists with the older
-selection state on the scene (hovered_curve, focused_point) and on
-ShapeManager (_selected_shapes).
-
-The methods here mutate the authoritative state and update the
-corresponding UI flags. Callers use the properties on the items
-(pt.selected, curve.curve_selected) to query, and the methods on this
-object to change what's selected.
 """
 
 

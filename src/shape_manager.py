@@ -313,7 +313,7 @@ class ShapeManager:
             if item is not None:
                 self.scene.removeItem(item)
             if shape.color is not None:
-                for curve in shape.curves:
+                for curve in self.scene.ui_curves(shape):
                     if not any(curve in s.curves for s in after):
                         curve.set_color(self.scene.curve_color)
             if self.scene.selection.is_shape_selected(shape):
@@ -335,7 +335,7 @@ class ShapeManager:
             if shape.color is None:
                 continue
             border = self._border_color(shape)
-            for curve in shape.curves:
+            for curve in self.scene.ui_curves(shape):
                 curve.set_color(border)
 
     def reset(self):
@@ -372,7 +372,7 @@ class ShapeManager:
         """Emit one 'formed from …' message per current shape. Used after
         loading, where signals were blocked during the initial refresh."""
         for shape in self.shapes:
-            names = " + ".join(c.name for c in sorted(shape.curves, key=lambda c: c.id))
+            names = " + ".join(c.name for c in sorted(self.scene.ui_curves(shape), key=lambda c: c.id))
             self.scene.messageLogged.emit(f"{shape.name} formed from {names}")
 
     def _border_color(self, shape: Shape):
