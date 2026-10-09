@@ -99,7 +99,6 @@ def load_state(scene, state: dict):
         for points_data in curves_data:
             curve = _build_curve_from_points(scene, points_data)
             scene.curves.append(curve)
-        scene.selected_curve_idx = len(scene.curves) - 1 if scene.curves else -1
 
         _restore_links(scene, links_data)
         scene.shape_manager.rebuild_from_links()
@@ -113,8 +112,8 @@ def load_state(scene, state: dict):
     scene.emit_svg()
     scene.messageLogged.emit(f"Loaded {len(scene.curves)} curve(s)")
     scene.shape_manager.log_shapes()
-    scene.pointsChanged.emit()
-    scene.curveListChanged.emit()
+
+
 
 
 def _restore_shape_colors(scene, shapes_data):

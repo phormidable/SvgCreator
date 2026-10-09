@@ -129,7 +129,7 @@ class LinkManager:
             f"→ {target.curve.name}·P{target.point_idx}"
         )
         scene.emit_svg()
-        scene.pointsChanged.emit()
+
         return True
 
     # ------------------------------------------------------------

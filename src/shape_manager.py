@@ -13,44 +13,47 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QPainterPath, QPen
 from PySide6.QtWidgets import QGraphicsPathItem
 from settings import SVG_PRECISION, SHAPE_BORDER_DARKEN, SHAPE_TRANSPARENT_OPACITY
-from shape import Shape as UIShape
+from new_data_model import Shape
+
 SHAPE_FILL_Z = -10
 
 class ShapeManager:
     def __init__(self, scene):
         self.scene = scene
-        self.shapes: list[UIShape] = []
         self._transparent = False
         self._shaped_curves: set = set()  # curves whose opacity we last set
         self._last_opacity: float = 1.0  # value we last applied to those curves
-        self._ui_by_model_id: dict[int, UIShape] = {}
+        self._fills: dict = {}  # model Shape → QGraphicsPathItem
 
+    @property
+    def shapes(self):
+        return self.scene.document.shapes
 
     # ------------------------------------------------------------
     #  Selection
     # ------------------------------------------------------------
-    def selected(self) -> UIShape | None:
+    def selected(self) -> Shape | None:
         """First selected shape, or None. Convenience for single-selection UIs."""
         return self.scene.selection.first_selected_shape()
 
-    def selected_shapes(self) -> list[UIShape]:
+    def selected_shapes(self) -> list[Shape]:
         return self.scene.selection.selected_shapes_list()
 
-    def shapes_in_selection(self) -> list[UIShape]:
+    def shapes_in_selection(self) -> list[Shape]:
         """Shapes that are effectively part of the selection: explicitly
         S-selected ones, plus any shape whose every curve is curve_selected
         (e.g. reached via S on an open chain that includes the shape)."""
         result = set(self.scene.selection.shapes)
         flagged = {c for c in self.scene.curves if c.curve_selected}
         for shape in self.shapes:
-            if shape.curves and shape.curves <= flagged:
+            if shape.curves and set(self._ui_curves(shape)) <= flagged:
                 result.add(shape)
         return list(result)
 
     def _sync_curve_points_for_shapes(self, shapes, add: bool):
         pts = self.scene.selected_points
         for shape in shapes:
-            for curve in shape.curves:
+            for curve in self._ui_curves(shape):
                 for pt in curve.points:
                     if add:
                         if pt not in pts:
@@ -61,7 +64,13 @@ class ShapeManager:
                     pt.update()
                 curve.update()
 
-    def select(self, shape: UIShape | None, add: bool = False):
+    def _ui_curves(self, shape):
+        """The UI BezierCurve objects for `shape`. The model Shape stores
+        model Curve objects; the manager renders UI items, so it translates."""
+        return [self.scene._curve_by_model[mc] for mc in shape.curves
+                if mc in self.scene._curve_by_model]
+
+    def select(self, shape: Shape | None, add: bool = False):
         sel = self.scene.selection
         if shape is None:
             to_remove = list(sel.shapes)
@@ -82,7 +91,7 @@ class ShapeManager:
         if to_remove:
             self._sync_curve_points_for_shapes(to_remove, add=False)
 
-    def deselect(self, shape: UIShape):
+    def deselect(self, shape: Shape):
         if self.scene.selection.is_shape_selected(shape):
             self.scene.selection.toggle_shape(shape)
             self._sync_curve_points_for_shapes([shape], add=False)
@@ -99,7 +108,7 @@ class ShapeManager:
         curves whose target opacity actually changed since last call."""
         shaped: set = set()
         for shape in self.shapes:
-            shaped.update(shape.curves)
+            shaped.update(self._ui_curves(shape))
 
         opacity = SHAPE_TRANSPARENT_OPACITY if self._transparent else 1.0
         prev_shaped = self._shaped_curves
@@ -119,10 +128,11 @@ class ShapeManager:
         self._shaped_curves = shaped
         self._last_opacity = opacity
 
-        # Fill items: cheap, just iterate shapes (one per shape, not per point).
+        # Fill items: one per shape, keyed by the model Shape itself.
         for shape in self.shapes:
-            if shape.fill_item is not None:
-                shape.fill_item.setOpacity(opacity)
+            item = self._fills.get(shape)
+            if item is not None:
+                item.setOpacity(opacity)
 
     @staticmethod
     def _set_curve_opacity(curve, opacity):
@@ -130,9 +140,12 @@ class ShapeManager:
         for pt in curve.points:
             pt.setOpacity(opacity)
 
-    def shape_of_curve(self, curve) -> UIShape | None:
+    def shape_of_curve(self, curve):
+        mcurve = self.scene._model_by_curve.get(curve)
+        if mcurve is None:
+            return None
         for shape in self.shapes:
-            if curve in shape.curves:
+            if mcurve in shape.curves:
                 return shape
         return None
 
@@ -228,7 +241,7 @@ class ShapeManager:
     def _ordered_loop(self, shape):
         """Return [(curve, enter_i), ...] in cyclic order, or None.
         `enter_i` is the index (0 or 1) of the curve's endpoint we enter at."""
-        curves = list(shape.curves)
+        curves = self._ui_curves(shape)
         if not curves:
             return None
         if len(curves) == 1:
@@ -292,54 +305,30 @@ class ShapeManager:
         return start_pt.pos(), segments
 
     def refresh(self):
-        # 1. Sync the model from the scene's current items.
         self.scene._sync_model_registry()
+        doc = self.scene.document
+        before = set(doc.shapes)
+        doc.detect_shapes()
+        doc.detect_chains()
+        after = set(doc.shapes)
 
-        # 2. Ask the model to detect shapes.
-        self.scene.document.detect_shapes()
-        self.scene.document.detect_chains()
-
-        # 3. Translate model shapes → UI shapes, preserving identity.
-        new_shapes = []
-        new_by_id = {}
-        for mshape in self.scene.document.shapes:
-            ui_shape = self._ui_by_model_id.get(mshape.id)
-            ui_curves = frozenset(
-                self.scene._curve_by_model[mc] for mc in mshape.curves
-            )
-            if ui_shape is None:
-                ui_shape = UIShape(ui_curves)
-                ui_shape.name = mshape.name
-                names = " + ".join(
-                    c.name for c in sorted(ui_curves, key=lambda c: c.id))
-                self.scene.messageLogged.emit(
-                    f"{ui_shape.name} formed from {names}")
-            new_shapes.append(ui_shape)
-            new_by_id[mshape.id] = ui_shape
-
-        # 4. Clean up any UI shape that dissolved: remove its fill, revert
-        # its curves to the scene's default colour, and drop its selection.
-        curves_in_new_shapes = set()
-        for s in new_shapes:
-            curves_in_new_shapes.update(s.curves)
-
-        for shape in list(self.shapes):
-            if shape in new_shapes:
-                continue
-            if shape.fill_item is not None:
-                self.scene.removeItem(shape.fill_item)
-                shape.fill_item = None
+        # Drop fills for dissolved shapes; revert their curves' colours.
+        for shape in before - after:
+            item = self._fills.pop(shape, None)
+            if item is not None:
+                self.scene.removeItem(item)
             if shape.color is not None:
                 for curve in shape.curves:
-                    if curve not in curves_in_new_shapes:
+                    if not any(curve in s.curves for s in after):
                         curve.set_color(self.scene.curve_color)
-                shape.color = None
             if self.scene.selection.is_shape_selected(shape):
                 self.deselect(shape)
             self.scene.messageLogged.emit(f"{shape.name} dissolved")
 
-        self.shapes = new_shapes
-        self._ui_by_model_id = new_by_id
+        # Greet new shapes.
+        for shape in after - before:
+            names = " + ".join(c.name for c in sorted(self._ui_curves(shape), key=lambda c: c.id))
+            self.scene.messageLogged.emit(f"{shape.name} formed from {names}")
 
         self._apply_transparency_to_all()
         self.update_fills()
@@ -355,8 +344,11 @@ class ShapeManager:
                 curve.set_color(border)
 
     def reset(self):
-        #super().reset()
-        self._ui_by_model_id.clear()
+        """Drop every shape, every fill, and the model's topology lists."""
+        for item in self._fills.values():
+            self.scene.removeItem(item)
+        self._fills.clear()
+
         doc = self.scene.document
         doc.extremities.clear()
         doc.controls.clear()
@@ -364,16 +356,21 @@ class ShapeManager:
         doc.junctions.clear()
         doc.shapes.clear()
         doc.chains.clear()
+
         self.scene.selection.clear_shapes()
 
     def rebuild_from_links(self):
-        """Reset shape state and re-detect all loops (used after loading)."""
-        for shape in self.shapes:
-            if shape.fill_item is not None:
-                self.scene.removeItem(shape.fill_item)
-                shape.fill_item = None
-        self.shapes.clear()
+        """Drop every fill and force a full re-detection. Called after loading,
+        where shapes must be rebuilt from scratch rather than reconciled."""
+        for item in self._fills.values():
+            self.scene.removeItem(item)
+        self._fills.clear()
+
+        # Clearing the model's shape list guarantees detect_shapes() builds
+        # fresh Shape objects — no identity from a pre-load document leaks in.
+        self.scene.document.shapes.clear()
         self.scene.selection.clear_shapes()
+
         self.refresh()
 
     def log_shapes(self):
@@ -383,13 +380,13 @@ class ShapeManager:
             names = " + ".join(c.name for c in sorted(shape.curves, key=lambda c: c.id))
             self.scene.messageLogged.emit(f"{shape.name} formed from {names}")
 
-    def _border_color(self, shape: UIShape):
+    def _border_color(self, shape: Shape):
         """Darker variant of the shape's fill, or the scene default."""
         if shape.color is None:
             return self.scene.curve_color
         return shape.color.darker(SHAPE_BORDER_DARKEN)
 
-    def shape_path(self, shape: UIShape) -> QPainterPath:
+    def shape_path(self, shape: Shape) -> QPainterPath:
         result = self._loop_segments(shape)
         if result is None:
             return QPainterPath()
@@ -401,7 +398,7 @@ class ShapeManager:
         path.closeSubpath()
         return path
 
-    def shape_svg_path_string(self, shape: UIShape) -> str:
+    def shape_svg_path_string(self, shape: Shape) -> str:
         """SVG `d` attribute for a closed shape. '' if the loop is broken."""
         result = self._loop_segments(shape)
         if result is None:
@@ -418,23 +415,25 @@ class ShapeManager:
         parts.append("Z")
         return " ".join(parts)
 
-    def _rebuild_fill(self, shape: UIShape):
+    def _rebuild_fill(self, shape):
         if shape.color is None:
             return
         path = self.shape_path(shape)
         if path.isEmpty():
             return
-        if shape.fill_item is None:
+
+        item = self._fills.get(shape)
+        if item is None:
             item = QGraphicsPathItem()
             item.setPen(QPen(Qt.PenStyle.NoPen))
             item.setZValue(SHAPE_FILL_Z)
             item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
             self.scene.addItem(item)
-            shape.fill_item = item
-        shape.fill_item.setBrush(QBrush(shape.color))
-        shape.fill_item.setPath(path)
-        shape.fill_item.setOpacity(
-            SHAPE_TRANSPARENT_OPACITY if self._transparent else 1.0)
+            self._fills[shape] = item
+
+        item.setBrush(QBrush(shape.color))
+        item.setPath(path)
+        item.setOpacity(SHAPE_TRANSPARENT_OPACITY if self._transparent else 1.0)
 
     def update_fills(self):
         """Rebuild the fill geometry of every coloured shape. Cheap; called
@@ -442,18 +441,20 @@ class ShapeManager:
         for shape in self.shapes:
             self._rebuild_fill(shape)
 
-    def set_color(self, shape: UIShape, color: QColor | None):
+    def set_color(self, shape, color):
         shape.color = QColor(color) if color is not None else None
+
         if shape.color is None:
-            if shape.fill_item is not None:
-                self.scene.removeItem(shape.fill_item)
-                shape.fill_item = None
-            for curve in shape.curves:
+            item = self._fills.pop(shape, None)
+            if item is not None:
+                self.scene.removeItem(item)
+            for curve in self._ui_curves(shape):
                 curve.set_color(self.scene.curve_color)
         else:
             self._rebuild_fill(shape)
             border = self._border_color(shape)
-            for curve in shape.curves:
+            for curve in self._ui_curves(shape):
                 curve.set_color(border)
+
         self.scene.emit_svg()
 

@@ -21,10 +21,10 @@ SHAPE_FILL_Z = -10
 
 class BezierScene(QGraphicsScene):
     svgCodeChanged = Signal(str)
-    pointsChanged = Signal()
-    curveListChanged = Signal()
-    curveSelected = Signal(int)
-    curveDragFinished = Signal()
+
+
+
+
     messageLogged = Signal(str)
     transformModeChanged = Signal(bool)
     presetStateChanged = Signal(str)
@@ -48,7 +48,7 @@ class BezierScene(QGraphicsScene):
         self.curve_color = QColor(DEFAULT_CURVE_COLOR)
         self.selection = Selection(self)
 
-        self.selected_curve_idx = -1
+
         self.current_degree = 2
         self.dragging_point = None
 
@@ -156,10 +156,9 @@ class BezierScene(QGraphicsScene):
             # position.
             self.dragging_point = item
             self._start_drag(item)
-            idx = self.curves.index(curve)
-            if idx != self.selected_curve_idx:
-                self.selected_curve_idx = idx
-                self.curveSelected.emit(idx)
+
+
+
             super().mousePressEvent(event)
             return
 
@@ -255,7 +254,7 @@ class BezierScene(QGraphicsScene):
                     self.set_selected_point(pending)
 
                 self._update_hover(event.scenePos())
-                self.curveDragFinished.emit()
+
         super().mouseReleaseEvent(event)
 
     # ------------------------------------------------------------
@@ -389,17 +388,17 @@ class BezierScene(QGraphicsScene):
             pt.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
         curve.rebuild_path()
         self.curves.append(curve)
-        self.selected_curve_idx = len(self.curves) - 1
+
         self.emit_svg()
-        self.curveListChanged.emit()
-        self.pointsChanged.emit()
+
+
 
     # ------------------------------------------------------------
     #  Change notification from a curve
     # ------------------------------------------------------------
     def on_curve_changed(self):
         self.emit_svg()
-        self.pointsChanged.emit()
+
         self.shape_manager.update_fills()
 
     # ------------------------------------------------------------
@@ -411,7 +410,7 @@ class BezierScene(QGraphicsScene):
         self.pending_curve.dispose()
         self.pending_curve = None
         self.emit_svg()
-        self.pointsChanged.emit()
+
         self.messageLogged.emit("Incomplete curve discarded")
 
     # ------------------------------------------------------------
@@ -432,13 +431,13 @@ class BezierScene(QGraphicsScene):
             self.curves.pop().dispose()
         self.curves.clear()  # harmless, keeps intent obvious
         self.curve_color = QColor(DEFAULT_CURVE_COLOR)
-        self.selected_curve_idx = -1
+
         BezierCurve._next_id = 1 # c'est mieux de repartir à 1.
         self.dragging_point = None
         self._remove_background_image()
         self.emit_svg()
-        self.pointsChanged.emit()
-        self.curveListChanged.emit()
+
+
         self.link_manager.reset()
         self.shape_manager.reset()
 
@@ -571,10 +570,10 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     #  Access to curves for info panel
     # ------------------------------------------------------------
-    def get_curve_points(self, curve_idx):
-        if 0 <= curve_idx < len(self.curves):
-            return self.curves[curve_idx].points
-        return None
+    # def get_curve_points(self, curve_idx):
+    #     if 0 <= curve_idx < len(self.curves):
+    #         return self.curves[curve_idx].points
+    #     return None
 
     def move_selected_points(self, dx: float, dy: float) -> bool:
         if not self.selected_points:
@@ -701,11 +700,11 @@ class BezierScene(QGraphicsScene):
         for curve in curves:
             curve.dispose()
 
-        self.selected_curve_idx = -1
+
         self.shape_manager.refresh()  # belt & braces; dispose already ran it
         self.emit_svg()
-        self.pointsChanged.emit()
-        self.curveListChanged.emit()
+
+
         n = len(curves)
         self.messageLogged.emit(
             f"Deleted {curves[0].name}" if n == 1 else f"Deleted {n} curves")
