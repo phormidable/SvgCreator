@@ -65,6 +65,10 @@ class Selection:
     def is_shape_selected(self, shape) -> bool:
         return shape in self.shapes
 
+    def is_curve_shape_selected(self, curve) -> bool:
+        shape = self.scene.shape_manager.shape_of_curve(curve)
+        return shape is not None and shape in self.shapes
+
     def first_selected_shape(self):
         return next(iter(self.shapes), None)
 
@@ -75,23 +79,24 @@ class Selection:
     #  Shape mutations
     # ------------------------------------------------------------
     def set_shape(self, shape):
-        """Make `shape` the sole selected shape. Use None to clear."""
         self.clear_shapes()
         if shape is not None:
             self.shapes.add(shape)
-            shape.set_selected(True)
+            for curve in shape.curves:
+                curve.update()
 
     def toggle_shape(self, shape):
         if shape in self.shapes:
             self.shapes.discard(shape)
-            shape.set_selected(False)
         else:
             self.shapes.add(shape)
-            shape.set_selected(True)
+        for curve in shape.curves:
+            curve.update()
 
     def clear_shapes(self):
         for shape in self.shapes:
-            shape.set_selected(False)
+            for curve in shape.curves:
+                curve.update()
         self.shapes.clear()
 
     # ------------------------------------------------------------
