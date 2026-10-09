@@ -95,6 +95,12 @@ class BezierScene(QGraphicsScene):
     def focused_point(self):
         return self.selection.focused_point
 
+    # bezier_scene.py
+    def ui_curves(self, shape):
+        """The UI BezierCurve objects for a model Shape."""
+        return [self._curve_by_model[mc] for mc in shape.curves
+                if mc in self._curve_by_model]
+
     # ------------------------------------------------------------
     #  Mouse interaction
     # ------------------------------------------------------------
@@ -674,7 +680,7 @@ class BezierScene(QGraphicsScene):
             if curve.curve_selected:
                 to_delete.add(curve)
         for shape in self.shape_manager.selected_shapes():
-            to_delete.update(shape.curves)
+            to_delete.update(self.ui_curves(shape))
 
         if not to_delete:
             self.messageLogged.emit("Nothing selected to delete")
@@ -738,7 +744,7 @@ class BezierScene(QGraphicsScene):
         (S) and curve selection (A / click) are independent and both count."""
         curves: set[BezierCurve] = set()
         for shape in self.shape_manager.selected_shapes():
-            curves.update(shape.curves)
+            curves.update(self.ui_curves(shape))
         for c in self.curves:
             if c.curve_selected:
                 curves.add(c)

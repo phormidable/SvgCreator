@@ -46,14 +46,14 @@ class ShapeManager:
         result = set(self.scene.selection.shapes)
         flagged = {c for c in self.scene.curves if c.curve_selected}
         for shape in self.shapes:
-            if shape.curves and set(self._ui_curves(shape)) <= flagged:
+            if shape.curves and set(self.scene.ui_curves(shape)) <= flagged:
                 result.add(shape)
         return list(result)
 
     def _sync_curve_points_for_shapes(self, shapes, add: bool):
         pts = self.scene.selected_points
         for shape in shapes:
-            for curve in self._ui_curves(shape):
+            for curve in self.scene.ui_curves(shape):
                 for pt in curve.points:
                     if add:
                         if pt not in pts:
@@ -64,11 +64,6 @@ class ShapeManager:
                     pt.update()
                 curve.update()
 
-    def _ui_curves(self, shape):
-        """The UI BezierCurve objects for `shape`. The model Shape stores
-        model Curve objects; the manager renders UI items, so it translates."""
-        return [self.scene._curve_by_model[mc] for mc in shape.curves
-                if mc in self.scene._curve_by_model]
 
     def select(self, shape: Shape | None, add: bool = False):
         sel = self.scene.selection
@@ -108,7 +103,7 @@ class ShapeManager:
         curves whose target opacity actually changed since last call."""
         shaped: set = set()
         for shape in self.shapes:
-            shaped.update(self._ui_curves(shape))
+            shaped.update(self.scene.ui_curves(shape))
 
         opacity = SHAPE_TRANSPARENT_OPACITY if self._transparent else 1.0
         prev_shaped = self._shaped_curves
@@ -241,7 +236,7 @@ class ShapeManager:
     def _ordered_loop(self, shape):
         """Return [(curve, enter_i), ...] in cyclic order, or None.
         `enter_i` is the index (0 or 1) of the curve's endpoint we enter at."""
-        curves = self._ui_curves(shape)
+        curves = self.scene.ui_curves(shape)
         if not curves:
             return None
         if len(curves) == 1:
@@ -327,7 +322,7 @@ class ShapeManager:
 
         # Greet new shapes.
         for shape in after - before:
-            names = " + ".join(c.name for c in sorted(self._ui_curves(shape), key=lambda c: c.id))
+            names = " + ".join(c.name for c in sorted(self.scene.ui_curves(shape), key=lambda c: c.id))
             self.scene.messageLogged.emit(f"{shape.name} formed from {names}")
 
         self._apply_transparency_to_all()
@@ -448,12 +443,12 @@ class ShapeManager:
             item = self._fills.pop(shape, None)
             if item is not None:
                 self.scene.removeItem(item)
-            for curve in self._ui_curves(shape):
+            for curve in self.scene.ui_curves(shape):
                 curve.set_color(self.scene.curve_color)
         else:
             self._rebuild_fill(shape)
             border = self._border_color(shape)
-            for curve in self._ui_curves(shape):
+            for curve in self.scene.ui_curves(shape):
                 curve.set_color(border)
 
         self.scene.emit_svg()

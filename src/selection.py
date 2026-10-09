@@ -34,10 +34,6 @@ class Selection:
         return bool(curve.points) and all(
             p in self.points for p in curve.points)
 
-    def _ui_curves_of(self, shape):
-        return [self.scene._curve_by_model[mc] for mc in shape.curves
-                if mc in self.scene._curve_by_model]
-
     # ------------------------------------------------------------
     #  Point mutations
     # ------------------------------------------------------------
@@ -87,7 +83,7 @@ class Selection:
         self.clear_shapes()
         if shape is not None:
             self.shapes.add(shape)
-            for curve in self._ui_curves_of(shape):
+            for curve in self.scene.ui_curves(shape):
                 curve.update()
 
     def toggle_shape(self, shape):
@@ -95,12 +91,12 @@ class Selection:
             self.shapes.discard(shape)
         else:
             self.shapes.add(shape)
-        for curve in self._ui_curves_of(shape):
+        for curve in self.scene.ui_curves(shape):
             curve.update()
 
     def clear_shapes(self):
         for shape in self.shapes:
-            for curve in self._ui_curves_of(shape):
+            for curve in self.scene.ui_curves(shape):
                 curve.update()
         self.shapes.clear()
 
