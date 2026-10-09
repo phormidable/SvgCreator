@@ -233,71 +233,55 @@ class ShapeManager:
     # ------------------------------------------------------------
     #  Loop ordering — junction-tolerant
     # ------------------------------------------------------------
-    def _ordered_loop(self, shape):
-        """Return [(curve, enter_i), ...] in cyclic order, or None.
-        `enter_i` is the index (0 or 1) of the curve's endpoint we enter at."""
-        curves = self.scene.ui_curves(shape)
-        if not curves:
-            return None
-        if len(curves) == 1:
-            return [(curves[0], 0)]
-
-        def neighbor(c, exit_i):
-            end = c.points[0] if exit_i == 0 else c.points[-1]
-            g = self.scene.link_manager.group_of(end)
-            if g is None:
-                return None
-            options = []
-            for other in curves:
-                if other is c:
-                    continue
-                for i, oe in ((0, other.points[0]), (1, other.points[-1])):
-                    if oe in g:
-                        options.append((other, i))
-                        break
-            if len(options) != 1:
-                return None  # branching shape → not a simple cycle
-            return options[0]
-
-        start = curves[0]
-        order = [(start, 0)]
-        visited = {start}
-        cur, enter_i = start, 0
-        while True:
-            exit_i = 1 - enter_i
-            n = neighbor(cur, exit_i)
-            if n is None:
-                return None
-            nxt, arrive_i = n
-            if nxt is start:
-                break
-            if nxt in visited:
-                return None
-            order.append((nxt, arrive_i))
-            visited.add(nxt)
-            cur, enter_i = nxt, arrive_i
-        if len(order) != len(curves):
-            return None
-        return order
-
     def _loop_segments(self, shape):
-        order = self._ordered_loop(shape)
-        if order is None:
+        """Return (start_pos, [(c1, c2, end_pos), ...]) for the closed loop,
+        or None if the topology is broken. Walks shape.curves in the cyclic
+        order the model already stored."""
+        ui_curves = self.scene.ui_curves(shape)
+        if not ui_curves:
             return None
-        if len(order) == 1:
-            c, _ = order[0]
-            start_pt = c.points[0]
-            c1, c2, end_pt = c.cubic_segment(start_pt)
-            return start_pt.pos(), [(c1, c2, end_pt.pos())]
 
-        first_curve, first_enter = order[0]
-        start_pt = first_curve.points[first_enter]
+        start_pt = self._loop_start_point(ui_curves)
+        if start_pt is None:
+            return None
+
         segments = []
-        for curve, enter_i in order:
-            pt = curve.points[0] if enter_i == 0 else curve.points[-1]
-            c1, c2, other = curve.cubic_segment(pt)
+        current = start_pt
+        for curve in ui_curves:
+            entry = self._shared_endpoint(curve, current)
+            if entry is None:
+                return None
+            c1, c2, other = curve.cubic_segment(entry)
             segments.append((c1, c2, other.pos()))
+            current = other
         return start_pt.pos(), segments
+
+    def _loop_start_point(self, ui_curves):
+        """An endpoint of the first curve that shares a junction with the last
+        curve's far end — i.e. the curve's entry point in the cycle."""
+        first = ui_curves[0]
+        endpoints = (first.points[0], first.points[-1])
+        if len(ui_curves) == 1:
+            return endpoints[0]  # teardrop: either will do
+        last = ui_curves[-1]
+        for p in endpoints:
+            g = self.scene.link_manager.group_of(p)
+            if g and any(q.curve is last for q in g):
+                return p
+        return None
+
+    def _shared_endpoint(self, curve, other_pt):
+        """An endpoint of `curve` that is `other_pt` or shares its junction."""
+        endpoints = (curve.points[0], curve.points[-1])
+        if other_pt in endpoints:
+            return other_pt
+        g = self.scene.link_manager.group_of(other_pt)
+        if g is None:
+            return None
+        for p in endpoints:
+            if p in g:
+                return p
+        return None
 
     def refresh(self):
         self.scene.registry.sync()
@@ -381,7 +365,8 @@ class ShapeManager:
             return self.scene.curve_color
         return shape.color.darker(SHAPE_BORDER_DARKEN)
 
-    def shape_path(self, shape: Shape) -> QPainterPath:
+    def shape_path(self, shape) -> QPainterPath:
+        print("[shape_path] ENTERED", flush=True)
         result = self._loop_segments(shape)
         if result is None:
             return QPainterPath()
@@ -391,6 +376,8 @@ class ShapeManager:
         for c1, c2, end_pos in segments:
             path.cubicTo(c1, c2, end_pos)
         path.closeSubpath()
+        print(f"[shape_path] file={__file__}", flush=True)
+        print(f"[shape_path] returning {type(path).__name__}", flush=True)
         return path
 
     def shape_svg_path_string(self, shape: Shape) -> str:
@@ -413,7 +400,9 @@ class ShapeManager:
     def _rebuild_fill(self, shape):
         if shape.color is None:
             return
+        print(f"[rb] method={self.shape_path}", flush=True)
         path = self.shape_path(shape)
+        print(f"[rb] returned={type(path).__name__} {path!r}", flush=True)
         if path.isEmpty():
             return
 

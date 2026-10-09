@@ -1,10 +1,12 @@
-# bezier_curve.py
+# scene/items/bezier_curve.py
 from PySide6.QtWidgets import QGraphicsItem
-from PySide6.QtGui import QPainterPath, QPainterPathStroker, QPen, QColor, QPainter
+from PySide6.QtGui import QPainterPath, QColor, QPainter
 from PySide6.QtCore import QRectF, Qt
 
-from core.settings import (CURVE_PEN_WIDTH, HOVER_COLOR_FOCUS, CURVE_SELECTED_PEN_COLOR, CURVE_SELECTED_PEN_WIDTH, HOVER_COLOR,
-                      HOVER_TOLERANCE, SVG_PRECISION, HIDDEN_CURVE_COLOR, SHAPE_SELECTED_CURVE_COLOR, SHAPE_SELECTED_CURVE_PEN_WIDTH)
+from core.settings import (
+    CURVE_PEN_WIDTH, SHAPE_SELECTED_CURVE_PEN_WIDTH,
+    CURVE_SELECTED_PEN_WIDTH, HOVER_TOLERANCE,
+)
 
 from scene.items.control_point import ControlPoint
 
@@ -27,22 +29,20 @@ class BezierCurve(QGraphicsItem):
 
         self.committed = False
         self.points_hidden = False
-        self._pen_normal = QPen(self.color, CURVE_PEN_WIDTH)
-        self._pen_hover = QPen(HOVER_COLOR, CURVE_PEN_WIDTH)
-        self._pen_hidden = QPen(HIDDEN_CURVE_COLOR, CURVE_PEN_WIDTH)
-        self._pen_shape_selected = QPen(SHAPE_SELECTED_CURVE_COLOR, SHAPE_SELECTED_CURVE_PEN_WIDTH)
-        self._pen_curve_selected = QPen(CURVE_SELECTED_PEN_COLOR, CURVE_SELECTED_PEN_WIDTH)
-        self._pen_focus = QPen(HOVER_COLOR_FOCUS, CURVE_PEN_WIDTH)
+
         self._path = QPainterPath()
         self._hit_path = QPainterPath()
 
         self.setZValue(-1)
-        scene.addItem(self)          # add *self*, not a child path item
+        scene.addItem(self)
 
     @property
     def _scene(self) -> "BezierScene":
         return cast("BezierScene", super().scene())
 
+    # ---------------------------------------------------------------
+    #  Derived interaction state (reads through Selection)
+    # ---------------------------------------------------------------
     @property
     def hovered(self):
         scene = self.scene()
@@ -55,14 +55,8 @@ class BezierCurve(QGraphicsItem):
         scene = self.scene()
         if scene is None:
             return False
-        return scene.selection.hovered_curve is self and scene.selection.focused_point is None
-
-    @property
-    def curve_selected(self):
-        scene = self.scene()
-        if scene is None:
-            return False
-        return scene.selection.is_curve_selected(self)
+        return (scene.selection.hovered_curve is self
+                and scene.selection.focused_point is None)
 
     @property
     def shape_selected(self):
@@ -70,6 +64,13 @@ class BezierCurve(QGraphicsItem):
         if scene is None:
             return False
         return scene.selection.is_curve_shape_selected(self)
+
+    @property
+    def curve_selected(self):
+        scene = self.scene()
+        if scene is None:
+            return False
+        return scene.selection.is_curve_selected(self)
 
     # ---------------------------------------------------------------
     #  QGraphicsItem API
@@ -90,31 +91,16 @@ class BezierCurve(QGraphicsItem):
         if self._path.isEmpty():
             return
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        #if self.highlighted:
-         #   pen = self._pen_highlight
-        if self.hovered:
-            pen = self._pen_hover
-        elif self.shape_selected:
-            pen = self._pen_shape_selected
-        elif self.curve_selected:
-            pen = self._pen_curve_selected
-        elif self.focused:
-            pen = self._pen_focus
-
-        elif self.points_hidden:
-            pen = self._pen_hidden
-        else:
-            pen = self._pen_normal
-        painter.setPen(pen)
+        painter.setPen(self._scene.curve_renderer.pen_for(self))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(self._path)
 
-# ---------------------------------------------------------------
+    # ---------------------------------------------------------------
     #  Construction
     # ---------------------------------------------------------------
     def add_point(self, pos):
         pt = ControlPoint(pos, self, len(self.points))
-        self._scene.addItem(pt)  # ← sibling, not child
+        self._scene.addItem(pt)
         self.points.append(pt)
         if self.committed:
             pt.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
@@ -128,43 +114,22 @@ class BezierCurve(QGraphicsItem):
         return [p.pos() for p in self.points]
 
     def rebuild_path(self):
-        self.prepareGeometryChange()     # tell the scene bounds are about to change
-        pts = self.positions()
-        path = QPainterPath()
-        if len(pts) == self.degree + 1:
-            path.moveTo(pts[0])
-            if self.degree == 2:
-                path.quadTo(pts[1], pts[2])
-            else:
-                path.cubicTo(pts[1], pts[2], pts[3])
-        elif pts:
-            path.moveTo(pts[0])
-            for p in pts[1:]:
-                path.lineTo(p)
-        self._path = path
-
-        stroker = QPainterPathStroker()
-        stroker.setWidth(2 * HOVER_TOLERANCE)
-        stroker.setCapStyle(Qt.PenCapStyle.RoundCap)  # ← endpoint hit region
-        stroker.setJoinStyle(Qt.PenJoinStyle.RoundJoin)  # ← corner hit region
-        self._hit_path = stroker.createStroke(path)
-
+        self.prepareGeometryChange()
+        self._path, self._hit_path = self._scene.curve_renderer.paths_for(
+            self.positions(), self.degree)
         self.update()
 
     def set_color(self, color):
         self.color = QColor(color)
-        self._pen_normal = QPen(self.color, CURVE_PEN_WIDTH)
         self.update()
 
     def is_near(self, pos):
         if self.points_hidden:
             return False
-
         if self._hit_path.contains(pos):
             return True
-
         for pt in self.points:
-            p = pt.pos()  # scene coords (points are siblings, curve is at origin)
+            p = pt.pos()
             dx = p.x() - pos.x()
             dy = p.y() - pos.y()
             if dx * dx + dy * dy <= HOVER_TOLERANCE * HOVER_TOLERANCE:
@@ -172,27 +137,15 @@ class BezierCurve(QGraphicsItem):
         return False
 
     # ---------------------------------------------------------------
-    #  SVG
+    #  SVG — kept for now; the export path goes through the model via
+    #  scene_io + curve_geometry. Remove once grep shows no callers.
     # ---------------------------------------------------------------
     def svg_path_string(self):
-
-        if not self.is_complete():
-            return ""
-        pts = self.positions()
+        from scene.curve_geometry import svg_string_from_points
+        pts = [(p.x(), p.y()) for p in self.positions()]
         if len(pts) != self.degree + 1:
             return ""
-
-        p = SVG_PRECISION
-        if self.degree == 2:
-            p0, p1, p2 = pts
-            return (f"M {p0.x():.{p}f},{p0.y():.{p}f} "
-                    f"Q {p1.x():.{p}f},{p1.y():.{p}f} "
-                    f"{p2.x():.{p}f},{p2.y():.{p}f}")
-        p0, p1, p2, p3 = pts
-        return (f"M {p0.x():.{p}f},{p0.y():.{p}f} "
-                f"C {p1.x():.{p}f},{p1.y():.{p}f} "
-                f"{p2.x():.{p}f},{p2.y():.{p}f} "
-                f"{p3.x():.{p}f},{p3.y():.{p}f}")
+        return svg_string_from_points(pts, self.degree)
 
     def cubic_segment(self, start_pt):
         """Return (c1_pos, c2_pos, end_pt) describing a cubic that traces
@@ -223,6 +176,17 @@ class BezierCurve(QGraphicsItem):
         self._scene.on_curve_changed()
 
     # ---------------------------------------------------------------
+    #  Hidden points
+    # ---------------------------------------------------------------
+    def set_points_hidden(self, value):
+        if self.points_hidden == value:
+            return
+        self.points_hidden = value
+        for pt in self.points:
+            pt.setVisible(not value)
+        self.update()
+
+    # ---------------------------------------------------------------
     #  Teardown
     # ---------------------------------------------------------------
     def dispose(self):
@@ -232,11 +196,3 @@ class BezierCurve(QGraphicsItem):
             self._scene.removeItem(pt)
         self.points.clear()
         self._scene.removeItem(self)
-
-    def set_points_hidden(self, value):
-        if self.points_hidden == value:
-            return
-        self.points_hidden = value
-        for pt in self.points:
-            pt.setVisible(not value)
-        self.update()

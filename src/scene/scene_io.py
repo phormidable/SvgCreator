@@ -5,8 +5,10 @@ from PySide6.QtGui import QColor
 from core.settings import SVG_FILL, SVG_STROKE_COLOR, SVG_STROKE_WIDTH, SHAPE_BORDER_DARKEN
 from scene.items.bezier_curve import BezierCurve
 from collections import defaultdict
+from .curve_geometry import model_curve_svg_string
 
 def generate_svg(scene, bordered: bool = False) -> str:
+    scene.registry.sync()
     # 1) Fills: one <path> per colored shape.
     shape_paths = []
     for shape in scene.shape_manager.shapes:
@@ -32,7 +34,10 @@ def generate_svg(scene, bordered: bool = False) -> str:
 
     by_color: dict[str, list[str]] = defaultdict(list)
     for curve in scene.curves:
-        d = curve.svg_path_string()
+        mc = scene.registry.model_curve_for(curve)
+        if mc is None:
+            continue
+        d = model_curve_svg_string(mc)
         if d:
             color = curve_color.get(curve, SVG_STROKE_COLOR)
             by_color[color].append(d)

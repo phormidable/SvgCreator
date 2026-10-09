@@ -16,7 +16,8 @@ from .transform_controller import TransformController
 from .preset_controller import PresetController
 from .model_registry import ModelRegistry
 from .curve_builder import CurveBuilder
-
+from scene.curve_renderer import CurveRenderer
+from scene.point_renderer import PointRenderer
 
 class BezierScene(QGraphicsScene):
     svgCodeChanged = Signal(str)
@@ -66,11 +67,14 @@ class BezierScene(QGraphicsScene):
 
         # ---- Collaborators ----
         self.registry = ModelRegistry(self)
+        self.curve_renderer = CurveRenderer(self)
+        self.point_renderer = PointRenderer(self)
         self.link_manager = LinkManager(self)
         self.shape_manager = ShapeManager(self)
         self.transform = TransformController(self)
         self.presets = PresetController(self)
         self.builder = CurveBuilder(self)
+
 
     # ------------------------------------------------------------
     #  Read-only views on Selection
@@ -268,10 +272,7 @@ class BezierScene(QGraphicsScene):
                         break
                 break
 
-        # Only the stroke counts as a curve hover — when a point is under
-        # the cursor, focus moves to that point and the curve is not hovered.
-        if new_focused_pt is not None:
-            new_hovered = None
+        # (the "if new_focused_pt is not None: new_hovered = None" block is gone)
 
         self.selection.set_hover(new_hovered, new_focused_pt)
 
