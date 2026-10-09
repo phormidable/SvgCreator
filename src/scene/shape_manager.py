@@ -294,7 +294,7 @@ class ShapeManager:
         start_pt = first_curve.points[first_enter]
         segments = []
         for curve, enter_i in order:
-            pt = curve.points[enter_i]
+            pt = curve.points[0] if enter_i == 0 else curve.points[-1]
             c1, c2, other = curve.cubic_segment(pt)
             segments.append((c1, c2, other.pos()))
         return start_pt.pos(), segments

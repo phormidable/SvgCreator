@@ -18,8 +18,6 @@ from .model_registry import ModelRegistry
 from .curve_builder import CurveBuilder
 
 
-
-
 class BezierScene(QGraphicsScene):
     svgCodeChanged = Signal(str)
     messageLogged = Signal(str)

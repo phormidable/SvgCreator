@@ -74,15 +74,13 @@ class TransformController:
         self._mode = mode
         self._pivot = QPointF(cx, cy)
         self._ref = None  # captured on first move
-        self._starts = {
-            p: p.pos() for p in self.scene._with_linked(base)}
+        self._starts = {p: p.pos() for p in self.scene._with_linked(base)}
 
         self._last_pos = None
         self._show_pivot(cx, cy)
         self.scene.transformModeChanged.emit(True)
         verb = "Rotating" if mode == "rotate" else "Scaling"
-        self.scene.messageLogged.emit(
-            f"{verb} around ({cx:.1f}, {cy:.1f}) — right-click to validate, Esc to cancel")
+        self.scene.messageLogged.emit(f"{verb} around ({cx:.1f}, {cy:.1f}) — right-click to validate, Esc to cancel")
         return True
 
     def _end_transform(self, commit: bool = True):

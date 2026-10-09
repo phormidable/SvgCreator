@@ -10,7 +10,7 @@ from scene.items.control_point import ControlPoint
 
 from typing import TYPE_CHECKING, cast
 if TYPE_CHECKING:
-    from bezier_scene import BezierScene
+    from scene.bezier_scene import BezierScene
 
 
 class BezierCurve(QGraphicsItem):
