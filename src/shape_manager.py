@@ -136,7 +136,7 @@ class ShapeManager:
             pt.setOpacity(opacity)
 
     def shape_of_curve(self, curve):
-        mcurve = self.scene._model_by_curve.get(curve)
+        mcurve = self.scene.registry.model_curve_for(curve)
         if mcurve is None:
             return None
         for shape in self.shapes:
@@ -220,14 +220,14 @@ class ShapeManager:
     def chain_of(self, curve):
         """The chain containing `curve`, as UI curves. Reads from the model
         (populated by refresh) rather than walking link groups directly."""
-        mcurve = self.scene._model_by_curve.get(curve)
+        mcurve = self.scene.registry.model_curve_for(curve)
         if mcurve is None:
             return [curve]
         for mchain in self.scene.document.chains:
             if mcurve in mchain.curves:
-                return [self.scene._curve_by_model[mc]
-                        for mc in mchain.curves
-                        if mc in self.scene._curve_by_model]
+                return [self.scene.registry.ui_curve_for(mc)
+                    for mc in mchain.curves
+                    if self.scene.registry.ui_curve_for(mc) is not None]
         return [curve]
 
     # ------------------------------------------------------------
@@ -300,7 +300,7 @@ class ShapeManager:
         return start_pt.pos(), segments
 
     def refresh(self):
-        self.scene._sync_model_registry()
+        self.scene.registry.sync()
         doc = self.scene.document
         before = set(doc.shapes)
         doc.detect_shapes()

@@ -12,9 +12,11 @@ from control_point import ControlPoint
 from bezier_curve import BezierCurve
 from shape_manager import ShapeManager
 from selection import Selection
-from new_data_model import Document, Point, Curve
+from new_data_model import Document
 from transform_controller import TransformController
 from preset_controller import PresetController
+from model_registry import ModelRegistry
+from curve_builder import CurveBuilder
 
 import scene_io
 
@@ -28,10 +30,7 @@ class BezierScene(QGraphicsScene):
     def __init__(self):
         super().__init__()
         self.document = Document()
-        self._curve_by_model: dict = {}
-        self._model_by_curve: dict = {}
-        self._pt_by_model: dict = {}
-        self._model_by_pt: dict = {}
+
 
         # ---- Static geometry ----
         self.artboard = ARTBOARD_RECT
@@ -39,11 +38,11 @@ class BezierScene(QGraphicsScene):
 
         # ---- State ----
         self.curves = []              # committed BezierCurve objects
-        self.pending_curve = None
+        #self.pending_curve = None
         self.mode = "create"
         self.curve_color = QColor(DEFAULT_CURVE_COLOR)
         self.selection = Selection(self)
-        self.current_degree = 2
+
         self.dragging_point = None
         self._ensuring_visible = False
 
@@ -69,10 +68,12 @@ class BezierScene(QGraphicsScene):
         self.addItem(self.viewbox_item)
 
         # ---- Collaborators ----
+        self.registry = ModelRegistry(self)
         self.link_manager = LinkManager(self)
         self.shape_manager = ShapeManager(self)
         self.transform = TransformController(self)
         self.presets = PresetController(self)
+        self.builder = CurveBuilder(self)
 
     # ------------------------------------------------------------
     #  Read-only views on Selection
@@ -89,10 +90,9 @@ class BezierScene(QGraphicsScene):
     def focused_point(self):
         return self.selection.focused_point
 
-    def ui_curves(self, shape):
-        """The UI BezierCurve objects for a model Shape."""
-        return [self._curve_by_model[mc] for mc in shape.curves
-                if mc in self._curve_by_model]
+    @property
+    def pending_curve(self):
+        return self.builder.pending_curve
 
     # ------------------------------------------------------------
     #  Public delegates (main_window / custom_view API)
@@ -118,6 +118,18 @@ class BezierScene(QGraphicsScene):
     def on_shift_released(self):
         return self.presets.on_shift_released()
 
+    def ui_curves(self, shape):
+        return self.registry.ui_curves(shape)
+
+    def set_degree(self, degree: int):
+        self.builder.set_degree(degree)
+
+    def discard_current_points(self):
+        self.builder.discard()
+
+    def cancel_pending_curve(self) -> bool:
+        return self.builder.cancel_pending_curve()
+
     # ------------------------------------------------------------
     #  Mouse interaction
     # ------------------------------------------------------------
@@ -134,12 +146,7 @@ class BezierScene(QGraphicsScene):
 
         # ---- Create mode ----
         if self.mode == "create":
-            if self.pending_curve is None:
-                self.pending_curve = BezierCurve(self, degree=self.current_degree)
-            self.pending_curve.add_point(event.scenePos())
-            if self.pending_curve.is_complete():
-                self.finalize_curve()
-                self.messageLogged.emit(f"Curve created")
+            self.builder.handle_click(event.scenePos())
             return
 
         # ---- Edit mode ----
@@ -354,42 +361,12 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     #  Degree, curve finalization, change notification
     # ------------------------------------------------------------
-    def set_degree(self, degree: int):
-        if degree not in (2, 3) or degree == self.current_degree:
-            return
-        self.current_degree = degree
-        if self.pending_curve is not None:
-            self.discard_current_points()
-        self.messageLogged.emit(
-            f"Curve type → {'quadratic' if degree == 2 else 'cubic'}")
-
-    def finalize_curve(self):
-        curve = self.pending_curve
-        self.pending_curve = None
-        curve.committed = True
-        for pt in curve.points:
-            pt.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
-        curve.rebuild_path()
-        self.curves.append(curve)
-        self.emit_svg()
 
     def on_curve_changed(self):
         self.emit_svg()
         self.shape_manager.update_fills()
 
-    def discard_current_points(self):
-        if self.pending_curve is None:
-            return
-        self.pending_curve.dispose()
-        self.pending_curve = None
-        self.emit_svg()
-        self.messageLogged.emit("Incomplete curve discarded")
 
-    def cancel_pending_curve(self) -> bool:
-        if self.mode == "create" and self.pending_curve is not None:
-            self.discard_current_points()
-            return True
-        return False
 
     # ------------------------------------------------------------
     #  Drag helpers
@@ -417,9 +394,7 @@ class BezierScene(QGraphicsScene):
         self.clear_hover()
         self.transform.end_transform(commit=False)
         self.set_selected_point(None)
-        if self.pending_curve is not None:
-            self.pending_curve.dispose()
-            self.pending_curve = None
+        self.builder.clear()
 
         while self.curves:
             self.curves.pop().dispose()
@@ -619,55 +594,3 @@ class BezierScene(QGraphicsScene):
         self.messageLogged.emit(
             f"Deleted {curves[0].name}" if n == 1 else f"Deleted {n} curves")
         return n
-
-    # ------------------------------------------------------------
-    #  Model registry (UI ↔ model bridge)
-    # ------------------------------------------------------------
-    def _sync_model_registry(self):
-        """Sync the model with the scene's current items. Additive: model
-        Curve/Point objects persist across calls so identity is stable."""
-        doc = self.document
-        current = set(self.curves)
-
-        # --- 1. Remove model curves whose UI items are gone. ---
-        for curve_item in list(self._model_by_curve):
-            if curve_item in current:
-                continue
-            mc = self._model_by_curve.pop(curve_item)
-            self._curve_by_model.pop(mc, None)
-            for mp in (*mc.extremities, *mc.controls):
-                j = doc.junction_that_contains(mp)
-                if j is not None:
-                    doc.unlink(mp)
-                item = self._pt_by_model.pop(mp, None)
-                if item is not None:
-                    self._model_by_pt.pop(item, None)
-                if mp in doc.extremities:
-                    doc.extremities.remove(mp)
-                elif mp in doc.controls:
-                    doc.controls.remove(mp)
-            if mc in doc.curves:
-                doc.curves.remove(mc)
-
-        # --- 2. Add new curves / refresh positions on existing ones. ---
-        for curve_item in self.curves:
-            if not curve_item.is_complete():
-                continue
-            ui_pts = curve_item.points
-            mc = self._model_by_curve.get(curve_item)
-            if mc is None:
-                mps = []
-                for pt_item in ui_pts:
-                    mp = Point(pt_item.pos().x(), pt_item.pos().y())
-                    mps.append(mp)
-                    self._pt_by_model[mp] = pt_item
-                    self._model_by_pt[pt_item] = mp
-                extremities = (mps[0], mps[-1])
-                controls = mps[1:-1]
-                mc = Curve(extremities, controls, curve_item.degree)
-                mc.id = curve_item.id
-                doc.curves.append(mc)
-                doc.extremities.extend(extremities)
-                doc.controls.extend(controls)
-                self._model_by_curve[curve_item] = mc
-                self._curve_by_model[mc] = curve_item

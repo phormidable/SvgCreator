@@ -22,30 +22,26 @@ class LinkManager:
         scene.addItem(self.indicator)
 
     def group_of(self, point):
-        mp = self.scene._model_by_pt.get(point)
+        mp = self.scene.registry.model_point_for(point)
         if mp is None:
             return None
         junction = self.scene.document.junction_that_contains(mp)
         if junction is None:
             return None
-        return [self.scene._pt_by_model[m] for m in junction.points
-                if m in self.scene._pt_by_model]
+        return self.scene.registry.ui_points_for(junction.points)
 
     @property
     def groups(self):
-        return [
-            [self.scene._pt_by_model[m] for m in j.points
-             if m in self.scene._pt_by_model]
-            for j in self.scene.document.junctions
-        ]
+        return [self.scene.registry.ui_points_for(j.points)
+                for j in self.scene.document.junctions]
 
     # ------------------------------------------------------------
     #  Linking / unlinking
     # ------------------------------------------------------------
     def link_points(self, a, b):
-        self.scene._sync_model_registry()
-        ma = self.scene._model_by_pt.get(a)
-        mb = self.scene._model_by_pt.get(b)
+        self.scene.registry.sync()
+        ma = self.scene.registry.model_point_for(a)
+        mb = self.scene.registry.model_point_for(b)
         if ma is None or mb is None:
             return
         self.scene.document.link(ma, mb)
@@ -53,8 +49,8 @@ class LinkManager:
         self.scene.shape_manager.refresh()
 
     def unlink_point(self, point):
-        self.scene._sync_model_registry()
-        mp = self.scene._model_by_pt.get(point)
+        self.scene.registry.sync()
+        mp = self.scene.registry.model_point_for(point)
         if mp is not None:
             self.scene.document.unlink(mp)
         self._sync_linked_flags()
@@ -144,9 +140,6 @@ class LinkManager:
     def _sync_linked_flags(self):
         linked_items = set()
         for j in self.scene.document.junctions:
-            for m in j.points:
-                item = self.scene._pt_by_model.get(m)
-                if item is not None:
-                    linked_items.add(item)
-        for item in self.scene._model_by_pt:
+            linked_items.update(self.scene.registry.ui_points_for(j.points))
+        for item in self.scene.registry.ui_points():
             item.set_linked(item in linked_items)

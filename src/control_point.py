@@ -47,7 +47,7 @@ class ControlPoint(QGraphicsEllipseItem):
     def pos(self):
         scene = self.curve.scene() if self.curve is not None else None
         if scene is not None:
-            mp = scene._model_by_pt.get(self)
+            mp = scene.registry.model_point_for(self)
             if mp is not None:
                 return QPointF(mp.x, mp.y)
         return super().pos()
@@ -143,13 +143,11 @@ class ControlPoint(QGraphicsEllipseItem):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
             scene = self.curve.scene()
             if scene is not None:
-                # New: persist the clamped Qt position into the model.
-                mp = scene._model_by_pt.get(self)
+                mp = scene.registry.model_point_for(self)
                 if mp is not None:
                     p = super().pos()
                     mp.x = p.x()
                     mp.y = p.y()
-                # Existing: propagate and notify.
                 scene.link_manager.propagate_move(self, self.pos())
                 self.curve.on_point_moved()
                 scene.on_point_moved(self)

@@ -23,8 +23,7 @@ class PresetController:
             self.scene.presetStateChanged.emit("")
             self.scene.messageLogged.emit("Preset cancelled")
             return True
-        if self.scene.pending_curve is not None:
-            # Refused: sync the panel back to whatever state we're actually in.
+        if self.scene.builder.pending_curve is not None:
             self.scene.presetStateChanged.emit(self._pending or "")
             self.scene.messageLogged.emit("Finish or discard the current curve first")
             return False
@@ -57,14 +56,11 @@ class PresetController:
             self.scene.presetStateChanged.emit("")
 
         preset = PRESETS[name]
-        degree = self.scene.current_degree
+        degree = self.scene.builder.current_degree
         curves = []
         for cdef in preset.curves:
-            curve = BezierCurve(self.scene, degree=degree)
-            for dx, dy in cdef.offsets_for_degree(degree):
-                curve.add_point(QPointF(center.x() + dx, center.y() + dy))
-            self.scene.pending_curve = curve
-            self.scene.finalize_curve()
+            curve = self.scene.builder.build_from_offsets(
+                center, cdef.offsets_for_degree(degree), degree)
             curves.append(curve)
 
         for (ci, pi), (cj, pj) in preset.links:
