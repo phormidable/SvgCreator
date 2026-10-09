@@ -1,26 +1,26 @@
 # bezier_scene.py
 from PySide6.QtCore import QRectF, Qt, Signal, QSize, QPointF
-from PySide6.QtGui import QPen, QPixmap, QImage, QPainter, QColor, QBrush
-from PySide6.QtWidgets import QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem, QGraphicsEllipseItem
+from PySide6.QtGui import QPen, QPixmap, QImage, QPainter, QColor
+from PySide6.QtWidgets import (QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem)
 from PySide6.QtSvg import QSvgRenderer
 
 from settings import (ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH,
-                      DEFAULT_CURVE_COLOR, ROTATION_PIVOT_RADIUS, ROTATION_PIVOT_COLOR, HOVER_TOLERANCE)
+                      DEFAULT_CURVE_COLOR, HOVER_TOLERANCE)
 
-from presets import PRESETS
 from link_manager import LinkManager
 from control_point import ControlPoint
 from bezier_curve import BezierCurve
-import scene_io
-import math
 from shape_manager import ShapeManager
-from new_data_model import Document, Point, Curve
 from selection import Selection
+from new_data_model import Document, Point, Curve
+from transform_controller import TransformController
+from preset_controller import PresetController
+
+import scene_io
 
 
 class BezierScene(QGraphicsScene):
     svgCodeChanged = Signal(str)
-
     messageLogged = Signal(str)
     transformModeChanged = Signal(bool)
     presetStateChanged = Signal(str)
@@ -34,25 +34,27 @@ class BezierScene(QGraphicsScene):
         self._model_by_pt: dict = {}
 
         # ---- Static geometry ----
-        self.artboard = ARTBOARD_RECT   # full working area (scene rect)
-        self.viewbox = VIEWBOX_RECT     # region that gets exported
+        self.artboard = ARTBOARD_RECT
+        self.viewbox = VIEWBOX_RECT
 
         # ---- State ----
         self.curves = []              # committed BezierCurve objects
-        self.pending_curve = None     # BezierCurve currently being placed
+        self.pending_curve = None
         self.mode = "create"
         self.curve_color = QColor(DEFAULT_CURVE_COLOR)
         self.selection = Selection(self)
         self.current_degree = 2
         self.dragging_point = None
         self._ensuring_visible = False
+
+        # ---- Background image ----
         self.background_item = None
         self.background_image_path = None
         self.background_pixmap = None
-        self._preset_pending: str | None = None
+
+        # ---- Drag bookkeeping ----
         self._pending_collapse_point: ControlPoint | None = None
         self._drag_press_pos: QPointF | None = None
-        self._transform_last_pos: QPointF | None = None
         self._drag_targets: dict[ControlPoint, QPointF] = {}
         self._drag_primary_start: QPointF | None = None
 
@@ -65,15 +67,16 @@ class BezierScene(QGraphicsScene):
         self.viewbox_item.setPen(QPen(VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH))
         self.viewbox_item.setZValue(-100)
         self.addItem(self.viewbox_item)
+
+        # ---- Collaborators ----
         self.link_manager = LinkManager(self)
         self.shape_manager = ShapeManager(self)
+        self.transform = TransformController(self)
+        self.presets = PresetController(self)
 
-        self._transform_mode: str | None = None  # "rotate" | "scale" | None
-        self._transform_pivot: QPointF | None = None
-        self._transform_ref: float | None = None  # ref angle (rotate) or dist (scale)
-        self._transform_starts: dict[ControlPoint, QPointF] = {}
-        self._transform_pivot_item: QGraphicsEllipseItem | None = None
-
+    # ------------------------------------------------------------
+    #  Read-only views on Selection
+    # ------------------------------------------------------------
     @property
     def selected_points(self):
         return self.selection.points
@@ -86,11 +89,34 @@ class BezierScene(QGraphicsScene):
     def focused_point(self):
         return self.selection.focused_point
 
-    # bezier_scene.py
     def ui_curves(self, shape):
         """The UI BezierCurve objects for a model Shape."""
         return [self._curve_by_model[mc] for mc in shape.curves
                 if mc in self._curve_by_model]
+
+    # ------------------------------------------------------------
+    #  Public delegates (main_window / custom_view API)
+    # ------------------------------------------------------------
+    def start_rotation(self) -> bool:
+        return self.transform.start_rotation()
+
+    def start_scaling(self) -> bool:
+        return self.transform.start_scaling()
+
+    def end_transform(self, commit: bool = True):
+        return self.transform.end_transform(commit)
+
+    def is_transforming(self) -> bool:
+        return self.transform.is_transforming()
+
+    def arm_preset(self, name: str) -> bool:
+        return self.presets.arm_preset(name)
+
+    def cancel_preset(self) -> bool:
+        return self.presets.cancel_preset()
+
+    def on_shift_released(self):
+        return self.presets.on_shift_released()
 
     # ------------------------------------------------------------
     #  Mouse interaction
@@ -101,12 +127,12 @@ class BezierScene(QGraphicsScene):
             return
 
         # A pending preset consumes this click, whatever the mode.
-        if self._preset_pending is not None:
+        if self.presets._pending is not None:
             keep = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
-            self._place_preset(event.scenePos(), keep_armed=keep)
+            self.presets._place_preset(event.scenePos(), keep_armed=keep)
             return
 
-        # ---- Create mode: left-click places a point, nothing else ----
+        # ---- Create mode ----
         if self.mode == "create":
             if self.pending_curve is None:
                 self.pending_curve = BezierCurve(self, degree=self.current_degree)
@@ -144,21 +170,12 @@ class BezierScene(QGraphicsScene):
             self._drag_press_pos = event.scenePos()
 
             self.clear_hover()
-            # Setting dragging_point *before* calling super() is deliberate:
-            # Qt delivers the first mouseMoveEvent after this returns, and
-            # mouseMoveEvent only mirrors the drag when dragging_point is set.
-            # _start_drag snapshots _drag_primary_start here, before Qt moves
-            # the primary point, so the delta is measured from the pre-drag
-            # position.
             self.dragging_point = item
             self._start_drag(item)
-
             super().mousePressEvent(event)
             return
 
-        # Not on a point. Refresh hover for this exact scene position —
-        # mouseMoved normally keeps it current, but a click without a
-        # preceding move shouldn't be a no-op.
+        # Not on a point. Refresh hover for this exact scene position.
         self._update_hover(event.scenePos())
         if self.hovered_curve is not None:
             add = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
@@ -166,43 +183,8 @@ class BezierScene(QGraphicsScene):
             event.accept()
             return
 
-        # Nothing under the cursor → drop selection.
         self.set_selected_point(None)
         super().mousePressEvent(event)
-
-    def set_degree(self, degree: int):
-        if degree not in (2, 3) or degree == self.current_degree:
-            return
-        self.current_degree = degree
-        if self.pending_curve is not None:
-            self.discard_current_points()
-        self.messageLogged.emit(f"Curve type → {'quadratic' if degree == 2 else 'cubic'}")
-
-    def _with_linked(self, points) -> set[ControlPoint]:
-        """Return `points` plus every link-group sibling of any of them."""
-        result = set(points)
-        for pt in points:
-            group = self.link_manager.group_of(pt)
-            if group:
-                result.update(group)
-        return result
-
-    def _start_drag(self, primary):
-        primary_group = self._with_linked({primary})
-        seeds = set(self.selected_points) | {primary}
-        self._drag_targets = {pt: pt.pos()
-                              for pt in self._with_linked(seeds) - primary_group}
-        self._drag_primary_start = primary.pos()
-
-
-    # ------------------------------------------------------------
-    #  Shape detection
-    # ------------------------------------------------------------
-    def cancel_pending_curve(self) -> bool:
-        if self.mode == "create" and self.pending_curve is not None:
-            self.discard_current_points()
-            return True
-        return False
 
     def mouseMoveEvent(self, event):
         super().mouseMoveEvent(event)
@@ -215,7 +197,6 @@ class BezierScene(QGraphicsScene):
                 self._pending_collapse_point = None
 
         if self.dragging_point is not None:
-            # Qt just moved the primary; mirror its delta onto the rest.
             delta = self.dragging_point.pos() - self._drag_primary_start
             for pt, start in self._drag_targets.items():
                 pt.setPos(start + delta)
@@ -244,22 +225,20 @@ class BezierScene(QGraphicsScene):
                 self.link_manager.clear_proximity()
 
                 if pending is not None:
-                    # No movement: it was a click. Collapse now.
                     self.set_selected_point(pending)
 
                 self._update_hover(event.scenePos())
-
         super().mouseReleaseEvent(event)
 
     # ------------------------------------------------------------
     #  Hover tracking
     # ------------------------------------------------------------
     def on_mouse_moved(self, scene_pos):
-        if self.is_transforming():
-            if self.is_rotating():
-                self._update_rotation(scene_pos)
+        if self.transform.is_transforming():
+            if self.transform.is_rotating():
+                self.transform._update_rotation(scene_pos)
             else:
-                self._update_scaling(scene_pos)
+                self.transform._update_scaling(scene_pos)
             return
         if self.dragging_point is not None:
             return
@@ -277,7 +256,6 @@ class BezierScene(QGraphicsScene):
                 if not curve.is_near(pos):
                     continue
                 new_hovered = curve
-                # Is a point of THIS curve under the cursor?
                 for pt in curve.points:
                     p = pt.pos()
                     dx, dy = p.x() - pos.x(), p.y() - pos.y()
@@ -287,8 +265,7 @@ class BezierScene(QGraphicsScene):
                 break
 
         # Only the stroke counts as a curve hover — when a point is under
-        # the cursor, focus moves to that point and the curve does not
-        # count as hovered.
+        # the cursor, focus moves to that point and the curve is not hovered.
         if new_focused_pt is not None:
             new_hovered = None
 
@@ -298,7 +275,7 @@ class BezierScene(QGraphicsScene):
         self.selection.clear_hover()
 
     # ------------------------------------------------------------
-    #  Shape selection
+    #  Selection
     # ------------------------------------------------------------
     def set_selected_point(self, point):
         """Replace the whole selection with just `point` (or clear if None)."""
@@ -328,6 +305,8 @@ class BezierScene(QGraphicsScene):
                 pt.setPos(pos)
 
     def select_curve_under_hover(self, add: bool = False) -> bool:
+        """Toggle selection of the hovered curve. With `add`, the curve joins
+        the existing selection instead of replacing it. Returns True if handled."""
         if self.hovered_curve is None:
             return False
         curve = self.hovered_curve
@@ -351,6 +330,7 @@ class BezierScene(QGraphicsScene):
                 self.messageLogged.emit(f"Added {curve.name} to selection")
             return True
 
+        # No shift: replace, unless this curve is already the whole selection.
         if in_selection and len(sel.points) == len(curve.points):
             self.clear_selection()
             self.messageLogged.emit(f"{curve.name} deselected")
@@ -372,8 +352,17 @@ class BezierScene(QGraphicsScene):
         self.shape_manager.apply_curve_colors()
 
     # ------------------------------------------------------------
-    #  Curve finalization
+    #  Degree, curve finalization, change notification
     # ------------------------------------------------------------
+    def set_degree(self, degree: int):
+        if degree not in (2, 3) or degree == self.current_degree:
+            return
+        self.current_degree = degree
+        if self.pending_curve is not None:
+            self.discard_current_points()
+        self.messageLogged.emit(
+            f"Curve type → {'quadratic' if degree == 2 else 'cubic'}")
+
     def finalize_curve(self):
         curve = self.pending_curve
         self.pending_curve = None
@@ -384,17 +373,10 @@ class BezierScene(QGraphicsScene):
         self.curves.append(curve)
         self.emit_svg()
 
-
-    # ------------------------------------------------------------
-    #  Change notification from a curve
-    # ------------------------------------------------------------
     def on_curve_changed(self):
         self.emit_svg()
         self.shape_manager.update_fills()
 
-    # ------------------------------------------------------------
-    #  Discard incomplete curve
-    # ------------------------------------------------------------
     def discard_current_points(self):
         if self.pending_curve is None:
             return
@@ -403,25 +385,47 @@ class BezierScene(QGraphicsScene):
         self.emit_svg()
         self.messageLogged.emit("Incomplete curve discarded")
 
+    def cancel_pending_curve(self) -> bool:
+        if self.mode == "create" and self.pending_curve is not None:
+            self.discard_current_points()
+            return True
+        return False
+
+    # ------------------------------------------------------------
+    #  Drag helpers
+    # ------------------------------------------------------------
+    def _with_linked(self, points) -> set[ControlPoint]:
+        """Return `points` plus every link-group sibling of any of them."""
+        result = set(points)
+        for pt in points:
+            group = self.link_manager.group_of(pt)
+            if group:
+                result.update(group)
+        return result
+
+    def _start_drag(self, primary):
+        primary_group = self._with_linked({primary})
+        seeds = set(self.selected_points) | {primary}
+        self._drag_targets = {pt: pt.pos()
+                              for pt in self._with_linked(seeds) - primary_group}
+        self._drag_primary_start = primary.pos()
+
     # ------------------------------------------------------------
     #  Clear everything
     # ------------------------------------------------------------
     def clear_all(self):
         self.clear_hover()
-        self.end_transform(commit=False)
+        self.transform.end_transform(commit=False)
         self.set_selected_point(None)
         if self.pending_curve is not None:
             self.pending_curve.dispose()
             self.pending_curve = None
 
-        # Pop each curve out of self.curves *before* disposing it, so
-        # _refresh_shapes (triggered by unlink_point) never sees a curve
-        # whose points list has already been emptied.
         while self.curves:
             self.curves.pop().dispose()
-        self.curves.clear()  # harmless, keeps intent obvious
+        self.curves.clear()
         self.curve_color = QColor(DEFAULT_CURVE_COLOR)
-        BezierCurve._next_id = 1 # c'est mieux de repartir à 1.
+        BezierCurve._next_id = 1
         self.dragging_point = None
         self._remove_background_image()
         self.emit_svg()
@@ -430,7 +434,7 @@ class BezierScene(QGraphicsScene):
         self.messageLogged.emit("Scene cleared")
 
     # ------------------------------------------------------------
-    #  Save and Load
+    #  Save / load / SVG
     # ------------------------------------------------------------
     def generate_svg(self, bordered: bool = False):
         return scene_io.generate_svg(self, bordered=bordered)
@@ -449,6 +453,8 @@ class BezierScene(QGraphicsScene):
     #  Mirror
     # ------------------------------------------------------------
     def mirror_selection(self, axis: str) -> bool:
+        """Reflect the selection across the horizontal line (axis='x') or
+        vertical line (axis='y') through the barycentre of its points."""
         if not self.selected_points:
             self.messageLogged.emit(
                 "Nothing to mirror — select a curve (A or click) or a shape (S) first")
@@ -458,6 +464,7 @@ class BezierScene(QGraphicsScene):
         px = sum(p.pos().x() for p in base_pts) / len(base_pts)
         py = sum(p.pos().y() for p in base_pts) / len(base_pts)
 
+        # Include linked siblings so they stay coincident.
         targets = self._with_linked(base_pts)
         starts = {p: p.pos() for p in targets}
         if axis == "x":
@@ -469,8 +476,8 @@ class BezierScene(QGraphicsScene):
 
         self.messageLogged.emit(
             f"Mirrored across {axis.upper()} axis around ({px:.1f}, {py:.1f})")
-        if self.is_transforming():
-            self._reanchor_transform()
+        if self.transform.is_transforming():
+            self.transform._reanchor_transform()
         return True
 
     # ------------------------------------------------------------
@@ -487,17 +494,17 @@ class BezierScene(QGraphicsScene):
 
         item = QGraphicsPixmapItem(pixmap)
         item.setOpacity(0.35)
-        item.setZValue(-50)  # above viewbox (-100), below curves (-1)
-        item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)  # click-through
+        item.setZValue(-50)
+        item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False)
         item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
 
-        # Scale to fit inside the viewbox, preserve aspect ratio, center it.
         vb = self.viewbox
         pw, ph = pixmap.width(), pixmap.height()
         scale = min(vb.width() / pw, vb.height() / ph)
         item.setScale(scale)
-        item.setPos(vb.center().x() - pw * scale / 2, vb.center().y() - ph * scale / 2)
+        item.setPos(vb.center().x() - pw * scale / 2,
+                    vb.center().y() - ph * scale / 2)
 
         self.addItem(item)
         self.background_item = item
@@ -518,9 +525,6 @@ class BezierScene(QGraphicsScene):
             if not renderer.isValid():
                 return None
 
-            # Determine intrinsic size: prefer the SVG's declared width/height,
-            # fall back to the viewBox (which is what width/height usually mirror
-            # anyway), and only as a true last resort use a square target.
             target = int(max(self.viewbox.width(), self.viewbox.height()) * 2)
             size = renderer.defaultSize()
             if size.isEmpty():
@@ -528,7 +532,6 @@ class BezierScene(QGraphicsScene):
             if size.isEmpty():
                 size = QSize(target, target)
 
-            # Scale up so the longest side matches `target`, preserving aspect ratio.
             scale = target / max(size.width(), size.height())
             size = QSize(int(size.width() * scale), int(size.height() * scale))
 
@@ -542,6 +545,9 @@ class BezierScene(QGraphicsScene):
         pixmap = QPixmap(filepath)
         return pixmap if not pixmap.isNull() else None
 
+    # ------------------------------------------------------------
+    #  Point movement
+    # ------------------------------------------------------------
     def move_selected_points(self, dx: float, dy: float) -> bool:
         if not self.selected_points:
             return False
@@ -577,62 +583,8 @@ class BezierScene(QGraphicsScene):
         return n
 
     # ------------------------------------------------------------
-    #  One-click presets
+    #  Delete selection
     # ------------------------------------------------------------
-    def arm_preset(self, name: str) -> bool:
-        if name not in PRESETS:
-            return False
-        if self._preset_pending == name:
-            self._preset_pending = None
-            self.presetStateChanged.emit("")
-            self.messageLogged.emit("Preset cancelled")
-            return True
-        if self.pending_curve is not None:
-            # Refused: sync the panel back to whatever state we're actually in.
-            self.presetStateChanged.emit(self._preset_pending or "")
-            self.messageLogged.emit("Finish or discard the current curve first")
-            return False
-        self._preset_pending = name
-        self.presetStateChanged.emit(name)
-        self.messageLogged.emit(
-            f"Click the canvas to place '{PRESETS[name].label}'")
-        return True
-
-    def _place_preset(self, center: QPointF, keep_armed: bool = False):
-        name = self._preset_pending
-        if not keep_armed:
-            self._preset_pending = None
-            self.presetStateChanged.emit("")
-
-        preset = PRESETS[name]
-        degree = self.current_degree
-        curves = []
-        for cdef in preset.curves:
-            curve = BezierCurve(self, degree=degree)
-            for dx, dy in cdef.offsets_for_degree(degree):
-                curve.add_point(QPointF(center.x() + dx, center.y() + dy))
-            self.pending_curve = curve
-            self.finalize_curve()
-            curves.append(curve)
-
-        for (ci, pi), (cj, pj) in preset.links:
-            self.link_manager.link_points(curves[ci].points[pi], curves[cj].points[pj])
-
-        kind = "cubic" if degree == 3 else "quadratic"
-        if keep_armed:
-            self.messageLogged.emit(
-                f"{preset.label} placed ({kind}) — still armed, release Shift to stop")
-        else:
-            self.messageLogged.emit(f"{preset.label} placed ({kind})")
-
-    def cancel_preset(self) -> bool:
-        if self._preset_pending is None:
-            return False
-        self._preset_pending = None
-        self.presetStateChanged.emit("")
-        self.messageLogged.emit("Preset cancelled")
-        return True
-
     def delete_selection(self) -> int:
         """Delete every curve selected directly (curve_selected) or via a
         selected shape. Returns the number of curves removed."""
@@ -648,10 +600,6 @@ class BezierScene(QGraphicsScene):
             return 0
 
         self.clear_hover()
-
-        # Clear shape selection first: this also drops the shapes' points
-        # from selected_points, so the loop below only has to worry about
-        # points selected via curve_selected.
         self.shape_manager.select(None)
 
         curves = list(to_delete)
@@ -662,186 +610,19 @@ class BezierScene(QGraphicsScene):
                     self.selected_points.remove(pt)
                 pt.update()
 
-        # dispose() unlinks each point, which triggers shape_manager.refresh()
-        # — any closed loop that used one of these curves dissolves naturally.
         for curve in curves:
             curve.dispose()
 
-        self.shape_manager.refresh()  # belt & braces; dispose already ran it
+        self.shape_manager.refresh()
         self.emit_svg()
-
         n = len(curves)
         self.messageLogged.emit(
             f"Deleted {curves[0].name}" if n == 1 else f"Deleted {n} curves")
         return n
 
     # ------------------------------------------------------------
-    #  Transform: rotation and scaling share their machinery
+    #  Model registry (UI ↔ model bridge)
     # ------------------------------------------------------------
-    def is_rotating(self) -> bool:
-        return self._transform_mode == "rotate"
-
-    def is_scaling(self) -> bool:
-        return self._transform_mode == "scale"
-
-    def is_transforming(self) -> bool:
-        return self._transform_mode is not None
-
-    def _transform_base_points(self) -> set[ControlPoint] | None:
-        """The points whose barycentre is the pivot: the selected shape's, or
-        the selected curves'. None if nothing suitable is selected."""
-        curves = self._selected_curves()
-        if not curves:
-            return None
-        pts: set[ControlPoint] = set()
-        for c in curves:
-            pts.update(c.points)
-        return pts
-
-    def _selected_curves(self) -> list[BezierCurve]:
-        """Every curve currently part of the selection — shape selection
-        (S) and curve selection (A / click) are independent and both count."""
-        curves: set[BezierCurve] = set()
-        for shape in self.shape_manager.selected_shapes():
-            curves.update(self.ui_curves(shape))
-        for c in self.curves:
-            if c.curve_selected:
-                curves.add(c)
-        return list(curves)
-
-    def _start_transform(self, mode: str) -> bool:
-        if self.is_transforming():
-            return True
-        base = self._transform_base_points()
-        if not base:
-            self.messageLogged.emit(
-                "Nothing to transform — select a curve (A or click) or a shape (S) first")
-            return False
-
-        cx = sum(p.pos().x() for p in base) / len(base)
-        cy = sum(p.pos().y() for p in base) / len(base)
-
-        self._transform_mode = mode
-        self._transform_pivot = QPointF(cx, cy)
-        self._transform_ref = None  # captured on first move
-        self._transform_starts = {
-            p: p.pos() for p in self._with_linked(base)}
-
-        self._transform_last_pos = None
-        self._show_pivot(cx, cy)
-        self.transformModeChanged.emit(True)
-        verb = "Rotating" if mode == "rotate" else "Scaling"
-        self.messageLogged.emit(
-            f"{verb} around ({cx:.1f}, {cy:.1f}) — right-click to validate, Esc to cancel")
-        return True
-
-    def _end_transform(self, commit: bool = True):
-        if not self.is_transforming():
-            return
-        mode = self._transform_mode
-        if not commit:
-            for pt, start in self._transform_starts.items():
-                pt.setPos(start)
-            self.on_curve_changed()  # one rebuild after restoring
-        self._transform_mode = None
-        self._transform_pivot = None
-        self._transform_ref = None
-        self._transform_starts = {}
-        self._hide_pivot()
-        self.transformModeChanged.emit(False)
-        verb = "Rotation" if mode == "rotate" else "Scaling"
-        self.messageLogged.emit(f"{verb} validated" if commit else f"{verb} cancelled")
-
-    def start_rotation(self) -> bool:
-        return self._start_transform("rotate")
-
-    def start_scaling(self) -> bool:
-        return self._start_transform("scale")
-
-    def end_transform(self, commit: bool = True):
-        self._end_transform(commit)
-
-    def _reanchor_transform(self):
-        """After an external change to positions (e.g. a mirror during an
-        active transform), realign the snapshot so the next update continues
-        from the current positions instead of the pre-transform ones."""
-        if self._transform_pivot is None:
-            return
-        for p in self._transform_starts:
-            self._transform_starts[p] = p.pos()
-        last = self._transform_last_pos
-        if last is None:
-            # No mouse move yet; let the first move capture a fresh reference.
-            self._transform_ref = None
-            return
-        px = self._transform_pivot.x()
-        py = self._transform_pivot.y()
-        dx, dy = last.x() - px, last.y() - py
-        if self.is_rotating():
-            self._transform_ref = math.atan2(dy, dx) if (dx or dy) else None
-        else:
-            dist = math.hypot(dx, dy)
-            self._transform_ref = dist if dist > 1e-6 else None
-
-    def _update_rotation(self, scene_pos: QPointF):
-        if scene_pos is None or self._transform_pivot is None:
-            return
-        self._transform_last_pos = QPointF(scene_pos)
-        px, py = self._transform_pivot.x(), self._transform_pivot.y()
-        dx, dy = scene_pos.x() - px, scene_pos.y() - py
-        if dx == 0.0 and dy == 0.0:
-            return
-        angle = math.atan2(dy, dx)
-        if self._transform_ref is None:
-            self._transform_ref = angle
-            return
-        delta = angle - self._transform_ref
-        cos_a, sin_a = math.cos(delta), math.sin(delta)
-        for pt, start in self._transform_starts.items():
-            sx, sy = start.x() - px, start.y() - py
-            pt.setPos(px + sx * cos_a - sy * sin_a,
-                      py + sx * sin_a + sy * cos_a)
-
-    def _update_scaling(self, scene_pos: QPointF):
-        if scene_pos is None or self._transform_pivot is None:
-            return
-        self._transform_last_pos = QPointF(scene_pos)
-        px, py = self._transform_pivot.x(), self._transform_pivot.y()
-        dx, dy = scene_pos.x() - px, scene_pos.y() - py
-        dist = math.hypot(dx, dy)
-        if dist < 1e-6:
-            return
-        if self._transform_ref is None:
-            self._transform_ref = dist
-            return
-        ratio = dist / self._transform_ref
-        ratio = max(0.05, min(ratio, 50.0))  # guard against collapse/explosion
-        for pt, start in self._transform_starts.items():
-            sx, sy = start.x() - px, start.y() - py
-            pt.setPos(px + sx * ratio, py + sy * ratio)
-
-    def _show_pivot(self, x: float, y: float):
-        r = ROTATION_PIVOT_RADIUS
-        item = QGraphicsEllipseItem(-r, -r, 2 * r, 2 * r)
-        item.setBrush(QBrush(ROTATION_PIVOT_COLOR))
-        item.setPen(QPen(Qt.PenStyle.NoPen))
-        item.setZValue(1000)
-        item.setPos(x, y)
-        item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
-        self.addItem(item)
-        self._transform_pivot_item = item
-
-    def _hide_pivot(self):
-        if self._transform_pivot_item is not None:
-            self.removeItem(self._transform_pivot_item)
-            self._transform_pivot_item = None
-
-
-    def on_shift_released(self):
-        """Releasing shift after shift-click placement unarms the preset."""
-        if self._preset_pending is not None:
-            self.cancel_preset()
-
     def _sync_model_registry(self):
         """Sync the model with the scene's current items. Additive: model
         Curve/Point objects persist across calls so identity is stable."""
