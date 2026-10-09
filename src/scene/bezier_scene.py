@@ -5,13 +5,13 @@ from PySide6.QtWidgets import (QGraphicsScene, QGraphicsItem, QGraphicsRectItem,
 from PySide6.QtSvg import QSvgRenderer
 
 from scene.scene_io import generate_svg, save_state, load_state
-from src.core.settings import ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH, DEFAULT_CURVE_COLOR, HOVER_TOLERANCE
-from src.scene.link_manager import LinkManager
-from src.scene.items.control_point import ControlPoint
-from src.scene.items.bezier_curve import BezierCurve
-from src.scene.shape_manager import ShapeManager
-from src.scene.selection import Selection
-from src.core.model import Document
+from core.settings import ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH, DEFAULT_CURVE_COLOR, HOVER_TOLERANCE
+from scene.link_manager import LinkManager
+from scene.items.control_point import ControlPoint
+from scene.items.bezier_curve import BezierCurve
+from scene.shape_manager import ShapeManager
+from scene.selection import Selection
+from core.model import Document
 from .transform_controller import TransformController
 from .preset_controller import PresetController
 from .model_registry import ModelRegistry

@@ -2,7 +2,6 @@
 from PySide6.QtCore import QPointF
 
 from core.presets import PRESETS
-from scene.items.bezier_curve import BezierCurve
 
 
 class PresetController:
