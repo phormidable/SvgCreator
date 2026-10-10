@@ -45,34 +45,19 @@ class PresetDef:
 # ------------------------------------------------------------
 #  Helpers
 # ------------------------------------------------------------
-def _polygon_preset(name, label, verts, tooltip=""):
-    """Closed polygon: one straight curve per edge, consecutive endpoints
-    linked into a loop.
-    Cubic: controls at 1/3 and 2/3 of the edge (so both handles are visible
-    and selectable). Quadratic: single control at the midpoint."""
-    n = len(verts)
-    curves = []
-    for i in range(n):
-        ax, ay = verts[i]
-        bx, by = verts[(i + 1) % n]
-        c1 = ((2 * ax + bx) / 3, (2 * ay + by) / 3)
-        c2 = ((ax + 2 * bx) / 3, (ay + 2 * by) / 3)
-        mid = ((ax + bx) / 2, (ay + by) / 2)
-        curves.append(CurveDef(
-            [(ax, ay), c1, c2, (bx, by)],
-            quadratic_offsets=[(ax, ay), mid, (bx, by)],
-        ))
-    links = [((i, -1), ((i + 1) % n, 0)) for i in range(n)]
-    return PresetDef(name=name, label=label, tooltip=tooltip, curves=curves, links=links)
+def _poly_preset(name, label, verts, closed, tooltip=""):
+    """Polyline (closed=False) or polygon (closed=True): straight cubic
+    curves between consecutive vertices, endpoints linked. Closed loops
+    add a wrapping edge and form a shape.
 
-def _polyline_preset(name, label, verts, tooltip=""):
-    """Open polyline: one straight curve per segment, consecutive endpoints
-    linked. Unlike a polygon, no closing link — so no shape is formed."""
-    n = len(verts)
+    Cubic: controls at 1/3 and 2/3 of the edge (so both handles are
+    visible and selectable). Quadratic: single control at the midpoint."""
+    edges = list(zip(verts, verts[1:]))
+    if closed:
+        edges.append((verts[-1], verts[0]))
+
     curves = []
-    for i in range(n - 1):
-        ax, ay = verts[i]
-        bx, by = verts[i + 1]
+    for (ax, ay), (bx, by) in edges:
         c1 = ((2 * ax + bx) / 3, (2 * ay + by) / 3)
         c2 = ((ax + 2 * bx) / 3, (ay + 2 * by) / 3)
         mid = ((ax + bx) / 2, (ay + by) / 2)
@@ -80,7 +65,11 @@ def _polyline_preset(name, label, verts, tooltip=""):
             [(ax, ay), c1, c2, (bx, by)],
             quadratic_offsets=[(ax, ay), mid, (bx, by)],
         ))
-    links = [((i, -1), (i + 1, 0)) for i in range(n - 2)]
+
+    links = [((i, -1), (i + 1, 0)) for i in range(len(curves) - 1)]
+    if closed:
+        links.append(((len(curves) - 1, -1), (0, 0)))
+
     return PresetDef(name=name, label=label, tooltip=tooltip,
                      curves=curves, links=links)
 
@@ -124,107 +113,62 @@ def _ellipse_preset(name, label, rx, ry, tooltip=""):
 # ------------------------------------------------------------
 PRESETS = {
     # ---- Moons ----
-    "moon_up": PresetDef(
-        name="moon_up", label="🌙↑",
-        tooltip="Upward moon (single curve)",
+    "moon_up": PresetDef(name="moon_up", label="🌙↑", tooltip="Upward moon (single curve)",
         curves=[CurveDef([(-154, 104), (-128, -106), (132, -142), (149, 145)])],
     ),
-    "moon_right": PresetDef(
-        name="moon_right", label="🌙→",
-        tooltip="Rightward moon (single curve)",
+    "moon_right": PresetDef(name="moon_right", label="🌙→", tooltip="Rightward moon (single curve)",
         curves=[CurveDef([(-195, -147), (187, -51), (194, 57), (-188, 140)])],
     ),
-    "moon_down": PresetDef(
-        name="moon_down", label="🌙↓",
-        tooltip="Downward moon (single curve)",
+    "moon_down": PresetDef(name="moon_down", label="🌙↓",tooltip="Downward moon (single curve)",
         curves=[CurveDef([(-165, -169), (-130, 173), (117, 153), (179, -158)])],
     ),
-    "moon_left": PresetDef(
-        name="moon_left", label="🌙←",
-        tooltip="Leftward moon (single curve)",
+    "moon_left": PresetDef(name="moon_left", label="🌙←", tooltip="Leftward moon (single curve)",
         curves=[CurveDef([(62, -127), (-126, -84), (-126, 108), (190, 102)])],
     ),
 
     # ---- Polygons ----
-        "triangle": _polygon_preset(
-        "triangle", "△",
-        [(-80, 40), (80, 40), (0, -80)],
-        tooltip="Triangle (3 curves linked into a shape)",
-    ),
-    "square": _polygon_preset(
-        "square", "□",
-        [(-50, -50), (50, -50), (50, 50), (-50, 50)],
+    "triangle": _poly_preset("triangle", "△",[(-80, 40), (80, 40), (0, -80)], closed=True,
+        tooltip="Triangle (3 curves linked into a shape)"),
+    "square": _poly_preset("square", "□", [(-50, -50), (50, -50), (50, 50), (-50, 50)], closed=True,
         tooltip="Square (4 curves linked into a shape)"),
-    "pentagon": _polygon_preset(
-        "pentagon", "⬠",
-        [(0, -60), (57, -19), (35, 49), (-35, 49), (-57, -19)],
+    "pentagon": _poly_preset("pentagon", "⬠", [(0, -60), (57, -19), (35, 49), (-35, 49), (-57, -19)], closed=True,
         tooltip="Pentagon (5 curves linked into a shape)"),
-    "rhombus_wide": _polygon_preset(
-        "rhombus_wide", "◇",
-        [(0, -30), (80, 0), (0, 30), (-80, 0)],
+    "rhombus_wide": _poly_preset("rhombus_wide", "◇", [(0, -30), (80, 0), (0, 30), (-80, 0)], closed=True,
         tooltip="Wide rhombus (4 curves linked into a shape)"),
-    "rhombus_tall": _polygon_preset(
-        "rhombus_tall", "◈",
-        [(0, -80), (30, 0), (0, 80), (-30, 0)],
+    "rhombus_tall": _poly_preset("rhombus_tall", "◈", [(0, -80), (30, 0), (0, 80), (-30, 0)], closed=True,
         tooltip="Tall rhombus (4 curves linked into a shape)"),
 
     # ---- Ellipses ----
-    "ellipse_wide": _ellipse_preset(
-        "ellipse_wide", "⬭", 80, 40,
-        tooltip="Wide ellipse (4 curves linked into a shape)"),
-    "ellipse_tall": _ellipse_preset(
-        "ellipse_tall", "⬯", 40, 80,
-        tooltip="Tall ellipse (4 curves linked into a shape)"),
+    "ellipse_wide": _ellipse_preset("ellipse_wide", "⬭", 80, 40, tooltip="Wide ellipse (4 curves linked into a shape)"),
+    "ellipse_tall": _ellipse_preset("ellipse_tall", "⬯", 40, 80, tooltip="Tall ellipse (4 curves linked into a shape)"),
 
     # ---- Arrows ----
-    "arrow_up": _polygon_preset(
-        "arrow_up", "↑",
-        [(-30, 40), (-30, -10), (-60, -10), (0, -60),
-         (60, -10), (30, -10), (30, 40)],
-        tooltip="Up arrow (7 curves linked into a shape)"),
-    "arrow_right": _polygon_preset(
-        "arrow_right", "→",
-        [(-40, -30), (10, -30), (10, -60), (60, 0),
-         (10, 60), (10, 30), (-40, 30)],
-        tooltip="Right arrow (7 curves linked into a shape)"),
-    "arrow_down": _polygon_preset(
-        "arrow_down", "↓",
-        [(-30, -40), (30, -40), (30, 10), (60, 10),
-         (0, 60), (-60, 10), (-30, 10)],
-        tooltip="Down arrow (7 curves linked into a shape)"),
-    "arrow_left": _polygon_preset(
-        "arrow_left", "←",
-        [(40, -30), (-10, -30), (-10, -60), (-60, 0),
-         (-10, 60), (-10, 30), (40, 30)],
-        tooltip="Left arrow (7 curves linked into a shape)"),
+    "arrow_up": _poly_preset("arrow_up", "↑", [(-30, 40), (-30, -10), (-60, -10), (0, -60), (60, -10), (30, -10), (30, 40)],
+                             closed=True, tooltip="Up arrow (7 curves linked into a shape)"),
+    "arrow_right": _poly_preset("arrow_right", "→", [(-40, -30), (10, -30), (10, -60), (60, 0), (10, 60), (10, 30), (-40, 30)],
+                                closed=True, tooltip="Right arrow (7 curves linked into a shape)"),
+    "arrow_down": _poly_preset("arrow_down", "↓",[(-30, -40), (30, -40), (30, 10), (60, 10), (0, 60), (-60, 10), (-30, 10)],
+                               closed=True, tooltip="Down arrow (7 curves linked into a shape)"),
+    "arrow_left": _poly_preset("arrow_left", "←",[(40, -30), (-10, -30), (-10, -60), (-60, 0), (-10, 60), (-10, 30), (40, 30)],
+                               closed=True, tooltip="Left arrow (7 curves linked into a shape)"),
+
     # ---- Lines ----
-    "line_vertical": _line_preset(
-        "line_vertical", "│", 0, -50, 0, 50,
+    "line_vertical": _poly_preset("line_vertical", "│", [(0, -50), (0, 50)], closed=False,
         tooltip="Vertical straight line (single curve)"),
-    "line_horizontal": _line_preset(
-        "line_horizontal", "─", -50, 0, 50, 0,
+    "line_horizontal": _poly_preset("line_horizontal", "─", [(-50, 0), (50, 0)], closed=False,
         tooltip="Horizontal straight line (single curve)"),
 
     # ---- L shapes (2 linked curves, open) ----
-    # Corner positions per rotation; arms 100 units long.
     # Standard "L": corner bottom-left, arms up and right.
-    "L": _polyline_preset(
-        "L", "└",
-        [(-50, -50), (-50, 50), (50, 50)],
+    "L": _poly_preset("L", "└", [(-50, -50), (-50, 50), (50, 50)], closed=False,
         tooltip="L shape (2 linked curves, corner bottom-left)"),
     # Rotated 90° CW: corner top-left, arms right and down.
-    "L_90": _polyline_preset(
-        "L_90", "┌",
-        [(50, -50), (-50, -50), (-50, 50)],
+    "L_90": _poly_preset("L_90", "┌", [(50, -50), (-50, -50), (-50, 50)], closed=False,
         tooltip="L shape rotated 90° (corner top-left)"),
     # Rotated 180°: corner top-right, arms left and down.
-    "L_180": _polyline_preset(
-        "L_180", "┐",
-        [(-50, -50), (50, -50), (50, 50)],
+    "L_180": _poly_preset("L_180", "┐", [(-50, -50), (50, -50), (50, 50)], closed=False,
         tooltip="L shape rotated 180° (corner top-right)"),
     # Rotated 270° CW: corner bottom-right, arms up and left.
-    "L_270": _polyline_preset(
-        "L_270", "┘",
-        [(50, -50), (50, 50), (-50, 50)],
+    "L_270": _poly_preset("L_270", "┘", [(50, -50), (50, 50), (-50, 50)], closed=False,
         tooltip="L shape rotated 270° (corner bottom-right)"),
 }
