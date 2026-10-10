@@ -143,3 +143,48 @@ class LinkManager:
             linked_items.update(self.scene.registry.ui_points_for(j.points))
         for item in self.scene.registry.ui_points():
             item.set_linked(item in linked_items)
+
+    # ------------------------------------------------------------
+    #  Break Junction
+    # ------------------------------------------------------------
+    def try_break_junction(self) -> bool:
+        """U key: free every point in the junction the focused (or first
+        selected) point belongs to. Returns True if a junction was broken."""
+        point = self.scene.focused_point
+        if point is None or self.group_of(point) is None:
+            point = next((pt for pt in self.scene.selected_points
+                          if self.group_of(pt) is not None), None)
+        if point is None:
+            return False
+        return self.break_junction(point)
+
+    def break_junction(self, point) -> bool:
+        """Dissolve the junction containing `point` and fan its members out
+        along x: +10, -10, +20, -20, … from the junction's position."""
+        self.scene.registry.sync()
+        mp = self.scene.registry.model_point_for(point)
+        if mp is None:
+            return False
+        junction = self.scene.document.junction_that_contains(mp)
+        if junction is None:
+            return False
+
+        members = self.scene.registry.ui_points_for(junction.points)
+        if len(members) < 2:
+            return False
+
+        x, y = point.pos().x(), point.pos().y()
+
+        # Dissolve first, so the setPos calls below propagate to nobody.
+        self.scene.document.junctions.remove(junction)
+        self._sync_linked_flags()
+        self.scene.shape_manager.refresh()
+
+        for i, pt in enumerate(members):
+            offset = 10 * (i // 2 + 1)
+            sign = 1 if i % 2 == 0 else -1
+            pt.setPos(x + sign * offset, y)
+
+        self.scene.messageLogged.emit(
+            f"Broke junction — freed {len(members)} point(s)")
+        return True

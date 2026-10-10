@@ -152,8 +152,19 @@ PRESETS = {
         tooltip="Vertical straight line (single curve)"),
     "line_horizontal": _poly_preset("line_horizontal", "─", [(-50, 0), (50, 0)], closed=False,
         tooltip="Horizontal straight line (single curve)"),
+    "horizontal_rectangle": _poly_preset("horizontal_rectangle", "-",[(-120, -40), (120, -40), (120, 40), (-120, 40)],
+    closed=True, tooltip="horizontal rectangle"),
+    "vertical_rectangle": _poly_preset("vertical_rectangle", "|",[(-40, -120), (40, -120), (40, 120), (-40, 120)],
+    closed=True, tooltip="vertical rectangle"),
 
-    # ---- L shapes (2 linked curves, open) ----
+    # ---- 'plus' sign shape (12 linked curves) ----
+    "plus_sign": _poly_preset("plus_sign", "+",
+            [(-120, 40),(-120, -40),(-40, -40),(-40, -120),(40, -120),(40, -40),(120, -40),(120, 40),(40, 40),(40, 120),(-40, 120),(-40, 40)],
+            closed=True, tooltip="Plus sign (12 curves shape)"),
+    "T_shape": _poly_preset("T_shape", "T",
+[(-40, 120),(-40, -40),(-120, -40),(-120, -120), (120, -120), (120, -40), (40, -40), (40, 120)],
+        closed = True, tooltip = "T shape (8 curves shape)"),
+    # ---- L shapes (2 linked curves) ----
     # Standard "L": corner bottom-left, arms up and right.
     "L": _poly_preset("L", "└", [(-50, -50), (-50, 50), (50, 50)], closed=False,
         tooltip="L shape (2 linked curves, corner bottom-left)"),

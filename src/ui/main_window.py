@@ -106,6 +106,7 @@ class MainWindow(QMainWindow):
             K.Key_A: lambda e: scene.select_curve_under_hover(add=bool(e.modifiers() & Shift)),
             K.Key_X: lambda e: scene.mirror_selection("x"),
             K.Key_Y: lambda e: scene.mirror_selection("y"),
+            K.Key_U: lambda e: scene.link_manager.try_break_junction(),
             K.Key_Plus: lambda e: self._step_zoom(+1),
             K.Key_Equal: lambda e: self._step_zoom(+1),
             K.Key_Minus: lambda e: self._step_zoom(-1),
