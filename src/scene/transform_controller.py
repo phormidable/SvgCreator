@@ -49,7 +49,7 @@ class TransformController:
         """Every curve currently part of the selection — shape selection
         (S) and curve selection (A / click) are independent and both count."""
         curves: set = set()
-        for shape in self.scene.shape_manager.selected_shapes():
+        for shape in self.scene.selection.selected_shapes():
             curves.update(self.scene.ui_curves(shape))
         for c in self.scene.curves:
             if c.curve_selected:

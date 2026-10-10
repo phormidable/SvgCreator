@@ -297,7 +297,7 @@ class BezierScene(QGraphicsScene):
 
     def clear_selection(self):
         self.selection.clear_points()
-        self.shape_manager.select(None)
+        self.selection.select_shape(None)
 
     def _propagate_move(self, source, pos):
         """Apply `pos` to every other point in source's link group.
@@ -565,7 +565,7 @@ class BezierScene(QGraphicsScene):
         for curve in self.curves:
             if curve.curve_selected:
                 to_delete.add(curve)
-        for shape in self.shape_manager.selected_shapes():
+        for shape in self.selection.selected_shapes():
             to_delete.update(self.ui_curves(shape))
 
         if not to_delete:
@@ -573,7 +573,7 @@ class BezierScene(QGraphicsScene):
             return 0
 
         self.clear_hover()
-        self.shape_manager.select(None)
+        self.selection.select_shape(None)
 
         curves = list(to_delete)
         for curve in curves:

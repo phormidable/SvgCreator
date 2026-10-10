@@ -100,7 +100,7 @@ class MainWindow(QMainWindow):
             K.Key_R: lambda e: scene.start_rotation(),
             K.Key_B: lambda e: scene.start_scaling(),
             K.Key_L: lambda e: scene.link_manager.try_link_proximity(),
-            K.Key_S: lambda e: scene.shape_manager.select_from_hover(add=bool(e.modifiers() & Shift)),
+            K.Key_S: lambda e: scene.selection.select_shape_from_hover(add=bool(e.modifiers() & Shift)),
             K.Key_C: self._handle_color_selected_shape,
             K.Key_H: lambda e: scene.hide_hovered_curve_points(),
             K.Key_A: lambda e: scene.select_curve_under_hover(add=bool(e.modifiers() & Shift)),
@@ -337,7 +337,7 @@ class MainWindow(QMainWindow):
         return True
 
     def color_selected_shape(self):
-        shapes = self.scene.shape_manager.shapes_in_selection()
+        shapes = self.scene.selection.selected_shapes()
         if not shapes:
             self.statusBar().showMessage(
                 "No shape selected — hover a curve and press S first")

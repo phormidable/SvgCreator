@@ -1,13 +1,4 @@
-# shape_manager.py
-"""ShapeManager: owns the Shape objects (closed loops of one or more
-curves), their fill rendering, and which one (if any) is selected.
-
-A "loop" is a walk over curve endpoints through link groups. Each curve
-contributes one cubic segment; the walk closes when it returns to its
-starting endpoint.
-
-Owned state: shapes, _selected.
-"""
+# scene/shape_manager.py
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QPainterPath, QPen
@@ -28,68 +19,6 @@ class ShapeManager:
     @property
     def shapes(self):
         return self.scene.document.shapes
-
-    # ------------------------------------------------------------
-    #  Selection
-    # ------------------------------------------------------------
-    def selected(self) -> Shape | None:
-        """First selected shape, or None. Convenience for single-selection UIs."""
-        return self.scene.selection.first_selected_shape()
-
-    def selected_shapes(self) -> list[Shape]:
-        return self.scene.selection.selected_shapes_list()
-
-    def shapes_in_selection(self) -> list[Shape]:
-        """Shapes that are effectively part of the selection: explicitly
-        S-selected ones, plus any shape whose every curve is curve_selected
-        (e.g. reached via S on an open chain that includes the shape)."""
-        result = set(self.scene.selection.shapes)
-        flagged = {c for c in self.scene.curves if c.curve_selected}
-        for shape in self.shapes:
-            if shape.curves and set(self.scene.ui_curves(shape)) <= flagged:
-                result.add(shape)
-        return list(result)
-
-    def _sync_curve_points_for_shapes(self, shapes, add: bool):
-        pts = self.scene.selected_points
-        for shape in shapes:
-            for curve in self.scene.ui_curves(shape):
-                for pt in curve.points:
-                    if add:
-                        if pt not in pts:
-                            pts.append(pt)
-                    else:
-                        if pt in pts:
-                            pts.remove(pt)
-                    pt.update()
-                curve.update()
-
-
-    def select(self, shape: Shape | None, add: bool = False):
-        sel = self.scene.selection
-        if shape is None:
-            to_remove = list(sel.shapes)
-            sel.clear_shapes()
-            self._sync_curve_points_for_shapes(to_remove, add=False)
-            return
-        if add:
-            if not sel.is_shape_selected(shape):
-                sel.toggle_shape(shape)
-                self._sync_curve_points_for_shapes([shape], add=True)
-            return
-        to_remove = [s for s in sel.shapes if s is not shape]
-        for s in to_remove:
-            sel.toggle_shape(s)  # removes
-        if not sel.is_shape_selected(shape):
-            sel.toggle_shape(shape)
-            self._sync_curve_points_for_shapes([shape], add=True)
-        if to_remove:
-            self._sync_curve_points_for_shapes(to_remove, add=False)
-
-    def deselect(self, shape: Shape):
-        if self.scene.selection.is_shape_selected(shape):
-            self.scene.selection.toggle_shape(shape)
-            self._sync_curve_points_for_shapes([shape], add=False)
 
     def set_transparent(self, value: bool):
         """Enable/disable transparent rendering of every shape."""
@@ -143,79 +72,6 @@ class ShapeManager:
             if mcurve in shape.curves:
                 return shape
         return None
-
-    def select_from_hover(self, add: bool = False) -> bool:
-        hovered = self.scene.hovered_curve
-        if hovered is None:
-            return False
-
-        shape = self.shape_of_curve(hovered)
-        if shape is not None:
-            return self._select_shape(shape, add=add)
-
-        # Not in a closed loop — try an open chain.
-        chain = self.chain_of(hovered)
-        if len(chain) < 2:
-            self.scene.messageLogged.emit(
-                f"{hovered.name} is not linked to anything")
-            return False
-        return self._select_chain(chain, add=add)
-
-    def _select_shape(self, shape, add: bool) -> bool:
-        if add:
-            if self.scene.selection.is_shape_selected(shape):
-                self.deselect(shape)
-                self.scene.messageLogged.emit(
-                    f"{shape.name} removed from selection")
-            else:
-                self.select(shape, add=True)
-                self.scene.messageLogged.emit(
-                    f"Added {shape.name} to selection")
-            return True
-
-        # No shift: this shape becomes the whole selection.
-        # Toggle off only if it already was — i.e. no curve is also selected.
-        any_curve_selected = any(c.curve_selected for c in self.scene.curves)
-        sole_selection = (self.scene.selection.shapes == {shape}
-                          and not any_curve_selected)
-
-        self.scene.clear_selection()
-        if sole_selection:
-            self.scene.messageLogged.emit(f"{shape.name} deselected")
-        else:
-            self.select(shape, add=False)
-            self.scene.messageLogged.emit(f"{shape.name} selected")
-        return True
-
-    def _select_chain(self, chain, add: bool) -> bool:
-        scene = self.scene
-        sel = scene.selection
-        if add:
-            if all(sel.is_curve_selected(c) for c in chain):
-                for c in chain:
-                    for pt in c.points:
-                        if pt in sel.points:
-                            sel.points.remove(pt)
-                        pt.update()
-                    c.update()
-                scene.messageLogged.emit("Chain removed from selection")
-            else:
-                for c in chain:
-                    for pt in c.points:
-                        if pt not in sel.points:
-                            sel.points.append(pt)
-                        pt.update()
-                    c.update()
-                scene.messageLogged.emit(f"Added chain of {len(chain)} curves")
-            return True
-        scene.clear_selection()
-        for c in chain:
-            for pt in c.points:
-                sel.points.append(pt)
-                pt.update()
-            c.update()
-        scene.messageLogged.emit(f"Selected chain of {len(chain)} curves")
-        return True
 
     def chain_of(self, curve):
         """The chain containing `curve`, as UI curves. Reads from the model
@@ -301,7 +157,7 @@ class ShapeManager:
                     if not any(curve in s.curves for s in after):
                         curve.set_color(self.scene.curve_color)
             if self.scene.selection.is_shape_selected(shape):
-                self.deselect(shape)
+                self.scene.selection.deselect_shape(shape)
             self.scene.messageLogged.emit(f"{shape.name} dissolved")
 
         # Greet new shapes.
@@ -441,4 +297,3 @@ class ShapeManager:
                 curve.set_color(border)
 
         self.scene.emit_svg()
-
