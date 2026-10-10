@@ -35,6 +35,7 @@ class MainWindow(QMainWindow):
         self.drawing_view.setMinimumSize(DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT)
         # no setFixedSize — let the layout stretch it
         self.scene = BezierScene()
+        self._key_handlers = self._build_key_handlers()
         self.drawing_view.setScene(self.scene)
         main_layout.addWidget(self.drawing_view, 1)  # stretch = 1, take all the room
         self.file_io = FileIO(self)
@@ -90,82 +91,53 @@ class MainWindow(QMainWindow):
         self.set_mode("create")
         self.scene.emit_svg()
 
+    def _build_key_handlers(self) -> dict:
+        K = Qt.Key
+        Shift = Qt.KeyboardModifier.ShiftModifier
+        scene = self.scene
+        return {
+            K.Key_Escape: self._handle_escape,
+            K.Key_R: lambda e: scene.start_rotation(),
+            K.Key_B: lambda e: scene.start_scaling(),
+            K.Key_L: lambda e: scene.link_manager.try_link_proximity(),
+            K.Key_S: lambda e: scene.shape_manager.select_from_hover(add=bool(e.modifiers() & Shift)),
+            K.Key_C: self._handle_color_selected_shape,
+            K.Key_H: lambda e: scene.hide_hovered_curve_points(),
+            K.Key_A: lambda e: scene.select_curve_under_hover(add=bool(e.modifiers() & Shift)),
+            K.Key_X: lambda e: scene.mirror_selection("x"),
+            K.Key_Y: lambda e: scene.mirror_selection("y"),
+            K.Key_Plus: lambda e: self._step_zoom(+1),
+            K.Key_Equal: lambda e: self._step_zoom(+1),
+            K.Key_Minus: lambda e: self._step_zoom(-1),
+            K.Key_Backspace: lambda e: scene.delete_selection(),
+            K.Key_Left: lambda e: scene.move_selected_points(-1, 0),
+            K.Key_Right: lambda e: scene.move_selected_points(+1, 0),
+            K.Key_Up: lambda e: scene.move_selected_points(0, -1),
+            K.Key_Down: lambda e: scene.move_selected_points(0, +1),
+        }
+
+    def _handle_escape(self, event) -> bool:
+        if self.scene.is_transforming():
+            self.scene.end_transform(commit=False)
+            return True
+        if self.scene.cancel_preset():
+            return True
+        self.scene.clear_selection()
+        return self.scene.cancel_pending_curve()
+
+    def _handle_color_selected_shape(self, event) -> bool:
+        self.color_selected_shape()
+        return True
+
     def _toggle_mode(self):
         new_mode = "edit" if self.scene.mode == "create" else "create"
         self.set_mode(new_mode)
 
     def keyPressEvent(self, event):
-        key = event.key()
-
-        if key == Qt.Key.Key_Escape:
-            if self.scene.is_transforming():
-                self.scene.end_transform(commit=False)
-                event.accept()
-                return
-            if self.scene.cancel_preset():
-                event.accept()
-                return
-            self.scene.clear_selection()
-            if self.scene.cancel_pending_curve():
-                event.accept()
-                return
-        elif key == Qt.Key.Key_R:
-            if self.scene.start_rotation():
-                event.accept()
-                return
-        elif key == Qt.Key.Key_B:
-            if self.scene.start_scaling():
-                event.accept()
-                return
-        elif key == Qt.Key.Key_L:
-            if self.scene.link_manager.try_link_proximity():
-                event.accept()
-                return
-        elif key == Qt.Key.Key_S:
-            add = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
-            if self.scene.shape_manager.select_from_hover(add=add):
-                event.accept()
-                return
-        elif key == Qt.Key.Key_C:
-            self.color_selected_shape()
+        handler = self._key_handlers.get(event.key())
+        if handler is not None and handler(event):
             event.accept()
             return
-        elif key == Qt.Key.Key_H:
-            if self.scene.hide_hovered_curve_points():
-                event.accept()
-                return
-        elif key == Qt.Key.Key_A:
-            add = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
-            if self.scene.select_curve_under_hover(add=add):
-                event.accept()
-                return
-        elif key == Qt.Key.Key_X:
-            if self.scene.mirror_selection("x"):
-                event.accept()
-                return
-        elif key == Qt.Key.Key_Y:
-            if self.scene.mirror_selection("y"):
-                event.accept()
-                return
-        elif key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
-            self._step_zoom(+1)
-            event.accept()
-            return
-        elif key == Qt.Key.Key_Minus:
-            self._step_zoom(-1)
-            event.accept()
-            return
-        elif key == Qt.Key.Key_Backspace:
-            if self.scene.delete_selection():
-                event.accept()
-                return
-        elif key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
-            dx = -1 if key == Qt.Key.Key_Left else 1 if key == Qt.Key.Key_Right else 0
-            dy = -1 if key == Qt.Key.Key_Up else 1 if key == Qt.Key.Key_Down else 0
-            if self.scene.move_selected_points(dx, dy):
-                event.accept()
-                return
-
         super().keyPressEvent(event)
 
     def log(self, message: str):
@@ -357,12 +329,12 @@ class MainWindow(QMainWindow):
         else:
             self.statusBar().showMessage("Nothing to restore")
 
-    def _step_zoom(self, direction: int):
+    def _step_zoom(self, direction: int) -> bool:
         idx = self.zoom_combo.currentIndex()
         new_idx = max(0, min(self.zoom_combo.count() - 1, idx + direction))
-        if new_idx == idx:
-            return
-        self.zoom_combo.setCurrentIndex(new_idx)
+        if new_idx != idx:
+            self.zoom_combo.setCurrentIndex(new_idx)
+        return True
 
     def color_selected_shape(self):
         shapes = self.scene.shape_manager.shapes_in_selection()
