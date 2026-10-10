@@ -57,8 +57,8 @@ class Selection:
         shape = self.scene.shape_manager.shape_of_curve(curve)
         return shape is not None and shape in self.shapes
 
-    def first_selected_shape(self):
-        return next(iter(self.shapes), None)
+    # def first_selected_shape(self):
+    #     return next(iter(self.shapes), None)
 
     def selected_shapes(self) -> list:
         return list(self.shapes)

@@ -29,14 +29,6 @@ VIEWBOX_BACKGROUND_COLOR = QColor("white")         # exported area
 VIEWBOX_BORDER_COLOR = QColor(120, 120, 120)
 VIEWBOX_BORDER_WIDTH = 1
 
-# Moon presets: (p0, p1, p2, p3) offsets from the centroid.
-MOON_PRESETS = {
-    "up":    [(-154, 104), (-128, -106), (132, -142), (149, 145)],
-    "right": [(-195, -147), (187, -51), (194, 57), (-188, 140)],
-    "down":  [(-165, -169), (-130, 173), (117, 153), (179, -158)],
-    "left":  [(62, -127), (-126, -84), (-126, 108), (190, 102)],
-}
-
 # ---- Hover highlight ----
 HOVER_TOLERANCE = 10
 HOVER_COLOR = QColor("green")

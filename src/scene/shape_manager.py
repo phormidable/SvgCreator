@@ -222,7 +222,6 @@ class ShapeManager:
         return shape.color.darker(SHAPE_BORDER_DARKEN)
 
     def shape_path(self, shape) -> QPainterPath:
-        print("[shape_path] ENTERED", flush=True)
         result = self._loop_segments(shape)
         if result is None:
             return QPainterPath()
@@ -232,8 +231,6 @@ class ShapeManager:
         for c1, c2, end_pos in segments:
             path.cubicTo(c1, c2, end_pos)
         path.closeSubpath()
-        print(f"[shape_path] file={__file__}", flush=True)
-        print(f"[shape_path] returning {type(path).__name__}", flush=True)
         return path
 
     def shape_svg_path_string(self, shape: Shape) -> str:

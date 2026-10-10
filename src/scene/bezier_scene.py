@@ -272,8 +272,6 @@ class BezierScene(QGraphicsScene):
                         break
                 break
 
-        # (the "if new_focused_pt is not None: new_hovered = None" block is gone)
-
         self.selection.set_hover(new_hovered, new_focused_pt)
 
     def clear_hover(self):
