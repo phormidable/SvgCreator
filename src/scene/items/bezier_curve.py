@@ -136,17 +136,6 @@ class BezierCurve(QGraphicsItem):
                 return True
         return False
 
-    # ---------------------------------------------------------------
-    #  SVG — kept for now; the export path goes through the model via
-    #  scene_io + curve_geometry. Remove once grep shows no callers.
-    # ---------------------------------------------------------------
-    def svg_path_string(self):
-        from scene.curve_geometry import svg_string_from_points
-        pts = [(p.x(), p.y()) for p in self.positions()]
-        if len(pts) != self.degree + 1:
-            return ""
-        return svg_string_from_points(pts, self.degree)
-
     def cubic_segment(self, start_pt):
         """Return (c1_pos, c2_pos, end_pt) describing a cubic that traces
         the same path as this curve, starting from `start_pt` (which must

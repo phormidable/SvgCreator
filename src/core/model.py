@@ -103,44 +103,6 @@ class Document:
                 return c
         return None
 
-    # def curve_between(self, a, b):
-    #     for c in self.curves:
-    #         if {c.extremities[0], c.extremities[1]} == {a, b}:
-    #             return c
-    #     return None
-
-    # ------------------------------------------------------------
-    #  Creation
-    # ------------------------------------------------------------
-    # def add_curve(self, p0_xy, p1_xy, control_xys, degree):
-    #     p0 = self._new_extremity(*p0_xy)
-    #     p1 = self._new_extremity(*p1_xy)
-    #     controls = [self._new_control(*xy) for xy in control_xys]
-    #     curve = Curve((p0, p1), controls, degree)
-    #     self.curves.append(curve)
-    #     return curve
-
-    # def _new_extremity(self, x, y):
-    #     pt = Point(x, y)
-    #     self.extremities.append(pt)
-    #     return pt
-    #
-    # def _new_control(self, x, y):
-    #     pt = Point(x, y)
-    #     self.controls.append(pt)
-    #     return pt
-
-    # ------------------------------------------------------------
-    #  Deletion
-    # ------------------------------------------------------------
-    # def delete_curve(self, curve):
-    #     for pt in curve.extremities:
-    #         self.unlink(pt)
-    #         self.extremities.remove(pt)
-    #     for pt in curve.controls:
-    #         self.controls.remove(pt)
-    #     self.curves.remove(curve)
-
     # ------------------------------------------------------------
     #  Linking
     # ------------------------------------------------------------
