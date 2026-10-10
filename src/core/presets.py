@@ -61,17 +61,13 @@ def _poly_preset(name, label, verts, closed, tooltip=""):
         c1 = ((2 * ax + bx) / 3, (2 * ay + by) / 3)
         c2 = ((ax + 2 * bx) / 3, (ay + 2 * by) / 3)
         mid = ((ax + bx) / 2, (ay + by) / 2)
-        curves.append(CurveDef(
-            [(ax, ay), c1, c2, (bx, by)],
-            quadratic_offsets=[(ax, ay), mid, (bx, by)],
-        ))
+        curves.append(CurveDef([(ax, ay), c1, c2, (bx, by)], quadratic_offsets=[(ax, ay), mid, (bx, by)]))
 
     links = [((i, -1), (i + 1, 0)) for i in range(len(curves) - 1)]
     if closed:
         links.append(((len(curves) - 1, -1), (0, 0)))
 
-    return PresetDef(name=name, label=label, tooltip=tooltip,
-                     curves=curves, links=links)
+    return PresetDef(name=name, label=label, tooltip=tooltip, curves=curves, links=links)
 
 
 def _line_preset(name, label, x0, y0, x1, y1, tooltip=""):
@@ -81,9 +77,8 @@ def _line_preset(name, label, x0, y0, x1, y1, tooltip=""):
     mid = ((x0 + x1) / 2, (y0 + y1) / 2)
     return PresetDef(
         name=name, label=label, tooltip=tooltip,
-        curves=[CurveDef(
-            [(x0, y0), c1, c2, (x1, y1)],
-            quadratic_offsets=[(x0, y0), mid, (x1, y1)],
+        curves=[CurveDef([(x0, y0), c1, c2, (x1, y1)],
+        quadratic_offsets=[(x0, y0), mid, (x1, y1)],
         )],
     )
 
