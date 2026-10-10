@@ -164,6 +164,15 @@ PRESETS = {
     "T_shape": _poly_preset("T_shape", "T",
 [(-40, 120),(-40, -40),(-120, -40),(-120, -120), (120, -120), (120, -40), (40, -40), (40, 120)],
         closed = True, tooltip = "T shape (8 curves shape)"),
+# ---- T shape rotations (8 linked curves each) ----
+"T_90": _poly_preset("T_90", "⊢",
+    [(120, -40), (-40, -40), (-40, -120), (-120, -120), (-120, 120), (-40, 120), (-40, 40), (120, 40)],
+    closed=True, tooltip="T shape rotated 90° (bar on the right)"),
+"T_180": _poly_preset("T_180", "⊥",[(40, -120), (40, 40), (120, 40), (120, 120), (-120, 120), (-120, 40), (-40, 40), (-40, -120)],
+    closed=True, tooltip="T shape rotated 180° (bar at the bottom)"),
+"T_270": _poly_preset("T_270", "⊣",[(-120, -40), (40, -40), (40, -120), (120, -120), (120, 120), (40, 120), (40, 40), (-120, 40)],
+    closed=True, tooltip="T shape rotated 270° (bar on the left)"),
+
     # ---- L shapes (2 linked curves) ----
     # Standard "L": corner bottom-left, arms up and right.
     "L": _poly_preset("L", "└", [(-50, -50), (-50, 50), (50, 50)], closed=False,
