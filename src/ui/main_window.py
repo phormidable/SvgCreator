@@ -1,7 +1,7 @@
 # main_window.py
-from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QColorDialog, QComboBox, QSizePolicy
+from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QColorDialog, QComboBox, QSizePolicy, QMenu, QToolButton
 from PySide6.QtCore import QByteArray, Qt
-from PySide6.QtGui import QPainter, QActionGroup, QColor, QShortcut, QKeySequence
+from PySide6.QtGui import QPainter, QColor, QShortcut, QKeySequence
 
 from core.settings import DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
 
@@ -86,6 +86,7 @@ class MainWindow(QMainWindow):
         self.preset_panel.presetRequested.connect(self.scene.arm_preset)
         self.scene.presetStateChanged.connect(self.preset_panel.sync_state)
         self.drawing_view.shiftReleased.connect(self.scene.on_shift_released)
+        self.preview_widget.showSvgRequested.connect(self.file_io.show_svg_code_dialog)
 
         # Initial state
         self.set_mode("create")
@@ -174,36 +175,20 @@ class MainWindow(QMainWindow):
         toolbar = self.addToolBar("Tools")
 
         # ---- Mode ----
-        self.create_action = toolbar.addAction("✏️ Create")
-        self.create_action.setCheckable(True)
-        self.edit_action = toolbar.addAction("🖱️ Edit")
-        self.edit_action.setCheckable(True)
+        toolbar.addWidget(QLabel(" Mode: "))
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItem("Create", "create")
+        self.mode_combo.addItem("Edit", "edit")
+        self.mode_combo.currentIndexChanged.connect(self._on_mode_changed)
+        toolbar.addWidget(self.mode_combo)
 
         toolbar.addSeparator()
         toolbar.addWidget(QLabel(" Type: "))
-
-        self.quadratic_action = toolbar.addAction("Quadratic")
-        self.quadratic_action.setCheckable(True)
-        self.cubic_action = toolbar.addAction("Cubic")
-        self.cubic_action.setCheckable(True)
-
-        self.degree_group = QActionGroup(self)
-        self.degree_group.setExclusive(True)
-        self.degree_group.addAction(self.quadratic_action)
-        self.degree_group.addAction(self.cubic_action)
-        self.quadratic_action.setChecked(True)
-
-        self.cubic_action.triggered.connect(lambda: self.scene.set_degree(3))
-        self.quadratic_action.triggered.connect(lambda: self.scene.set_degree(2))
-
-        self.mode_group = QActionGroup(self)
-        self.mode_group.setExclusive(True)
-        self.mode_group.addAction(self.create_action)
-        self.mode_group.addAction(self.edit_action)
-        self.create_action.setChecked(True)
-
-        self.create_action.triggered.connect(lambda: self.set_mode("create"))
-        self.edit_action.triggered.connect(lambda: self.set_mode("edit"))
+        self.degree_combo = QComboBox()
+        self.degree_combo.addItem("Quadratic", 2)
+        self.degree_combo.addItem("Cubic", 3)
+        self.degree_combo.currentIndexChanged.connect(self._on_degree_changed)
+        toolbar.addWidget(self.degree_combo)
 
         toolbar.addSeparator()
 
@@ -218,51 +203,64 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
-        load_action = toolbar.addAction("📂 Load")
+        # ---- Files menu ----
+        files_btn = QToolButton()
+        files_btn.setText("📁 Files")
+        files_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        files_menu = QMenu(files_btn)
+
+        load_action = files_menu.addAction("📂 Load")
         load_action.setShortcut("Ctrl+O")
         load_action.triggered.connect(self.file_io.load_project)
 
-        save_action = toolbar.addAction("💾 Save")
+        save_action = files_menu.addAction("💾 Save")
         save_action.setShortcut("Ctrl+S")
         save_action.triggered.connect(self.file_io.save_project)
-        toolbar.addSeparator()
 
-        # ---- Left group ----
-        bg_action = toolbar.addAction("🖼️ Add Background")
+        bg_action = files_menu.addAction("🖼️ Add Background")
         bg_action.triggered.connect(self.file_io.load_background_image)
 
-        color_action = toolbar.addAction("🎨 Curve Color")
-        color_action.triggered.connect(self.pick_curve_color)
+        export_action = files_menu.addAction("💾 Export SVG")
+        export_action.triggered.connect(self.file_io.export_svg)
 
-        self.transparent_action = toolbar.addAction("👻 Make transparent")
+        files_btn.setMenu(files_menu)
+        toolbar.addWidget(files_btn)
+
+        # ---- Effects menu ----
+        effects_btn = QToolButton()
+        effects_btn.setText("✨ Effects")
+        effects_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        effects_menu = QMenu(effects_btn)
+
+        mirror_x_action = effects_menu.addAction("🪞 Mirror X")
+        mirror_x_action.setToolTip("Flip vertically — mirror across the horizontal line through the selection")
+        mirror_x_action.triggered.connect(lambda: self.scene.mirror_selection("x"))
+
+        mirror_y_action = effects_menu.addAction("🪞 Mirror Y")
+        mirror_y_action.setToolTip("Flip horizontally — mirror across the vertical line through the selection")
+        mirror_y_action.triggered.connect(lambda: self.scene.mirror_selection("y"))
+
+        effects_menu.addSeparator()
+
+        self.transparent_action = effects_menu.addAction("👻 Make transparent")
         self.transparent_action.setCheckable(True)
         self.transparent_action.setToolTip("Make the selected shape translucent so you can see behind it")
         self.transparent_action.triggered.connect(self.on_transparent_toggled)
+
+        effects_btn.setMenu(effects_menu)
+        toolbar.addWidget(effects_btn)
+
+        toolbar.addSeparator()
+        color_action = toolbar.addAction("🎨 Curve Color")
+        color_action.triggered.connect(self.pick_curve_color)
 
         show_all_action = toolbar.addAction("👁️ Show all points")
         show_all_action.setToolTip("Restore all hidden curve points")
         show_all_action.triggered.connect(self.show_all_points)
 
-        mirror_x_action = toolbar.addAction("🪞 Mirror X")
-        mirror_x_action.setToolTip(
-            "Flip vertically — mirror across the horizontal line through the selection")
-        mirror_x_action.triggered.connect(lambda: self.scene.mirror_selection("x"))
-
-        mirror_y_action = toolbar.addAction("🪞 Mirror Y")
-        mirror_y_action.setToolTip(
-            "Flip horizontally — mirror across the vertical line through the selection")
-        mirror_y_action.triggered.connect(lambda: self.scene.mirror_selection("y"))
-
-        generate_action = toolbar.addAction("📄 Show SVG code")
-        generate_action.triggered.connect(self.file_io.show_svg_code_dialog)
-
-        export_action = toolbar.addAction("💾 Export SVG")
-        export_action.triggered.connect(self.file_io.export_svg)
-
         # ---- Spacer: pushes the next items to the right ----
         spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Policy.Expanding,
-                             QSizePolicy.Policy.Preferred)
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         toolbar.addWidget(spacer)
 
         # ---- Right group: Clear All ----
@@ -273,18 +271,28 @@ class MainWindow(QMainWindow):
         factor = self.zoom_combo.itemData(index)
         self.drawing_view.set_zoom(factor)
 
+    def _on_degree_changed(self, index):
+        self.scene.set_degree(self.degree_combo.itemData(index))
+
+    def _on_mode_changed(self, index):
+        self.set_mode(self.mode_combo.itemData(index))
+
+    def _sync_mode_combo(self):
+        """Reflect scene.mode in the combo without re-firing set_mode."""
+        target = 0 if self.scene.mode == "create" else 1
+        if self.mode_combo.currentIndex() == target:
+            return
+        self.mode_combo.blockSignals(True)
+        self.mode_combo.setCurrentIndex(target)
+        self.mode_combo.blockSignals(False)
+
     # ------------------------------------------------------------
     #  Mode switching
     # ------------------------------------------------------------
     def set_mode(self, mode):
         if self.scene.is_transforming():
-            self.statusBar().showMessage(
-                "Finish the transform first — right-click to validate, Esc to cancel")
-            # The toolbar already flipped the check state; put it back.
-            if self.scene.mode == "create":
-                self.create_action.setChecked(True)
-            else:
-                self.edit_action.setChecked(True)
+            self.statusBar().showMessage(...)
+            self._sync_mode_combo()
             return
 
         self.log(f"Mode → {mode}")
@@ -295,11 +303,10 @@ class MainWindow(QMainWindow):
         self.scene.set_selected_point(None)
         self.scene.clear_hover()
         self.scene.mode = mode
+        self._sync_mode_combo()
         if mode == "create":
-            self.create_action.setChecked(True)
             self.statusBar().showMessage("Create mode: left-click to place points. Right-drag to pan.")
         else:
-            self.edit_action.setChecked(True)
             self.statusBar().showMessage("Edit mode: drag points or edit coordinates. Right-drag to pan.")
 
         self.coord_label.show()

@@ -7,7 +7,7 @@ background pixmap.
 - Zoom is a view transform (base fit × user zoom); panning is ScrollHandDrag.
 """
 
-from PySide6.QtCore import Qt, QByteArray, QRectF
+from PySide6.QtCore import Qt, QByteArray, QRectF, Signal
 from PySide6.QtGui import QPainter, QPixmap, QTransform
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtSvgWidgets import QGraphicsSvgItem
@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QComboBox, QGraphicsPixmapItem, QGraphicsScene, QG
 from core.settings import PREVIEW_FIT_MARGIN, PREVIEW_HEIGHT, PREVIEW_WIDTH, ZOOM_LEVELS
 
 class PreviewWidget(QWidget):
+    showSvgRequested = Signal()
     def __init__(self, parent=None):
         super().__init__(parent)
         self._zoom = 1.0
@@ -36,6 +37,7 @@ class PreviewWidget(QWidget):
         self._zoom_combo.currentIndexChanged.connect(self._on_zoom_changed)
         bar.addWidget(self._zoom_combo)
         bar.addAction("↺ Reset").triggered.connect(self.reset_view)
+        bar.addAction("📄 SVG code").triggered.connect(self.showSvgRequested.emit)
         outer.addWidget(bar)
 
         # ---- Scene: background item, then SVG item ----
