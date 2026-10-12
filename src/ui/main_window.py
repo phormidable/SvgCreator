@@ -11,6 +11,7 @@ from ui.info_panel import InfoPanel
 from core.file_io import FileIO
 from ui.preview_widget import PreviewWidget
 from ui.preset_panel import PresetPanel
+from ui.shortcuts_dialog import ShortcutsDialog
 
 ZOOM_LEVELS = [("0.5x", 0.5), ("1x", 1.0), ("2x", 2.0), ("4x", 4.0), ("8x", 8.0), ("16x", 16.0)]
 
@@ -258,6 +259,10 @@ class MainWindow(QMainWindow):
         show_all_action.setToolTip("Restore all hidden curve points")
         show_all_action.triggered.connect(self.show_all_points)
 
+        shortcuts_action = toolbar.addAction("⌨️ Shortcuts")
+        shortcuts_action.setToolTip("Show all keyboard shortcuts")
+        shortcuts_action.triggered.connect(self.show_shortcuts)
+
         # ---- Spacer: pushes the next items to the right ----
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
@@ -326,6 +331,9 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------
     def clear_scene(self):
         self.scene.clear_all()
+
+    def show_shortcuts(self):
+        ShortcutsDialog(self).exec()
 
     def set_status(self, message):
         self.statusBar().showMessage(message)
