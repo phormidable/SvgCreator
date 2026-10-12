@@ -158,6 +158,13 @@ class BezierScene(QGraphicsScene):
         item = self.itemAt(event.scenePos(), views[0].transform())
 
         if isinstance(item, ControlPoint) and item.curve.committed:
+            if item not in self.selected_points:
+                # Several points coincide at a junction, and itemAt returns the
+                # topmost. If another curve's endpoint is stacked above the one
+                # we selected, the click would land on it and collapse the
+                # selection. Prefer a linked sibling that is already selected.
+                group = self.link_manager.group_of(item) or ()
+                item = next((pt for pt in group if pt in self.selected_points), item)
             shift = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
 
             if shift:

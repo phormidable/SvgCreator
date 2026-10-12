@@ -75,12 +75,8 @@ def _line_preset(name, label, x0, y0, x1, y1, tooltip=""):
     c1 = ((2 * x0 + x1) / 3, (2 * y0 + y1) / 3)
     c2 = ((x0 + 2 * x1) / 3, (y0 + 2 * y1) / 3)
     mid = ((x0 + x1) / 2, (y0 + y1) / 2)
-    return PresetDef(
-        name=name, label=label, tooltip=tooltip,
-        curves=[CurveDef([(x0, y0), c1, c2, (x1, y1)],
-        quadratic_offsets=[(x0, y0), mid, (x1, y1)],
-        )],
-    )
+    return PresetDef(name=name, label=label, tooltip=tooltip, curves=[CurveDef([(x0, y0), c1, c2, (x1, y1)],
+        quadratic_offsets=[(x0, y0), mid, (x1, y1)])])
 
 def _ellipse_preset(name, label, rx, ry, tooltip=""):
     """Ellipse as 4 cubic quarter-arcs."""
@@ -93,12 +89,15 @@ def _ellipse_preset(name, label, rx, ry, tooltip=""):
         [(-rx, ky), (-kx, ry)],      # left → bottom
         [(kx, ry), (rx, ky)],        # bottom → right
     ]
+    # Quadratic handle: the corner of the bounding box — intersection of
+    # the two endpoint tangents. Symmetric between the arc's ends.
+    quad_ctrl = [(rx, -ry), (-rx, -ry), (-rx, ry), (rx, ry)]
     curves = []
     for i in range(4):
         a = pts[i]
         b = pts[(i + 1) % 4]
         c1, c2 = ctrls[i]
-        curves.append(CurveDef([a, c1, c2, b]))
+        curves.append(CurveDef([a, c1, c2, b], quadratic_offsets=[a, quad_ctrl[i], b]))
     links = [((i, -1), ((i + 1) % 4, 0)) for i in range(4)]
     return PresetDef(name=name, label=label, tooltip=tooltip, curves=curves, links=links)
 
@@ -109,17 +108,13 @@ def _ellipse_preset(name, label, rx, ry, tooltip=""):
 PRESETS = {
     # ---- Moons ----
     "moon_up": PresetDef(name="moon_up", label="🌙↑", tooltip="Upward moon (single curve)",
-        curves=[CurveDef([(-154, 104), (-128, -106), (132, -142), (149, 145)])],
-    ),
+        curves=[CurveDef([(-154, 104), (-128, -106), (132, -142), (149, 145)])]),
     "moon_right": PresetDef(name="moon_right", label="🌙→", tooltip="Rightward moon (single curve)",
-        curves=[CurveDef([(-195, -147), (187, -51), (194, 57), (-188, 140)])],
-    ),
+        curves=[CurveDef([(-195, -147), (187, -51), (194, 57), (-188, 140)])]),
     "moon_down": PresetDef(name="moon_down", label="🌙↓",tooltip="Downward moon (single curve)",
-        curves=[CurveDef([(-165, -169), (-130, 173), (117, 153), (179, -158)])],
-    ),
+        curves=[CurveDef([(-165, -169), (-130, 173), (117, 153), (179, -158)])]),
     "moon_left": PresetDef(name="moon_left", label="🌙←", tooltip="Leftward moon (single curve)",
-        curves=[CurveDef([(62, -127), (-126, -84), (-126, 108), (190, 102)])],
-    ),
+        curves=[CurveDef([(62, -127), (-126, -84), (-126, 108), (190, 102)])]),
 
     # ---- Polygons ----
     "triangle": _poly_preset("triangle", "△",[(-80, 40), (80, 40), (0, -80)], closed=True,
