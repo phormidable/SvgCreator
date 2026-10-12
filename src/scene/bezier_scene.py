@@ -104,6 +104,9 @@ class BezierScene(QGraphicsScene):
     def start_scaling(self) -> bool:
         return self.transform.start_scaling()
 
+    def start_move(self) -> bool:
+        return self.transform.start_move()
+
     def end_transform(self, commit: bool = True):
         return self.transform.end_transform(commit)
 
@@ -252,8 +255,10 @@ class BezierScene(QGraphicsScene):
         if self.transform.is_transforming():
             if self.transform.is_rotating():
                 self.transform._update_rotation(scene_pos)
-            else:
+            elif self.transform.is_scaling():
                 self.transform._update_scaling(scene_pos)
+            else:
+                self.transform._update_move(scene_pos)
             return
         if self.dragging_point is not None:
             return

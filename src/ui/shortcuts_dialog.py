@@ -35,7 +35,8 @@ SHORTCUTS = [
     ("Transform", None),
     ("R",               "Rotate the selection"),
     ("B",               "Scale the selection"),
-    ("Right-click",     "Validate the transform"),
+    ("M",               "Move the selection (follows the mouse)"),
+    ("Left-click",      "Validate the transform"),
     ("Escape",          "Cancel the transform"),
 
     ("Linking", None),

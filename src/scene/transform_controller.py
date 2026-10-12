@@ -25,6 +25,9 @@ class TransformController:
     def is_rotating(self) -> bool:
         return self._mode == "rotate"
 
+    def is_moving(self) -> bool:
+        return self._mode == "move"
+
     def is_scaling(self) -> bool:
         return self._mode == "scale"
 
@@ -73,14 +76,20 @@ class TransformController:
 
         self._mode = mode
         self._pivot = QPointF(cx, cy)
-        self._ref = None  # captured on first move
+        self._ref = None
         self._starts = {p: p.pos() for p in self.scene._with_linked(base)}
-
         self._last_pos = None
-        self._show_pivot(cx, cy)
+
+        if mode != "move":
+            self._show_pivot(cx, cy)
         self.scene.transformModeChanged.emit(True)
-        verb = "Rotating" if mode == "rotate" else "Scaling"
-        self.scene.messageLogged.emit(f"{verb} around ({cx:.1f}, {cy:.1f}) — right-click to validate, Esc to cancel")
+
+        if mode == "move":
+            self.scene.messageLogged.emit("Moving selection — left-click to validate, Esc to cancel")
+        else:
+            verb = "Rotating" if mode == "rotate" else "Scaling"
+            self.scene.messageLogged.emit(
+                f"{verb} around ({cx:.1f}, {cy:.1f}) — left-click to validate, Esc to cancel")
         return True
 
     def _end_transform(self, commit: bool = True):
@@ -97,7 +106,7 @@ class TransformController:
         self._starts = {}
         self._hide_pivot()
         self.scene.transformModeChanged.emit(False)
-        verb = "Rotation" if mode == "rotate" else "Scaling"
+        verb = {"rotate": "Rotation", "scale": "Scaling", "move": "Move"}[mode]
         self.scene.messageLogged.emit(
             f"{verb} validated" if commit else f"{verb} cancelled")
 
@@ -107,6 +116,9 @@ class TransformController:
     def start_scaling(self) -> bool:
         return self._start_transform("scale")
 
+    def start_move(self) -> bool:
+        return self._start_transform("move")
+
     def end_transform(self, commit: bool = True):
         self._end_transform(commit)
 
@@ -114,17 +126,16 @@ class TransformController:
     #  Re-anchor (after an external move, e.g. mirror)
     # ------------------------------------------------------------
     def _reanchor_transform(self):
-        """After an external change to positions (e.g. a mirror during an
-        active transform), realign the snapshot so the next update continues
-        from the current positions instead of the pre-transform ones."""
         if self._pivot is None:
             return
         for p in self._starts:
             self._starts[p] = p.pos()
         last = self._last_pos
         if last is None:
-            # No mouse move yet; let the first move capture a fresh reference.
             self._ref = None
+            return
+        if self.is_moving():
+            self._ref = QPointF(last)
             return
         px = self._pivot.x()
         py = self._pivot.y()
@@ -174,6 +185,18 @@ class TransformController:
         for pt, start in self._starts.items():
             sx, sy = start.x() - px, start.y() - py
             pt.setPos(px + sx * ratio, py + sy * ratio)
+
+    def _update_move(self, scene_pos: QPointF):
+        if scene_pos is None:
+            return
+        self._last_pos = QPointF(scene_pos)
+        if self._ref is None:
+            self._ref = QPointF(scene_pos)
+            return
+        dx = scene_pos.x() - self._ref.x()
+        dy = scene_pos.y() - self._ref.y()
+        for pt, start in self._starts.items():
+            pt.setPos(start.x() + dx, start.y() + dy)
 
     # ------------------------------------------------------------
     #  Pivot marker

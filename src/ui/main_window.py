@@ -101,6 +101,7 @@ class MainWindow(QMainWindow):
             K.Key_Escape: self._handle_escape,
             K.Key_R: lambda e: scene.start_rotation(),
             K.Key_B: lambda e: scene.start_scaling(),
+            K.Key_M: lambda e: scene.start_move(),
             K.Key_L: lambda e: scene.link_manager.try_link_proximity(),
             K.Key_S: lambda e: scene.selection.select_shape_from_hover(add=bool(e.modifiers() & Shift)),
             K.Key_C: self._handle_color_selected_shape,
