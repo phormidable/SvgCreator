@@ -155,7 +155,7 @@ class BezierScene(QGraphicsScene):
         # A pending preset consumes this click, whatever the mode.
         if self.presets._pending is not None:
             keep = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
-            self.presets._place_preset(event.scenePos(), keep_armed=keep)
+            self.presets.place_preset(event.scenePos(), keep_armed=keep)
             return
 
         # ---- Create mode ----
@@ -370,18 +370,10 @@ class BezierScene(QGraphicsScene):
 
         if add:
             if in_selection:
-                for pt in curve.points:
-                    if pt in sel.points:
-                        sel.points.remove(pt)
-                        pt.update()
-                curve.update()
+                sel.remove_points(curve.points)
                 self.messageLogged.emit(f"{curve.name} removed from selection")
             else:
-                for pt in curve.points:
-                    if pt not in sel.points:
-                        sel.points.append(pt)
-                    pt.update()
-                curve.update()
+                sel.add_points(curve.points)
                 self.messageLogged.emit(f"Added {curve.name} to selection")
             return True
 
@@ -391,10 +383,7 @@ class BezierScene(QGraphicsScene):
             self.messageLogged.emit(f"{curve.name} deselected")
             return True
         self.clear_selection()
-        for pt in curve.points:
-            sel.points.append(pt)
-            pt.update()
-        curve.update()
+        sel.add_points(curve.points)
         self.messageLogged.emit(f"Selected {curve.name} ({len(curve.points)} points)")
         return True
 
@@ -404,7 +393,7 @@ class BezierScene(QGraphicsScene):
         if not add:
             self.clear_selection()
         selected = self.selection.points
-        n = 0
+        to_add = []
         for curve in self.curves:
             if curve.points_hidden:
                 continue
@@ -412,13 +401,11 @@ class BezierScene(QGraphicsScene):
                 if pt in selected:
                     continue
                 if rect.contains(pt.pos()):
-                    selected.append(pt)
-                    pt.update()
-                    n += 1
-            curve.update()
-        if n:
-            self.messageLogged.emit(f"Selected {n} point(s)")
-        return n
+                    to_add.append(pt)
+        self.selection.add_points(to_add)
+        if to_add:
+            self.messageLogged.emit(f"Selected {len(to_add)} point(s)")
+        return len(to_add)
 
     def set_curve_color(self, color):
         self.curve_color = QColor(color)

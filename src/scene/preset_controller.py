@@ -48,7 +48,7 @@ class PresetController:
     # ------------------------------------------------------------
     #  Placement
     # ------------------------------------------------------------
-    def _place_preset(self, center: QPointF, keep_armed: bool = False):
+    def place_preset(self, center: QPointF, keep_armed: bool = False):
         name = self._pending
         if not keep_armed:
             self._pending = None

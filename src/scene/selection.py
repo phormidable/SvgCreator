@@ -121,19 +121,14 @@ class Selection:
         self.shapes.clear()
 
     def _sync_shape_points(self, shapes, add: bool):
-        """Add or remove every point of `shapes` from self.points."""
-        pts = self.points
-        for shape in shapes:
-            for curve in self.scene.ui_curves(shape):
-                for pt in curve.points:
-                    if add:
-                        if pt not in pts:
-                            pts.append(pt)
-                    else:
-                        if pt in pts:
-                            pts.remove(pt)
-                    pt.update()
-                curve.update()
+        pts = [pt
+               for shape in shapes
+               for curve in self.scene.ui_curves(shape)
+               for pt in curve.points]
+        if add:
+            self.add_points(pts)
+        else:
+            self.remove_points(pts)
 
     # ------------------------------------------------------------
     #  Selection from hover (S key)
@@ -183,31 +178,18 @@ class Selection:
 
     def _select_chain(self, chain, add: bool) -> bool:
         scene = self.scene
+        chain_pts = [pt for c in chain for pt in c.points]
         if add:
             if all(self.is_curve_selected(c) for c in chain):
-                for c in chain:
-                    for pt in c.points:
-                        if pt in self.points:
-                            self.points.remove(pt)
-                        pt.update()
-                    c.update()
+                self.remove_points(chain_pts)
                 scene.messageLogged.emit("Chain removed from selection")
             else:
-                for c in chain:
-                    for pt in c.points:
-                        if pt not in self.points:
-                            self.points.append(pt)
-                        pt.update()
-                    c.update()
+                self.add_points(chain_pts)
                 scene.messageLogged.emit(f"Added chain of {len(chain)} curves")
             return True
 
         scene.clear_selection()
-        for c in chain:
-            for pt in c.points:
-                self.points.append(pt)
-                pt.update()
-            c.update()
+        self.add_points(chain_pts)
         scene.messageLogged.emit(f"Selected chain of {len(chain)} curves")
         return True
 
@@ -270,3 +252,34 @@ class Selection:
             if frozenset(c.id for c in chain.curves) == ids:
                 return "chain", selected
         return None, None
+
+    # in Selection
+
+    def add_points(self, points):
+        """Add every point not already in the selection and repaint them."""
+        added = []
+        for pt in points:
+            if pt not in self.points:
+                self.points.append(pt)
+                added.append(pt)
+        self._repaint(added)
+
+    def remove_points(self, points):
+        """Drop every point that is currently in the selection and repaint."""
+        removed = []
+        for pt in points:
+            if pt in self.points:
+                self.points.remove(pt)
+                removed.append(pt)
+        self._repaint(removed)
+
+    @staticmethod
+    def _repaint(points):
+        """One update() per touched curve, not per point."""
+        curves = set()
+        for pt in points:
+            pt.update()
+            if pt.curve is not None:
+                curves.add(pt.curve)
+        for c in curves:
+            c.update()
