@@ -38,26 +38,10 @@ class TransformController:
     #  Base points / selection
     # ------------------------------------------------------------
     def _transform_base_points(self):
-        """The points whose barycentre is the pivot: the selected shape's, or
-        the selected curves'. None if nothing suitable is selected."""
-        curves = self._selected_curves()
-        if not curves:
-            return None
-        pts: set = set()
-        for c in curves:
-            pts.update(c.points)
-        return pts
-
-    def _selected_curves(self):
-        """Every curve currently part of the selection — shape selection
-        (S) and curve selection (A / click) are independent and both count."""
-        curves: set = set()
-        for shape in self.scene.selection.selected_shapes():
-            curves.update(self.scene.ui_curves(shape))
-        for c in self.scene.curves:
-            if c.curve_selected:
-                curves.add(c)
-        return list(curves)
+        """Every point the user has selected. Selection.points already
+        aggregates points, curves, chains and shapes, so we read it directly."""
+        pts = set(self.scene.selection.points)
+        return pts or None
 
     # ------------------------------------------------------------
     #  Start / end
