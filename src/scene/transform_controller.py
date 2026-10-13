@@ -71,13 +71,13 @@ class TransformController:
                 "Nothing to transform — select a curve (A or click) or a shape (S) first")
             return False
 
-        cx = sum(p.pos().x() for p in base) / len(base)
-        cy = sum(p.pos().y() for p in base) / len(base)
+        cx = sum(p.model_pos().x() for p in base) / len(base)
+        cy = sum(p.model_pos().y() for p in base) / len(base)
 
         self._mode = mode
         self._pivot = QPointF(cx, cy)
         self._ref = None
-        self._starts = {p: p.pos() for p in self.scene._with_linked(base)}
+        self._starts = {p: p.model_pos() for p in self.scene._with_linked(base)}
         self._last_pos = None
 
         if mode != "move":

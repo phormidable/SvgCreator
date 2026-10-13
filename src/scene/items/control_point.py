@@ -42,7 +42,11 @@ class ControlPoint(QGraphicsEllipseItem):
     def is_endpoint(self):
         return self.point_idx == 0 or self.point_idx == self.curve.degree
 
-    def pos(self):
+    def model_pos(self) -> QPointF:
+        """The authoritative position, read from the model Point. Application
+        code should use this; QGraphicsItem.pos() returns the item's own
+        cached Qt position, which normally matches but is not the source of
+        truth."""
         scene = self.curve.scene() if self.curve is not None else None
         if scene is not None:
             mp = scene.registry.model_point_for(self)
@@ -81,10 +85,9 @@ class ControlPoint(QGraphicsEllipseItem):
             if scene is not None:
                 mp = scene.registry.model_point_for(self)
                 if mp is not None:
-                    p = super().pos()
-                    mp.x = p.x()
-                    mp.y = p.y()
-                scene.link_manager.propagate_move(self, self.pos())
+                    mp.x = value.x()
+                    mp.y = value.y()
+                scene.link_manager.propagate_move(self, QPointF(value.x(), value.y()))
                 self.curve.on_point_moved()
                 scene.on_point_moved(self)
         return super().itemChange(change, value)

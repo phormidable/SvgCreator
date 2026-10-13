@@ -315,7 +315,7 @@ class BezierScene(QGraphicsScene):
                     continue
                 new_hovered = curve
                 for pt in curve.points:
-                    p = pt.pos()
+                    p = pt.model_pos()
                     dx, dy = p.x() - pos.x(), p.y() - pos.y()
                     if dx * dx + dy * dy <= tol2:
                         new_focused_pt = pt
@@ -400,7 +400,7 @@ class BezierScene(QGraphicsScene):
             for pt in curve.points:
                 if pt in selected:
                     continue
-                if rect.contains(pt.pos()):
+                if rect.contains(pt.model_pos()):
                     to_add.append(pt)
         self.selection.add_points(to_add)
         if to_add:
@@ -440,7 +440,7 @@ class BezierScene(QGraphicsScene):
     def _start_drag(self, primary):
         primary_group = self._with_linked({primary})
         seeds = set(self.selected_points) | {primary}
-        self._drag_targets = {pt: pt.pos()
+        self._drag_targets = {pt: pt.model_pos()
                               for pt in self._with_linked(seeds) - primary_group}
         self._drag_primary_start = primary.pos()
 

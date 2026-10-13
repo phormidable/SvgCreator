@@ -75,7 +75,7 @@ def save_state(scene) -> dict:
 
     state = {
         "version": 2,
-        "curves": [[[round(p.x(), 3), round(p.y(), 3)] for p in curve.points] for curve in scene.curves],
+        "curves": [[[round(p.model_pos().x(), 3), round(p.model_pos().y(), 3)] for p in curve.points] for curve in scene.curves],
     }
     shape_colors = []
     for shape in scene.shape_manager.shapes:

@@ -193,7 +193,7 @@ class MainWindow(QMainWindow):
         if pt is None:
             self.point_tip.hide()
             return
-        pos = pt.pos()
+        pos = pt.model_pos()
         self.point_tip.setText(f"({pos.x():.1f}, {pos.y():.1f})")
         self.point_tip.adjustSize()
 
