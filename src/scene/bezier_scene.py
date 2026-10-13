@@ -447,7 +447,14 @@ class BezierScene(QGraphicsScene):
             self.curves.pop().dispose()
         self.curves.clear()
         self.curve_color = QColor(DEFAULT_CURVE_COLOR)
+
         BezierCurve._next_id = 1
+        from core.model import Point, Junction, Curve, Shape, Chain
+        Point._next_id = 1
+        Junction._next_id = 1
+        Curve._next_id = 1
+        Shape._next_id = 1
+        Chain._next_id = 1
         self.dragging_point = None
         self._remove_background_image()
         self.emit_svg()

@@ -105,31 +105,43 @@ class MainWindow(QMainWindow):
         self.set_mode("create")
         self.scene.emit_svg()
 
+    @staticmethod
+    def _always(fn):
+        """Wrap a no-argument action so it satisfies the key-handler contract:
+        runs the action, returns True to signal 'handled'."""
+
+        def handler(_event):
+            fn()
+            return True
+
+        return handler
+
     def _build_key_handlers(self) -> dict:
         K = Qt.Key
         Shift = Qt.KeyboardModifier.ShiftModifier
         scene = self.scene
+        always = self._always
         return {
             K.Key_Escape: self._handle_escape,
-            K.Key_R: lambda e: scene.start_rotation(),
-            K.Key_B: lambda e: scene.start_scaling(),
-            K.Key_M: lambda e: scene.start_move(),
-            K.Key_L: lambda e: scene.link_manager.try_link_proximity(),
+            K.Key_R: always(scene.start_rotation),
+            K.Key_B: always(scene.start_scaling),
+            K.Key_M: always(scene.start_move),
+            K.Key_L: always(scene.link_manager.try_link_proximity),
             K.Key_S: lambda e: scene.selection.select_shape_from_hover(add=bool(e.modifiers() & Shift)),
-            K.Key_C: self._handle_color_selected_shape,
-            K.Key_H: lambda e: scene.hide_hovered_curve_points(),
+            K.Key_C: always(self.color_selected_shape),
+            K.Key_H: always(scene.hide_hovered_curve_points),
             K.Key_A: lambda e: scene.select_curve_under_hover(add=bool(e.modifiers() & Shift)),
-            K.Key_X: lambda e: scene.mirror_selection("x"),
-            K.Key_Y: lambda e: scene.mirror_selection("y"),
-            K.Key_U: lambda e: scene.link_manager.try_break_junction(),
-            K.Key_Plus: lambda e: self._step_zoom(+1),
-            K.Key_Equal: lambda e: self._step_zoom(+1),
-            K.Key_Minus: lambda e: self._step_zoom(-1),
-            K.Key_Backspace: (lambda e: (scene.delete_selection(), True)[1]),
-            K.Key_Left: lambda e: scene.move_selected_points(-1, 0),
-            K.Key_Right: lambda e: scene.move_selected_points(+1, 0),
-            K.Key_Up: lambda e: scene.move_selected_points(0, -1),
-            K.Key_Down: lambda e: scene.move_selected_points(0, +1),
+            K.Key_X: always(lambda: scene.mirror_selection("x")),
+            K.Key_Y: always(lambda: scene.mirror_selection("y")),
+            K.Key_U: always(scene.link_manager.try_break_junction),
+            K.Key_Plus: always(lambda: self._step_zoom(+1)),
+            K.Key_Equal: always(lambda: self._step_zoom(+1)),
+            K.Key_Minus: always(lambda: self._step_zoom(-1)),
+            K.Key_Backspace: always(scene.delete_selection),
+            K.Key_Left: always(lambda: scene.move_selected_points(-1, 0)),
+            K.Key_Right: always(lambda: scene.move_selected_points(+1, 0)),
+            K.Key_Up: always(lambda: scene.move_selected_points(0, -1)),
+            K.Key_Down: always(lambda: scene.move_selected_points(0, +1)),
         }
 
     def _handle_escape(self, event) -> bool:
