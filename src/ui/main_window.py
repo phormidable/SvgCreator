@@ -3,7 +3,7 @@ from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QL
 from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QPainter, QColor, QShortcut, QKeySequence
 
-from core.settings import DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
+from core.settings import DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT, ZOOM_LEVELS
 
 from scene.bezier_scene import BezierScene
 from ui.custom_view import CustomGraphicsView
@@ -14,7 +14,6 @@ from ui.preset_panel import PresetPanel
 from ui.shortcuts_dialog import ShortcutsDialog
 from ui.save_shape_dialog import SaveShapeDialog
 
-ZOOM_LEVELS = [("0.5x", 0.5), ("1x", 1.0), ("2x", 2.0), ("4x", 4.0), ("8x", 8.0), ("16x", 16.0)]
 POINT_TIP_GAP = 22  # viewport pixels above the point's centre
 
 class MainWindow(QMainWindow):
@@ -126,7 +125,7 @@ class MainWindow(QMainWindow):
             K.Key_Plus: lambda e: self._step_zoom(+1),
             K.Key_Equal: lambda e: self._step_zoom(+1),
             K.Key_Minus: lambda e: self._step_zoom(-1),
-            K.Key_Backspace: lambda e: scene.delete_selection(),
+            K.Key_Backspace: (lambda e: (scene.delete_selection(), True)[1]),
             K.Key_Left: lambda e: scene.move_selected_points(-1, 0),
             K.Key_Right: lambda e: scene.move_selected_points(+1, 0),
             K.Key_Up: lambda e: scene.move_selected_points(0, -1),
@@ -335,7 +334,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------
     def set_mode(self, mode):
         if self.scene.is_transforming():
-            self.statusBar().showMessage(...)
+            self.statusBar().showMessage("Transformation going on - mode not changed.")
             self._sync_mode_combo()
             return
 

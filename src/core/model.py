@@ -48,9 +48,6 @@ class Curve:
         self.controls = list(controls)          # 0, 1 or 2 points
         self.degree = degree
 
-    def other_end(self, pt):
-        a, b = self.extremities
-        return b if pt is a else a
 
     def __repr__(self):
         return f"C{self.id}[{self.extremities[0].id}->{self.extremities[1].id}]"

@@ -43,14 +43,6 @@ class ModelRegistry:
         d = self._curve_by_model
         return [d[mc] for mc in shape.curves if mc in d]
 
-    # ------------------------------------------------------------
-    #  Reset
-    # ------------------------------------------------------------
-    # def reset(self):
-    #     self._curve_by_model.clear()
-    #     self._model_by_curve.clear()
-    #     self._pt_by_model.clear()
-    #     self._model_by_pt.clear()
 
     # ------------------------------------------------------------
     #  Sync

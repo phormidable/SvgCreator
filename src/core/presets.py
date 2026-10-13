@@ -85,13 +85,8 @@ def _poly_preset(name, label, verts, closed, tooltip=""):
     return PresetDef(name=name, label=label, tooltip=tooltip, curves=curves, links=links)
 
 def _literal_preset(name, label, curves, tooltip="", closed=False):
-    """Preset from literal curves, pasted straight from a saved entry."""
-    xs = [p[0] for c in curves for p in c]
-    ys = [p[1] for c in curves for p in c]
-    cx = (min(xs) + max(xs)) / 2
-    cy = (min(ys) + max(ys)) / 2
-
-    defs = [LiteralCurveDef([(x - cx, y - cy) for x, y in c]) for c in curves]
+    """Preset from literal curves, authored centered on the origin."""
+    defs = [LiteralCurveDef(list(c)) for c in curves]
 
     links = []
     for i in range(len(curves) - 1):
@@ -107,13 +102,6 @@ def _literal_preset(name, label, curves, tooltip="", closed=False):
 def _coincident(a, b, tol=0.5):
     return abs(a[0] - b[0]) < tol and abs(a[1] - b[1]) < tol
 
-def _line_preset(name, label, x0, y0, x1, y1, tooltip=""):
-    """Single straight segment, no links."""
-    c1 = ((2 * x0 + x1) / 3, (2 * y0 + y1) / 3)
-    c2 = ((x0 + 2 * x1) / 3, (y0 + 2 * y1) / 3)
-    mid = ((x0 + x1) / 2, (y0 + y1) / 2)
-    return PresetDef(name=name, label=label, tooltip=tooltip, curves=[CurveDef([(x0, y0), c1, c2, (x1, y1)],
-        quadratic_offsets=[(x0, y0), mid, (x1, y1)])])
 
 def _ellipse_preset(name, label, rx, ry, tooltip=""):
     """Ellipse as 4 cubic quarter-arcs."""
@@ -204,17 +192,17 @@ PRESETS = {
     "C": _literal_preset(
         "C", "C",
         [
-            [(0, -80), (-33.1, -80), (-60, -44.2), (-60, 0)],
-            [(-60, 0), (-60, 44.2), (-33.1, 80), (0, 80)],
+            [(60, -160), (-6.2, -160), (-60, -88.4), (-60, 0)],
+            [(-60, 0), (-60, 88.4), (-6.2, 160), (60, 160)],
         ],
         tooltip="C shape (2 cubic curves)"),
 
     "S_shape": _literal_preset(
         "S_shape", "S",
         [
-            [(1100, 800), (1100, 720), (900, 720), (900, 800)],
-            [(900, 800), (900, 880), (1100, 820), (1100, 900)],
-            [(1100, 900), (1100, 980), (900, 980), (900, 900)],
+            [(100, -50), (100, -130), (-100, -130), (-100, -50)],
+            [(-100, -50), (-100, 30), (100, -30), (100, 50)],
+            [(100, 50), (100, 130), (-100, 130), (-100, 50)],
         ],
         tooltip="S shape (chain)"),
 }

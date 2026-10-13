@@ -4,20 +4,20 @@ from PySide6.QtGui import QPen, QPixmap, QImage, QPainter, QColor
 from PySide6.QtWidgets import (QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem)
 from PySide6.QtSvg import QSvgRenderer
 
-from scene.scene_io import generate_svg, save_state, load_state
+from .scene_io import generate_svg, save_state, load_state
 from core.settings import ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH, DEFAULT_CURVE_COLOR, HOVER_TOLERANCE
-from scene.link_manager import LinkManager
-from scene.items.control_point import ControlPoint
-from scene.items.bezier_curve import BezierCurve
-from scene.shape_manager import ShapeManager
-from scene.selection import Selection
+from .link_manager import LinkManager
+from .items.control_point import ControlPoint
+from .items.bezier_curve import BezierCurve
+from .shape_manager import ShapeManager
+from .selection import Selection
 from core.model import Document
 from .transform_controller import TransformController
 from .preset_controller import PresetController
 from .model_registry import ModelRegistry
 from .curve_builder import CurveBuilder
-from scene.curve_renderer import CurveRenderer
-from scene.point_renderer import PointRenderer
+from .curve_renderer import CurveRenderer
+from .point_renderer import PointRenderer
 
 class BezierScene(QGraphicsScene):
     svgCodeChanged = Signal(str)
@@ -37,7 +37,6 @@ class BezierScene(QGraphicsScene):
 
         # ---- State ----
         self.curves = []              # committed BezierCurve objects
-        #self.pending_curve = None
         self.mode = "create"
         self.curve_color = QColor(DEFAULT_CURVE_COLOR)
         self.selection = Selection(self)
@@ -65,6 +64,16 @@ class BezierScene(QGraphicsScene):
         self.viewbox_item.setPen(QPen(VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH))
         self.viewbox_item.setZValue(-100)
         self.addItem(self.viewbox_item)
+
+        # ---- Rubber-band selection rectangle ----
+        self._rubber_start: QPointF | None = None
+        self._rubber_item = QGraphicsRectItem()
+        self._rubber_item.setPen(QPen(QColor(0, 120, 215), 1, Qt.PenStyle.DashLine))
+        self._rubber_item.setBrush(QColor(0, 120, 215, 40))
+        self._rubber_item.setZValue(2000)
+        self._rubber_item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self._rubber_item.setVisible(False)
+        self.addItem(self._rubber_item)
 
         # ---- Collaborators ----
         self.registry = ModelRegistry(self)
@@ -202,10 +211,21 @@ class BezierScene(QGraphicsScene):
             event.accept()
             return
 
-        self.set_selected_point(None)
-        super().mousePressEvent(event)
+        # Empty space → begin a rubber-band selection. A click without a drag
+        # still clears the selection (done here, on press); a real drag
+        # replaces it with whatever's inside the rectangle on release.
+        if not (event.modifiers() & Qt.KeyboardModifier.ShiftModifier):
+            self.clear_selection()
+        self._rubber_start = event.scenePos()
+        self._rubber_item.setRect(QRectF(self._rubber_start, self._rubber_start))
+        self._rubber_item.setVisible(True)
+        event.accept()
 
     def mouseMoveEvent(self, event):
+        if self._rubber_start is not None:
+            rect = QRectF(self._rubber_start, event.scenePos()).normalized()
+            self._rubber_item.setRect(rect)
+            return
         super().mouseMoveEvent(event)
 
         if self._pending_collapse_point is not None and self._drag_press_pos is not None:
@@ -234,6 +254,19 @@ class BezierScene(QGraphicsScene):
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
+            if self._rubber_start is not None:
+                start = self._rubber_start
+                self._rubber_start = None
+                self._rubber_item.setVisible(False)
+                rect = QRectF(start, event.scenePos()).normalized()
+                # A tiny rect means the user just clicked empty space; the
+                # selection was already cleared on press.
+                if rect.width() >= 3 or rect.height() >= 3:
+                    add = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+                    self.select_in_rect(rect, add=add)
+                self._update_hover(event.scenePos())
+                event.accept()
+                return
             if self.dragging_point is not None:
                 pending = self._pending_collapse_point
                 self._pending_collapse_point = None
@@ -262,6 +295,8 @@ class BezierScene(QGraphicsScene):
                 self.transform._update_move(scene_pos)
             return
         if self.dragging_point is not None:
+            return
+        if self._rubber_start is not None:
             return
         if self.mode == "create":
             return
@@ -362,6 +397,28 @@ class BezierScene(QGraphicsScene):
         curve.update()
         self.messageLogged.emit(f"Selected {curve.name} ({len(curve.points)} points)")
         return True
+
+    def select_in_rect(self, rect: QRectF, add: bool = False) -> int:
+        """Select every visible control point whose position lies inside
+        `rect` (scene coordinates). With `add`, keeps the existing selection."""
+        if not add:
+            self.clear_selection()
+        selected = self.selection.points
+        n = 0
+        for curve in self.curves:
+            if curve.points_hidden:
+                continue
+            for pt in curve.points:
+                if pt in selected:
+                    continue
+                if rect.contains(pt.pos()):
+                    selected.append(pt)
+                    pt.update()
+                    n += 1
+            curve.update()
+        if n:
+            self.messageLogged.emit(f"Selected {n} point(s)")
+        return n
 
     def set_curve_color(self, color):
         self.curve_color = QColor(color)
