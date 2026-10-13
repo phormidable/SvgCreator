@@ -129,7 +129,7 @@ class MainWindow(QMainWindow):
             K.Key_L: always(scene.link_manager.try_link_proximity),
             K.Key_S: lambda e: scene.selection.select_shape_from_hover(add=bool(e.modifiers() & Shift)),
             K.Key_C: always(self.color_selected_shape),
-            K.Key_H: always(scene.hide_hovered_curve_points),
+            K.Key_H: always(scene.hide_points),
             K.Key_A: lambda e: scene.select_curve_under_hover(add=bool(e.modifiers() & Shift)),
             K.Key_X: always(lambda: scene.mirror_selection("x")),
             K.Key_Y: always(lambda: scene.mirror_selection("y")),

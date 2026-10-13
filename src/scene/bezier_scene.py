@@ -592,14 +592,26 @@ class BezierScene(QGraphicsScene):
         if self.dragging_point is point:
             self.link_manager.update_proximity(point)
 
-    def hide_hovered_curve_points(self) -> bool:
+    def hide_points(self) -> bool:
+        """Hide the control points of every curve that has a point in the
+        selection. Falls back to the hovered curve when nothing is selected."""
         if self.dragging_point is not None:
-            return False  # don't hide a curve whose point is mid-drag
-        if self.hovered_curve is None:
+            return False  # don't yank points out from under an active drag
+
+        curves = {pt.curve for pt in self.selected_points if pt.curve is not None}
+        if not curves and self.hovered_curve is not None:
+            curves = {self.hovered_curve}
+        if not curves:
+            self.messageLogged.emit(
+                "Nothing to hide — hover a curve or select points first")
             return False
-        self.hovered_curve.set_points_hidden(True)
-        self.messageLogged.emit(f"Points hidden on {self.hovered_curve.name}")
-        return True
+
+        n = sum(1 for c in curves if not c.points_hidden)
+        for c in curves:
+            c.set_points_hidden(True)
+        if n:
+            self.messageLogged.emit(f"Points hidden on {n} curve(s)")
+        return n > 0
 
     def show_all_points(self) -> int:
         n = 0
