@@ -188,3 +188,20 @@ class LinkManager:
         self.scene.messageLogged.emit(
             f"Broke junction — freed {len(members)} point(s)")
         return True
+
+    def propagate_move(self, source, pos):
+        """Apply `pos` to every other point in source's link group. Re-entrant
+        calls (triggered by the sibling setPos calls below) bail out via the
+        guard flag, so only the first move propagates."""
+        if self._propagating:
+            return
+        self._propagating = True
+        try:
+            group = self.group_of(source)
+            if group is None:
+                return
+            for pt in group:
+                if pt is not source:
+                    pt.setPos(pos)
+        finally:
+            self._propagating = False

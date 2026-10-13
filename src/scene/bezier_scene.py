@@ -349,16 +349,6 @@ class BezierScene(QGraphicsScene):
         self.selection.clear_points()
         self.selection.select_shape(None)
 
-    def _propagate_move(self, source, pos):
-        """Apply `pos` to every other point in source's link group.
-        Base implementation reads from LinkManager directly."""
-        group = self.link_manager.group_of(source)
-        if group is None:
-            return
-        for pt in group:
-            if pt is not source:
-                pt.setPos(pos)
-
     def select_curve_under_hover(self, add: bool = False) -> bool:
         """Toggle selection of the hovered curve. With `add`, the curve joins
         the existing selection instead of replacing it. Returns True if handled."""
