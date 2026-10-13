@@ -58,15 +58,16 @@ class PresetController:
         degree = self.scene.builder.current_degree
         curves = []
         for cdef in preset.curves:
-            curve = self.scene.builder.build_from_offsets(
-                center, cdef.offsets_for_degree(degree), degree)
+            d, offsets = cdef.for_degree(degree)
+            curve = self.scene.builder.build_from_offsets(center, offsets, d)
             curves.append(curve)
 
         for (ci, pi), (cj, pj) in preset.links:
             self.scene.link_manager.link_points(
                 curves[ci].points[pi], curves[cj].points[pj])
 
-        kind = "cubic" if degree == 3 else "quadratic"
+        degrees = {c.degree for c in curves}
+        kind = "mixed" if len(degrees) > 1 else ("cubic" if 3 in degrees else "quadratic")
         if keep_armed:
             self.scene.messageLogged.emit(
                 f"{preset.label} placed ({kind}) — still armed, release Shift to stop")

@@ -5,10 +5,13 @@ A preset describes a small cluster of curves (and optional endpoint links)
 that the user can place with a single click. Offsets are relative to the
 placement point (the cursor).
 
-Curves are always stored in cubic form (4 offsets: p0, c1, c2, p3).
-`offsets_for_degree` adapts them to the current creation degree:
-  - Cubic: use all four offsets.
-  - Quadratic: keep p0, c1, p3 (drop the second control point).
+Two curve-def types exist:
+  - CurveDef:        stores cubic form (4 offsets) and adapts to the
+                     toolbar degree. Quadratic drops the second control,
+                     or uses an explicit quadratic_offsets override.
+  - LiteralCurveDef: stores 3 or 4 points and ignores the toolbar
+                     degree, keeping the degree it was saved at. Used by
+                     _literal_preset for shapes pasted from user saves.
 
 For straight edges, storing c1 = c2 = midpoint keeps the cubic a straight
 line and still yields a straight quadratic after the drop — so both
@@ -17,11 +20,8 @@ degrees render polygon presets identically.
 
 
 class CurveDef:
+    """Adapts to the toolbar degree. offsets is always 4 points."""
     def __init__(self, offsets, quadratic_offsets=None):
-        # offsets: always 4 (x, y) tuples (p0, c1, c2, p3) — cubic form.
-        # quadratic_offsets: optional 3-tuple (p0, c, p3). If given, used
-        # verbatim for quadratic placement; otherwise, the drop rule applies
-        # (keep p0, c1, p3).
         self.offsets = offsets
         self.quadratic_offsets = quadratic_offsets
 
@@ -32,6 +32,20 @@ class CurveDef:
             return self.quadratic_offsets
         return [self.offsets[0], self.offsets[1], self.offsets[3]]
 
+    def for_degree(self, toolbar_degree):
+        return toolbar_degree, self.offsets_for_degree(toolbar_degree)
+
+
+class LiteralCurveDef:
+    """Fixed at the degree it was saved. points is 3 or 4."""
+    def __init__(self, points):
+        if len(points) not in (3, 4):
+            raise ValueError(f"Need 3 or 4 points, got {len(points)}")
+        self.points = points
+        self.degree = len(points) - 1
+
+    def for_degree(self, toolbar_degree):
+        return self.degree, self.points
 
 class PresetDef:
     def __init__(self, name, label, curves, links=None, tooltip=""):
@@ -40,6 +54,7 @@ class PresetDef:
         self.curves = curves
         self.links = links or []
         self.tooltip = tooltip
+
 
 
 # ------------------------------------------------------------
@@ -70,24 +85,13 @@ def _poly_preset(name, label, verts, closed, tooltip=""):
     return PresetDef(name=name, label=label, tooltip=tooltip, curves=curves, links=links)
 
 def _literal_preset(name, label, curves, tooltip="", closed=False):
-    """Preset from literal cubic curves, pasted straight from a saved entry.
-
-    `curves` is a list of 4-point lists in absolute coordinates:
-        [[(x,y), (x,y), (x,y), (x,y)], ...]
-    Each curve is used as-is (degree always cubic), recentred on its
-    bounding-box centre so it places around the cursor.
-
-    Consecutive curves whose end/start points coincide are linked
-    automatically, so a saved chain behaves as a chain rather than a
-    pile of overlapping curves. With closed=True, the last curve's end
-    is also linked to the first curve's start.
-    """
+    """Preset from literal curves, pasted straight from a saved entry."""
     xs = [p[0] for c in curves for p in c]
     ys = [p[1] for c in curves for p in c]
     cx = (min(xs) + max(xs)) / 2
     cy = (min(ys) + max(ys)) / 2
 
-    defs = [CurveDef([(x - cx, y - cy) for x, y in c]) for c in curves]
+    defs = [LiteralCurveDef([(x - cx, y - cy) for x, y in c]) for c in curves]
 
     links = []
     for i in range(len(curves) - 1):
@@ -97,8 +101,7 @@ def _literal_preset(name, label, curves, tooltip="", closed=False):
         if _coincident(curves[-1][-1], curves[0][0]):
             links.append(((len(curves) - 1, -1), (0, 0)))
 
-    return PresetDef(name=name, label=label, tooltip=tooltip,
-                     curves=defs, links=links)
+    return PresetDef(name=name, label=label, tooltip=tooltip, curves=defs, links=links)
 
 
 def _coincident(a, b, tol=0.5):
