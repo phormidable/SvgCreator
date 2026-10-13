@@ -240,3 +240,33 @@ class Selection:
 
     def clear_hover(self):
         self.set_hover(None, None)
+
+    def exportable_selection(self):
+        """Return (kind, curves) for the Save Shape action, or (None, None).
+
+        Accepts exactly one of: a shape, a chain, or a single curve.
+        kind is "shape" / "chain" / "curve"; curves are UI BezierCurve objects
+        in the order they should be saved.
+        """
+        scene = self.scene
+
+        # 1) Exactly one shape (S-selected, or all its curves curve-selected).
+        shapes = self.shapes_in_selection()
+        if len(shapes) > 1:
+            return None, None
+        if len(shapes) == 1:
+            return "shape", scene.ui_curves(shapes[0])
+
+        # 2) Curves selected directly (via A / click).
+        selected = [c for c in scene.curves if c.curve_selected]
+        if not selected:
+            return None, None
+        if len(selected) == 1:
+            return "curve", selected
+
+        # 3) Several curves: they must form exactly one chain.
+        ids = frozenset(c.id for c in selected)
+        for chain in scene.document.chains:
+            if frozenset(c.id for c in chain.curves) == ids:
+                return "chain", selected
+        return None, None

@@ -24,6 +24,7 @@ class BezierScene(QGraphicsScene):
     messageLogged = Signal(str)
     transformModeChanged = Signal(bool)
     presetStateChanged = Signal(str)
+    hoveredPointChanged = Signal(object)  # ControlPoint | None
 
     def __init__(self):
         super().__init__()
@@ -266,10 +267,12 @@ class BezierScene(QGraphicsScene):
             return
         self._update_hover(scene_pos)
 
+    def clear_hover(self):
+        self._set_hover(None, None)
+
     def _update_hover(self, pos):
         new_hovered = None
         new_focused_pt = None
-
         if pos is not None:
             tol2 = HOVER_TOLERANCE * HOVER_TOLERANCE
             for curve in reversed(self.curves):
@@ -283,11 +286,13 @@ class BezierScene(QGraphicsScene):
                         new_focused_pt = pt
                         break
                 break
+        self._set_hover(new_hovered, new_focused_pt)
 
-        self.selection.set_hover(new_hovered, new_focused_pt)
-
-    def clear_hover(self):
-        self.selection.clear_hover()
+    def _set_hover(self, curve, point):
+        old = self.selection.focused_point
+        self.selection.set_hover(curve, point)
+        if old is not point:
+            self.hoveredPointChanged.emit(point)
 
     # ------------------------------------------------------------
     #  Selection

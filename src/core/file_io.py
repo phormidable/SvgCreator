@@ -11,6 +11,9 @@ import json
 from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QFileDialog, QMessageBox, QPlainTextEdit, QVBoxLayout
 from PySide6.QtGui import QFont
 
+from pathlib import Path
+
+USER_SHAPES_PATH = Path(__file__).resolve().parent.parent / "user_shape.txt"
 
 class FileIO:
     def __init__(self, window):
@@ -141,3 +144,23 @@ class FileIO:
             self.window.refresh_preview_background()
         else:
             QMessageBox.warning(self.window, "Could not load", f"Failed to load image:\n{filepath}")
+
+    def save_user_shape(self, name: str, tooltip: str, kind: str, curves) -> bool:
+        """Append one shape entry to user_shape.txt (JSON lines)."""
+        entry = {
+            "name": name,
+            "tooltip": tooltip,
+            "kind": kind,
+            "curves": [
+                [[round(p.pos().x(), 3), round(p.pos().y(), 3)] for p in c.points]
+                for c in curves
+            ],
+        }
+        try:
+            with open(USER_SHAPES_PATH, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry) + "\n")
+        except OSError as e:
+            QMessageBox.critical(self.window, "Error", f"Could not save shape:\n{e}")
+            return False
+        self.window.set_status(f"💾 Saved '{name}' to {USER_SHAPES_PATH.name}")
+        return True

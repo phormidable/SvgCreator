@@ -1,5 +1,5 @@
 # main_window.py
-from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QColorDialog, QComboBox, QSizePolicy, QMenu, QToolButton
+from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QColorDialog, QComboBox, QSizePolicy, QMenu, QToolButton, QDialog
 from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QPainter, QColor, QShortcut, QKeySequence
 
@@ -12,8 +12,10 @@ from core.file_io import FileIO
 from ui.preview_widget import PreviewWidget
 from ui.preset_panel import PresetPanel
 from ui.shortcuts_dialog import ShortcutsDialog
+from ui.save_shape_dialog import SaveShapeDialog
 
 ZOOM_LEVELS = [("0.5x", 0.5), ("1x", 1.0), ("2x", 2.0), ("4x", 4.0), ("8x", 8.0), ("16x", 16.0)]
+POINT_TIP_GAP = 22  # viewport pixels above the point's centre
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -78,6 +80,16 @@ class MainWindow(QMainWindow):
         self.coord_label.show()  # show from the start
         self.coord_label.raise_()  # ensure it's on top
 
+        self._hovered_pt = None
+
+        self.point_tip = QLabel(self.drawing_view.viewport())
+        self.point_tip.setStyleSheet(
+            "background-color: rgba(0,0,0,180); color: white; "
+            "padding: 2px 5px; border-radius: 3px; font-weight: bold;"
+        )
+        self.point_tip.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.point_tip.hide()
+
         # ---- Connect signals ----
         self.scene.svgCodeChanged.connect(self.update_preview)
         self.drawing_view.mouseMoved.connect(self.show_mouse_coordinates)
@@ -88,6 +100,7 @@ class MainWindow(QMainWindow):
         self.scene.presetStateChanged.connect(self.preset_panel.sync_state)
         self.drawing_view.shiftReleased.connect(self.scene.on_shift_released)
         self.preview_widget.showSvgRequested.connect(self.file_io.show_svg_code_dialog)
+        self.scene.hoveredPointChanged.connect(self.show_point_tip)
 
         # Initial state
         self.set_mode("create")
@@ -153,6 +166,7 @@ class MainWindow(QMainWindow):
     def show_mouse_coordinates(self, scene_pos):
         if scene_pos is None:
             self.coord_label.hide()
+            self.point_tip.hide()
             return
 
         text = f"({scene_pos.x():.1f}, {scene_pos.y():.1f})"
@@ -169,7 +183,27 @@ class MainWindow(QMainWindow):
         self.coord_label.move(x, y)
         self.coord_label.show()
         self.coord_label.raise_()
+        self._reposition_point_tip()
 
+    def show_point_tip(self, pt):
+        self._hovered_pt = pt
+        self._reposition_point_tip()
+
+    def _reposition_point_tip(self):
+        pt = self._hovered_pt
+        if pt is None:
+            self.point_tip.hide()
+            return
+        pos = pt.pos()
+        self.point_tip.setText(f"({pos.x():.1f}, {pos.y():.1f})")
+        self.point_tip.adjustSize()
+
+        vp = self.drawing_view.mapFromScene(pos)
+        x = vp.x() - self.point_tip.width() // 2
+        y = max(0, vp.y() - self.point_tip.height() - POINT_TIP_GAP)
+        self.point_tip.move(x, y)
+        self.point_tip.show()
+        self.point_tip.raise_()
     # ------------------------------------------------------------
     #  Toolbar
     # ------------------------------------------------------------
@@ -224,6 +258,10 @@ class MainWindow(QMainWindow):
 
         export_action = files_menu.addAction("💾 Export SVG")
         export_action.triggered.connect(self.file_io.export_svg)
+
+        save_shape_action = files_menu.addAction("📐 Save Shape")
+        save_shape_action.setToolTip("Save the selected shape, chain, or curve as a reusable preset")
+        save_shape_action.triggered.connect(self.save_selected_shape)
 
         files_btn.setMenu(files_menu)
         toolbar.addWidget(files_btn)
@@ -335,6 +373,31 @@ class MainWindow(QMainWindow):
 
     def show_shortcuts(self):
         ShortcutsDialog(self).exec()
+
+    def save_selected_shape(self):
+        kind, curves = self.scene.selection.exportable_selection()
+        if not curves:
+            self.statusBar().showMessage(
+                "Select exactly one shape, chain, or curve first")
+            return
+
+        description = self._describe_curves(curves)
+        default_name = f"{kind.capitalize()} {curves[0].id}"
+        dialog = SaveShapeDialog(description, default_name, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        name, tooltip = dialog.values()
+        self.file_io.save_user_shape(name, tooltip, kind, curves)
+
+    @staticmethod
+    def _describe_curves(curves) -> str:
+        lines = []
+        for c in curves:
+            pts = ", ".join(
+                f"({p.pos().x():.1f}, {p.pos().y():.1f})" for p in c.points)
+            lines.append(f"{c.name}: points: ({pts})")
+        return "\n".join(lines)
 
     def set_status(self, message):
         self.statusBar().showMessage(message)
