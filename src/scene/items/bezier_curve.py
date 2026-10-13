@@ -1,12 +1,9 @@
 # scene/items/bezier_curve.py
 from PySide6.QtWidgets import QGraphicsItem
-from PySide6.QtGui import QPainterPath, QColor, QPainter
+from PySide6.QtGui import QPainterPath, QColor, QPainter, QPen
 from PySide6.QtCore import QRectF, Qt
 
-from core.settings import (
-    CURVE_PEN_WIDTH, SHAPE_SELECTED_CURVE_PEN_WIDTH,
-    CURVE_SELECTED_PEN_WIDTH, HOVER_TOLERANCE,
-)
+from core.settings import CURVE_PEN_WIDTH, SHAPE_SELECTED_CURVE_PEN_WIDTH,CURVE_SELECTED_PEN_WIDTH, HOVER_TOLERANCE
 
 from scene.items.control_point import ControlPoint
 
@@ -25,6 +22,7 @@ class BezierCurve(QGraphicsItem):
         self.name = f"Curve {self.id}"
         self.degree = degree
         self.color = QColor(scene.curve_color)
+        self.pen = QPen(self.color, CURVE_PEN_WIDTH)
         self.points: list[ControlPoint] = []
 
         self.committed = False
@@ -121,6 +119,7 @@ class BezierCurve(QGraphicsItem):
 
     def set_color(self, color):
         self.color = QColor(color)
+        self.pen = QPen(self.color, CURVE_PEN_WIDTH)  # NEW
         self.update()
 
     def is_near(self, pos):

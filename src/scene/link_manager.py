@@ -21,19 +21,19 @@ class LinkManager:
         self.indicator = LinkIndicator()
         scene.addItem(self.indicator)
 
+    def _ui_group(self, junction):
+        return self.scene.registry.ui_points_for(junction.points)
+
     def group_of(self, point):
         mp = self.scene.registry.model_point_for(point)
         if mp is None:
             return None
         junction = self.scene.document.junction_that_contains(mp)
-        if junction is None:
-            return None
-        return self.scene.registry.ui_points_for(junction.points)
+        return self._ui_group(junction) if junction is not None else None
 
     @property
     def groups(self):
-        return [self.scene.registry.ui_points_for(j.points)
-                for j in self.scene.document.junctions]
+        return [self._ui_group(j) for j in self.scene.document.junctions]
 
     # ------------------------------------------------------------
     #  Linking / unlinking

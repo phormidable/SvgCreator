@@ -46,7 +46,7 @@ class CurveRenderer:
             return self._pen_hover
         if ui_curve.points_hidden:
             return self._pen_hidden
-        return QPen(ui_curve.color, CURVE_PEN_WIDTH)
+        return ui_curve.pen
 
     # ------------------------------------------------------------
     #  Paths
