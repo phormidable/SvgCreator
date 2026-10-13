@@ -195,6 +195,20 @@ PRESETS = {
     "L_180": _poly_preset("L_180", "┐", [(-50, -50), (50, -50), (50, 50)], closed=False, tooltip="L shape rotated 180°"),
     "L_270": _poly_preset("L_270", "┘", [(50, -50), (50, 50), (-50, 50)], closed=False, tooltip="L shape rotated 270°"),
 
+    # ---- Chains (open polylines) ----
+    "U": _poly_preset("U", "U",[(-50, -50), (-50, 50), (50, 50), (50, -50)],closed=False, tooltip="U shape (right angles)"),
+    "V": _poly_preset("V", "V",[(-50, -43), (0, 43), (50, -43)],closed=False, tooltip="V shape (60° angle)"),
+    "W": _poly_preset("W", "W",[(-60, -40), (-30, 40), (0, -40), (30, 40), (60, -40)],closed=False, tooltip="W shape"),
+    "Z": _poly_preset("Z", "Z",[(-50, -50), (50, -50), (-50, 50), (50, 50)],closed=False, tooltip="Z shape"),
+
+    "C": _literal_preset(
+        "C", "C",
+        [
+            [(0, -80), (-33.1, -80), (-60, -44.2), (-60, 0)],
+            [(-60, 0), (-60, 44.2), (-33.1, 80), (0, 80)],
+        ],
+        tooltip="C shape (2 cubic curves)"),
+
     "S_shape": _literal_preset(
         "S_shape", "S",
         [
