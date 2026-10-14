@@ -147,13 +147,18 @@ class FileIO:
             QMessageBox.warning(self.window, "Could not load", f"Failed to load image:\n{filepath}")
 
     def save_user_shape(self, name: str, tooltip: str, kind: str, curves) -> bool:
-        """Append one shape entry to user_shape.txt (JSON lines)."""
+        """Append one shape entry to user_shape.txt (JSON lines), recentered
+        on the shape's bounding-box centre so it can be placed anywhere."""
+        points = [(p.model_pos().x(), p.model_pos().y()) for c in curves for p in c.points]
+        cx = (min(x for x, _ in points) + max(x for x, _ in points)) / 2
+        cy = (min(y for _, y in points) + max(y for _, y in points)) / 2
+
         entry = {
             "name": name,
             "tooltip": tooltip,
             "kind": kind,
             "curves": [
-                [[round(p.pos().x(), 3), round(p.pos().y(), 3)] for p in c.points]
+                [[round(p.model_pos().x() - cx, 3), round(p.model_pos().y() - cy, 3)] for p in c.points]
                 for c in curves
             ],
         }

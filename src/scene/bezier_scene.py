@@ -582,9 +582,13 @@ class BezierScene(QGraphicsScene):
             return False
         offset = QPointF(dx, dy)
         targets = self._with_linked(self.selected_points)
-        starts = {p: p.pos() for p in targets}
+        starts = {p: p.model_pos() for p in targets}
         for p, start in starts.items():
             p.setPos(start + offset)
+        # The mouse hasn't moved and the hovered point is unchanged, so nothing
+        # downstream refreshes the tooltip. Re-emit so it picks up the new position.
+        if self.focused_point is not None:
+            self.hoveredPointChanged.emit(self.focused_point)
         return True
 
     def on_point_moved(self, point):

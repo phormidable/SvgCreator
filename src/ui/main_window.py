@@ -116,6 +116,12 @@ class MainWindow(QMainWindow):
 
         return handler
 
+    def _arrow_nudge(self, dx: int, dy: int, event) -> bool:
+        """Move the selection by 1 unit, or 10 when Shift is held."""
+        step = 10 if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else 1
+        self.scene.move_selected_points(dx * step, dy * step)
+        return True
+
     def _build_key_handlers(self) -> dict:
         K = Qt.Key
         Shift = Qt.KeyboardModifier.ShiftModifier
@@ -138,10 +144,10 @@ class MainWindow(QMainWindow):
             K.Key_Equal: always(lambda: self._step_zoom(+1)),
             K.Key_Minus: always(lambda: self._step_zoom(-1)),
             K.Key_Backspace: always(scene.delete_selection),
-            K.Key_Left: always(lambda: scene.move_selected_points(-1, 0)),
-            K.Key_Right: always(lambda: scene.move_selected_points(+1, 0)),
-            K.Key_Up: always(lambda: scene.move_selected_points(0, -1)),
-            K.Key_Down: always(lambda: scene.move_selected_points(0, +1)),
+            K.Key_Left: lambda e: self._arrow_nudge(-1, 0, e),
+            K.Key_Right: lambda e: self._arrow_nudge(+1, 0, e),
+            K.Key_Up: lambda e: self._arrow_nudge(0, -1, e),
+            K.Key_Down: lambda e: self._arrow_nudge(0, +1, e),
         }
 
     def _handle_escape(self, event) -> bool:
