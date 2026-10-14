@@ -18,6 +18,8 @@ from .model_registry import ModelRegistry
 from .curve_builder import CurveBuilder
 from .curve_renderer import CurveRenderer
 from .point_renderer import PointRenderer
+from .items.grid_item import GridItem
+from core.settings import GRID_DEFAULT_SPACING
 
 class BezierScene(QGraphicsScene):
     svgCodeChanged = Signal(str)
@@ -65,6 +67,10 @@ class BezierScene(QGraphicsScene):
         self.viewbox_item.setPen(QPen(VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH))
         self.viewbox_item.setZValue(-100)
         self.addItem(self.viewbox_item)
+
+        self.grid_item = GridItem(self.artboard, GRID_DEFAULT_SPACING)
+        self.grid_item.setVisible(False)  # MainWindow turns it on at startup
+        self.addItem(self.grid_item)
 
         # ---- Rubber-band selection rectangle ----
         self._rubber_start: QPointF | None = None
@@ -144,6 +150,15 @@ class BezierScene(QGraphicsScene):
 
     def cancel_pending_curve(self) -> bool:
         return self.builder.cancel_pending_curve()
+
+    def set_grid_visible(self, visible: bool):
+        self.grid_item.setVisible(visible)
+
+    def set_grid_spacing(self, spacing: int):
+        self.grid_item.set_spacing(spacing)
+
+    def set_snap_enabled(self, enabled: bool):
+        self.grid_item.set_snap_enabled(enabled)
 
     # ------------------------------------------------------------
     #  Mouse interaction
@@ -237,7 +252,12 @@ class BezierScene(QGraphicsScene):
                 self._pending_collapse_point = None
 
         if self.dragging_point is not None:
-            delta = self.dragging_point.pos() - self._drag_primary_start
+            # Snap only the primary. Siblings linked to it follow via propagate_move;
+            # other selected points are translated rigidly by the resulting delta so
+            # a multi-point selection never gets distorted by per-point rounding.
+            if self.grid_item.snap_enabled:
+                self.dragging_point.setPos(self.grid_item.snap(self.dragging_point.model_pos()))
+            delta = self.dragging_point.model_pos() - self._drag_primary_start
             for pt, start in self._drag_targets.items():
                 pt.setPos(start + delta)
             self.link_manager.update_proximity(self.dragging_point)

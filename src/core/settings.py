@@ -8,6 +8,15 @@ ZOOM_LEVELS = [("0.5x", 0.5), ("1x", 1.0), ("2x", 2.0), ("4x", 4.0), ("8x", 8.0)
 
 PREVIEW_FIT_MARGIN = 40   # rough allowance for the preview toolbar + borders
 
+# ---- Grid ----
+GRID_MINOR_COLOR = QColor(0, 0, 0, 40)
+GRID_MAJOR_COLOR = QColor(0, 0, 0, 90)
+GRID_SIZE_OPTIONS = [("1px", 1), ("10px", 10), ("100px", 100)]
+GRID_DEFAULT_SPACING = 10
+GRID_MAJOR_EVERY = 10                # every Nth line is drawn as a major line
+GRID_MIN_DEVICE_SPACING = 3          # skip drawing below this on-screen spacing
+
+
 # ---- Window & layout ----
 DRAWING_MIN_WIDTH = 1100
 DRAWING_MIN_HEIGHT = 700

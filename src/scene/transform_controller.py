@@ -157,8 +157,8 @@ class TransformController:
         self._hide_pivot()
         self.scene.transformModeChanged.emit(False)
         verb = {"rotate": "Rotation", "scale": "Scaling", "move": "Move"}[mode]
-        self.scene.messageLogged.emit(
-            f"{verb} validated" if commit else f"{verb} cancelled")
+        self.scene.messageLogged.emit(f"{verb} validated" if commit else f"{verb} cancelled")
+        self.scene.transformTypedChanged.emit("")
 
     def start_rotation(self) -> bool:
         return self._start_transform("rotate")

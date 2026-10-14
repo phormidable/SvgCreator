@@ -3,7 +3,8 @@ from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QL
 from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QPainter, QColor, QShortcut, QKeySequence
 
-from core.settings import DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT, ZOOM_LEVELS
+from core.settings import (DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, ZOOM_LEVELS,
+    PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT, GRID_SIZE_OPTIONS, GRID_DEFAULT_SPACING)
 
 from scene.bezier_scene import BezierScene
 from ui.custom_view import CustomGraphicsView
@@ -260,6 +261,37 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
+        # ---- Grid ----
+        self.grid_action = toolbar.addAction("Show Grid")
+        self.grid_action.setCheckable(True)
+        self.grid_action.toggled.connect(self._on_grid_toggled)
+
+        toolbar.addWidget(QLabel(" Grid size: "))
+        self.grid_combo = QComboBox()
+        for label, spacing in GRID_SIZE_OPTIONS:
+            self.grid_combo.addItem(label, spacing)
+        for i in range(self.grid_combo.count()):
+            if self.grid_combo.itemData(i) == GRID_DEFAULT_SPACING:
+                self.grid_combo.setCurrentIndex(i)
+                break
+        self.grid_combo.currentIndexChanged.connect(self._on_grid_size_changed)
+        toolbar.addWidget(self.grid_combo)
+
+        # Start with the grid shown (for testing). This fires toggled(True) —
+        # make sure it happens *after* the connect above.
+        self.grid_action.setChecked(True)
+
+        self.snap_action = toolbar.addAction("Snap to Grid")
+        self.snap_action.setCheckable(True)
+        self.snap_action.toggled.connect(self.scene.set_snap_enabled)
+
+        # Colour the checked state red. widgetForAction returns the QToolButton
+        # that represents this action on the toolbar.
+        snap_btn = toolbar.widgetForAction(self.snap_action)
+        if snap_btn is not None:
+            snap_btn.setStyleSheet(
+                "QToolButton:checked { background-color: #cc3333; color: white; }")
+
         # ---- Files menu ----
         files_btn = QToolButton()
         files_btn.setText("📁 Files")
@@ -350,6 +382,14 @@ class MainWindow(QMainWindow):
         self.mode_combo.blockSignals(True)
         self.mode_combo.setCurrentIndex(target)
         self.mode_combo.blockSignals(False)
+
+    def _on_grid_toggled(self, checked: bool):
+        self.grid_action.setText("Hide Grid" if checked else "Show Grid")
+        self.scene.set_grid_visible(checked)
+
+    def _on_grid_size_changed(self, index: int):
+        spacing = self.grid_combo.itemData(index)
+        self.scene.set_grid_spacing(spacing)
 
     # ------------------------------------------------------------
     #  Mode switching
