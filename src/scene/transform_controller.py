@@ -18,6 +18,7 @@ class TransformController:
         self._starts: dict = {}
         self._last_pos: QPointF | None = None
         self._pivot_item: QGraphicsEllipseItem | None = None
+        self._typed_angle: str | None = None
 
     # ------------------------------------------------------------
     #  State queries
@@ -33,6 +34,67 @@ class TransformController:
 
     def is_transforming(self) -> bool:
         return self._mode is not None
+
+    # ------------------------------------------------------------
+    #  For typing a rotation
+    # ------------------------------------------------------------
+    def handle_key(self, event) -> bool:
+        """Digit/decimal/minus/backspace/enter input while rotating. Consumes
+        the event and returns True on a hit; False means 'not mine'."""
+        if not self.is_rotating():
+            return False
+
+        K = Qt.Key
+        key = event.key()
+
+        if key in (K.Key_Return, K.Key_Enter):
+            self.scene.end_transform(commit=True)
+            return True
+
+        if key == K.Key_Backspace:
+            if self._typed_angle:
+                self._typed_angle = self._typed_angle[:-1] or None
+                self._typed_angle_changed()
+            return True
+
+        text = event.text()
+        if text in ("-", ".") or (len(text) == 1 and text.isdigit()):
+            if text == "-" and self._typed_angle:
+                return True  # minus only at the start
+            if text == "." and self._typed_angle and "." in self._typed_angle:
+                return True  # one dot, max
+            self._typed_angle = (self._typed_angle or "") + text
+            self._typed_angle_changed()
+            return True
+
+        return False
+
+    def _typed_angle_changed(self):
+        self._apply_typed_rotation()
+        self.scene.transformTypedChanged.emit(self._typed_angle or "")
+
+    def _apply_typed_rotation(self):
+        """Rotate the selection to match the typed buffer, from the original
+        start positions. Idempotent: successive calls overwrite, they don't
+        accumulate — `_apply_rotation` always reads from `_starts`."""
+        if self._pivot is None:
+            return
+        if not self._typed_angle:
+            angle = 0.0  # buffer emptied → undo any typed rotation
+        else:
+            try:
+                angle = float(self._typed_angle)
+            except ValueError:
+                return  # "-", ".", "90." — keep the current state
+        self._apply_rotation(math.radians(angle))
+
+    def cancel_typed_input(self) -> bool:
+        """Clear the typed buffer only. Returns True if there was one."""
+        if self._typed_angle is None:
+            return False
+        self._typed_angle = None
+        self._typed_angle_changed()
+        return True
 
     # ------------------------------------------------------------
     #  Base points / selection
@@ -61,6 +123,7 @@ class TransformController:
         self._mode = mode
         self._pivot = QPointF(cx, cy)
         self._ref = None
+        self._typed_angle = None
         self._starts = {p: p.model_pos() for p in self.scene._with_linked(base)}
         self._last_pos = None
 
@@ -80,14 +143,17 @@ class TransformController:
         if not self.is_transforming():
             return
         mode = self._mode
+
         if not commit:
             for pt, start in self._starts.items():
                 pt.setPos(start)
-            self.scene.on_curve_changed()  # one rebuild after restoring
+            self.scene.on_curve_changed()
+
         self._mode = None
         self._pivot = None
         self._ref = None
         self._starts = {}
+        self._typed_angle = None
         self._hide_pivot()
         self.scene.transformModeChanged.emit(False)
         verb = {"rotate": "Rotation", "scale": "Scaling", "move": "Move"}[mode]
@@ -136,6 +202,8 @@ class TransformController:
     def _update_rotation(self, scene_pos: QPointF):
         if scene_pos is None or self._pivot is None:
             return
+        if self._typed_angle is not None:
+            return  # user is typing; the cursor no longer drives the angle
         self._last_pos = QPointF(scene_pos)
         px, py = self._pivot.x(), self._pivot.y()
         dx, dy = scene_pos.x() - px, scene_pos.y() - py
@@ -145,12 +213,7 @@ class TransformController:
         if self._ref is None:
             self._ref = angle
             return
-        delta = angle - self._ref
-        cos_a, sin_a = math.cos(delta), math.sin(delta)
-        for pt, start in self._starts.items():
-            sx, sy = start.x() - px, start.y() - py
-            pt.setPos(px + sx * cos_a - sy * sin_a,
-                      py + sx * sin_a + sy * cos_a)
+        self._apply_rotation(angle - self._ref)
 
     def _update_scaling(self, scene_pos: QPointF):
         if scene_pos is None or self._pivot is None:
@@ -200,3 +263,11 @@ class TransformController:
         if self._pivot_item is not None:
             self.scene.removeItem(self._pivot_item)
             self._pivot_item = None
+
+    def _apply_rotation(self, delta: float):
+        px, py = self._pivot.x(), self._pivot.y()
+        cos_a, sin_a = math.cos(delta), math.sin(delta)
+        for pt, start in self._starts.items():
+            sx, sy = start.x() - px, start.y() - py
+            pt.setPos(px + sx * cos_a - sy * sin_a,
+                      py + sx * sin_a + sy * cos_a)

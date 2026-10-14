@@ -100,6 +100,7 @@ class MainWindow(QMainWindow):
         self.drawing_view.shiftReleased.connect(self.scene.on_shift_released)
         self.preview_widget.showSvgRequested.connect(self.file_io.show_svg_code_dialog)
         self.scene.hoveredPointChanged.connect(self.show_point_tip)
+        self.scene.transformTypedChanged.connect(lambda text: self.statusBar().showMessage( f"Rotate: {text}°" if text else ""))
 
         # Initial state
         self.set_mode("create")
@@ -168,6 +169,9 @@ class MainWindow(QMainWindow):
         self.set_mode(new_mode)
 
     def keyPressEvent(self, event):
+        if self.scene.handle_transform_key(event):
+            event.accept()
+            return
         handler = self._key_handlers.get(event.key())
         if handler is not None and handler(event):
             event.accept()

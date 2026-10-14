@@ -25,6 +25,7 @@ class BezierScene(QGraphicsScene):
     transformModeChanged = Signal(bool)
     presetStateChanged = Signal(str)
     hoveredPointChanged = Signal(object)  # ControlPoint | None
+    transformTypedChanged = Signal(str)
 
     def __init__(self):
         super().__init__()
@@ -664,3 +665,6 @@ class BezierScene(QGraphicsScene):
         self.messageLogged.emit(
             f"Deleted {curves[0].name}" if n == 1 else f"Deleted {n} curves")
         return n
+
+    def handle_transform_key(self, event) -> bool:
+        return self.transform.handle_key(event)
