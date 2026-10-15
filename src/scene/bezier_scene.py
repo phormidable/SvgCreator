@@ -33,7 +33,6 @@ class BezierScene(QGraphicsScene):
         super().__init__()
         self.document = Document()
 
-
         # ---- Static geometry ----
         self.artboard = ARTBOARD_RECT
         self.viewbox = VIEWBOX_RECT
@@ -214,8 +213,8 @@ class BezierScene(QGraphicsScene):
             else:
                 self.set_selected_point(item)
                 self._pending_collapse_point = None
-            self._drag_press_pos = event.scenePos()
 
+            self._drag_press_pos = event.scenePos()
             self.clear_hover()
             self.dragging_point = item
             self._start_drag(item)
@@ -438,7 +437,6 @@ class BezierScene(QGraphicsScene):
         self.shape_manager.update_fills()
 
 
-
     # ------------------------------------------------------------
     #  Drag helpers
     # ------------------------------------------------------------
@@ -454,8 +452,7 @@ class BezierScene(QGraphicsScene):
     def _start_drag(self, primary):
         primary_group = self._with_linked({primary})
         seeds = set(self.selected_points) | {primary}
-        self._drag_targets = {pt: pt.model_pos()
-                              for pt in self._with_linked(seeds) - primary_group}
+        self._drag_targets = {pt: pt.model_pos() for pt in self._with_linked(seeds) - primary_group}
         self._drag_primary_start = primary.pos()
 
     # ------------------------------------------------------------
@@ -530,7 +527,7 @@ class BezierScene(QGraphicsScene):
         self.messageLogged.emit(
             f"Mirrored across {axis.upper()} axis around ({px:.1f}, {py:.1f})")
         if self.transform.is_transforming():
-            self.transform._reanchor_transform()
+            self.transform.reanchor_transform()
         return True
 
     # ------------------------------------------------------------
@@ -556,8 +553,7 @@ class BezierScene(QGraphicsScene):
         pw, ph = pixmap.width(), pixmap.height()
         scale = min(vb.width() / pw, vb.height() / ph)
         item.setScale(scale)
-        item.setPos(vb.center().x() - pw * scale / 2,
-                    vb.center().y() - ph * scale / 2)
+        item.setPos(vb.center().x() - pw * scale / 2, vb.center().y() - ph * scale / 2)
 
         self.addItem(item)
         self.background_item = item
@@ -630,8 +626,7 @@ class BezierScene(QGraphicsScene):
         if not curves and self.hovered_curve is not None:
             curves = {self.hovered_curve}
         if not curves:
-            self.messageLogged.emit(
-                "Nothing to hide — hover a curve or select points first")
+            self.messageLogged.emit("Nothing to hide — hover a curve or select points first")
             return False
 
         n = sum(1 for c in curves if not c.points_hidden)
@@ -705,4 +700,3 @@ class BezierScene(QGraphicsScene):
                 pt.setPos(snapped)
                 n += 1
         return n
-

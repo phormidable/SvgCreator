@@ -175,7 +175,7 @@ class TransformController:
     # ------------------------------------------------------------
     #  Re-anchor (after an external move, e.g. mirror)
     # ------------------------------------------------------------
-    def _reanchor_transform(self):
+    def reanchor_transform(self):
         if self._pivot is None:
             return
         for p in self._starts:

@@ -3,9 +3,7 @@ from PySide6.QtWidgets import QGraphicsItem
 from PySide6.QtGui import QPainterPath, QPen
 from PySide6.QtCore import Qt, QRectF, QPointF
 
-from core.settings import GRID_MINOR_COLOR, GRID_MAJOR_COLOR, GRID_MAJOR_EVERY, GRID_MIN_DEVICE_SPACING
-
-GRID_Z = -50
+from core.settings import GRID_MINOR_COLOR, GRID_MAJOR_COLOR, GRID_MAJOR_EVERY, GRID_MIN_DEVICE_SPACING, GRID_Z
 
 class GridItem(QGraphicsItem):
     """Horizontal/vertical lines across the artboard. Cosmetic pen (width 0)

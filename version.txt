@@ -1,2 +1,2 @@
-2.5
-Estimated effective lines of code: 3362
+2.6
+Estimated effective lines of code: 3359

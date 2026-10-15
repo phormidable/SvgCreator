@@ -15,7 +15,7 @@ GRID_SIZE_OPTIONS = [("1px", 1), ("10px", 10), ("100px", 100)]
 GRID_DEFAULT_SPACING = 10
 GRID_MAJOR_EVERY = 10                # every Nth line is drawn as a major line
 GRID_MIN_DEVICE_SPACING = 3          # skip drawing below this on-screen spacing
-
+GRID_Z = -40
 
 # ---- Window & layout ----
 DRAWING_MIN_WIDTH = 1100
