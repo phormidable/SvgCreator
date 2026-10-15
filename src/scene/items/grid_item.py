@@ -44,13 +44,17 @@ class GridItem(QGraphicsItem):
     def snap_enabled(self) -> bool:
         return self._snap_enabled
 
-    def snap(self, pos: QPointF) -> QPointF:
-        """Round `pos` to the nearest multiple of the current spacing, in
-        both axes. No-op when snapping is off."""
-        if not self._snap_enabled:
-            return pos
+    def snap_to(self, pos: QPointF) -> QPointF:
+        """Round `pos` to the nearest multiple of the current spacing.
+        Always snaps; ignores the toggle."""
         s = self._spacing
         return QPointF(round(pos.x() / s) * s, round(pos.y() / s) * s)
+
+    def snap(self, pos: QPointF) -> QPointF:
+        """Round `pos` if snapping is enabled, else return it unchanged."""
+        if not self._snap_enabled:
+            return pos
+        return self.snap_to(pos)
 
     # ---- Paint ----
     def paint(self, painter, option, widget=None):

@@ -160,6 +160,9 @@ class BezierScene(QGraphicsScene):
     def set_snap_enabled(self, enabled: bool):
         self.grid_item.set_snap_enabled(enabled)
 
+    def handle_transform_key(self, event) -> bool:
+        return self.transform.handle_key(event)
+
     # ------------------------------------------------------------
     #  Mouse interaction
     # ------------------------------------------------------------
@@ -686,5 +689,20 @@ class BezierScene(QGraphicsScene):
             f"Deleted {curves[0].name}" if n == 1 else f"Deleted {n} curves")
         return n
 
-    def handle_transform_key(self, event) -> bool:
-        return self.transform.handle_key(event)
+    def snap_selection_to_grid(self) -> int:
+        """Snap every selected point (plus its linked siblings) to the nearest
+        grid line. Uses the current spacing regardless of the snap toggle —
+        the caller has explicitly asked for it. Returns the number of points
+        whose position actually changed."""
+        if not self.selected_points:
+            return 0
+        targets = self._with_linked(self.selected_points)
+        n = 0
+        for pt in targets:
+            start = pt.model_pos()
+            snapped = self.grid_item.snap_to(start)
+            if snapped != start:
+                pt.setPos(snapped)
+                n += 1
+        return n
+

@@ -340,6 +340,10 @@ class MainWindow(QMainWindow):
         self.transparent_action.setToolTip("Make the selected shape translucent so you can see behind it")
         self.transparent_action.triggered.connect(self.on_transparent_toggled)
 
+        snap_action = effects_menu.addAction("📐 Quantize Selection")
+        snap_action.setToolTip("Move every selected point to the nearest grid line")
+        snap_action.triggered.connect(self.snap_selection_to_grid)
+
         effects_btn.setMenu(effects_menu)
         toolbar.addWidget(effects_btn)
 
@@ -390,6 +394,8 @@ class MainWindow(QMainWindow):
     def _on_grid_size_changed(self, index: int):
         spacing = self.grid_combo.itemData(index)
         self.scene.set_grid_spacing(spacing)
+
+
 
     # ------------------------------------------------------------
     #  Mode switching
@@ -504,3 +510,11 @@ class MainWindow(QMainWindow):
     def on_transparent_toggled(self, checked):
         self.scene.shape_manager.set_transparent(checked)
         self.log(f"Transparent mode: {'on' if checked else 'off'}")
+
+    def snap_selection_to_grid(self):
+        if not self.scene.selected_points:
+            self.statusBar().showMessage("Nothing to snap — select points first")
+            return
+        n = self.scene.snap_selection_to_grid()
+        self.statusBar().showMessage(
+            f"Snapped {n} point(s) to grid" if n else "Already on grid")
