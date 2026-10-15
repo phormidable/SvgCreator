@@ -248,9 +248,11 @@ class Selection:
 
         # 3) Several curves: they must form exactly one chain.
         ids = frozenset(c.id for c in selected)
-        for chain in scene.document.chains:
+        for chain in scene.document.chains:  # ← `chain` lives here
             if frozenset(c.id for c in chain.curves) == ids:
-                return "chain", selected
+                ordered = [scene.registry.ui_curve_for(mc) for mc in chain.curves
+                           if scene.registry.ui_curve_for(mc) is not None]
+                return "chain", ordered
         return None, None
 
     # in Selection

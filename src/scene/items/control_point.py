@@ -3,7 +3,7 @@ from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem
 from PySide6.QtCore import QPointF, QRectF
 
 from core.settings import (
-    POINT_DIAMETER, LINKED_RING_EXTRA, LINKED_RING_PEN_WIDTH,
+    POINT_DIAMETER, LINKED_RING_EXTRA, LINKED_RING_PEN_WIDTH, POINT_RADIUS, SELECTED_POINT_OUTER_WIDTH
 )
 
 
@@ -55,10 +55,14 @@ class ControlPoint(QGraphicsEllipseItem):
         return super().pos()
 
     def boundingRect(self):
+        r = POINT_RADIUS
         if self.linked:
-            half = POINT_DIAMETER / 2 + LINKED_RING_EXTRA + LINKED_RING_PEN_WIDTH
-            return QRectF(-half, -half, 2 * half, 2 * half)
-        return super().boundingRect()
+            r = max(r, POINT_RADIUS + LINKED_RING_EXTRA + LINKED_RING_PEN_WIDTH)
+        if self.selected:
+            r = max(r, POINT_RADIUS + SELECTED_POINT_OUTER_WIDTH)
+        else:
+            r = max(r, POINT_RADIUS + 1.5)  # hover/focus pen
+        return QRectF(-r, -r, 2 * r, 2 * r)
 
     def set_linked(self, value):
         if self.linked == value:

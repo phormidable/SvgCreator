@@ -253,9 +253,8 @@ class ShapeManager:
     def _rebuild_fill(self, shape):
         if shape.color is None:
             return
-        print(f"[rb] method={self.shape_path}", flush=True)
+
         path = self.shape_path(shape)
-        print(f"[rb] returned={type(path).__name__} {path!r}", flush=True)
         if path.isEmpty():
             return
 

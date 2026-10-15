@@ -57,18 +57,6 @@ class LinkManager:
         self.scene.shape_manager.refresh()
 
     # ------------------------------------------------------------
-    #  Propagation (moving linked siblings together)
-    # ------------------------------------------------------------
-    def propagate_move(self, source, pos):
-        if self._propagating:
-            return
-        self._propagating = True
-        try:
-            self.scene._propagate_move(source, pos)
-        finally:
-            self._propagating = False
-
-    # ------------------------------------------------------------
     #  Proximity indicator
     # ------------------------------------------------------------
     def update_proximity(self, point):
