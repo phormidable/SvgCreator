@@ -1,4 +1,4 @@
-# link_manager.py
+# scene/link_manager.py
 """LinkManager: owns the link groups that snap control points together,
 plus the flashing proximity indicator shown while dragging a point near
 a potential link target.

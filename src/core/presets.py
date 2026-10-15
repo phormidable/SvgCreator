@@ -1,4 +1,4 @@
-# presets.py
+# core/presets.py
 """Preset curve/shape definitions.
 
 A preset describes a small cluster of curves (and optional endpoint links)

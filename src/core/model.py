@@ -1,4 +1,4 @@
-# model.py
+# core/model.py
 """Qt-free model for the drawing tool.
 
 - Point: a coordinate. That's all it is.

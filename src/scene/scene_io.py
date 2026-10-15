@@ -1,4 +1,4 @@
-# scene_io.py
+# scene/scene_io.py
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor
 

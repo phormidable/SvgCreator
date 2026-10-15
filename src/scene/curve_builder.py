@@ -1,4 +1,4 @@
-# src/scene/curve_builder.py
+# scene/curve_builder.py
 """CurveBuilder: create-mode state, click handling, and the shared
 curve-construction pipeline (used by presets too)."""
 

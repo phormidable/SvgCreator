@@ -1,4 +1,4 @@
-# curve_geometry.py
+# scene/curve_geometry.py
 """Pure geometry of a Bezier curve. No Qt items, no scene state.
 
 Inputs are (x, y) tuples so the module works equally well with model

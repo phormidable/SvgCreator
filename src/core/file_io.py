@@ -1,4 +1,4 @@
-# file_io.py
+# core/file_io.py
 """FileIO: filesystem and dialog operations for the main window —
 export SVG, save/load project, load background image, show SVG code.
 

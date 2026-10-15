@@ -1,4 +1,4 @@
-# main_window.py
+# ui/main_window.py
 from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QColorDialog, QComboBox, QSizePolicy, QMenu, QToolButton, QDialog
 from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QPainter, QColor, QShortcut, QKeySequence

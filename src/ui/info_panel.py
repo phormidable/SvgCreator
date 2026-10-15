@@ -1,4 +1,4 @@
-# info_panel.py
+# ui/info_panel.py
 from PySide6.QtWidgets import (QGroupBox, QVBoxLayout, QPlainTextEdit)
 from PySide6.QtCore import Qt
 

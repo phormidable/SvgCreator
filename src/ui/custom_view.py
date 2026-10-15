@@ -1,4 +1,4 @@
-# custom_view.py
+# ui/custom_view.py
 from PySide6.QtWidgets import QGraphicsView
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QTransform

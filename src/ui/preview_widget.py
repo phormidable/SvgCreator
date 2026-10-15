@@ -1,4 +1,4 @@
-# preview_widget.py
+# ui/preview_widget.py
 """PreviewWidget: a QGraphicsView showing the current SVG over an optional
 background pixmap.
 

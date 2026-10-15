@@ -1,4 +1,4 @@
-# selection.py
+# scene/selection.py
 """Selection: authoritative selection state for the scene."""
 
 class Selection:

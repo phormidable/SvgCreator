@@ -1,4 +1,4 @@
-# bezier_scene.py
+# scene/bezier_scene.py
 from PySide6.QtCore import QRectF, Qt, Signal, QSize, QPointF
 from PySide6.QtGui import QPen, QPixmap, QImage, QPainter, QColor
 from PySide6.QtWidgets import (QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem)

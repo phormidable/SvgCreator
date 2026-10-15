@@ -1,4 +1,4 @@
-# link_indicator.py
+# scene/items/link_indicator.py
 from PySide6.QtWidgets import QGraphicsEllipseItem
 from PySide6.QtGui import QPen, QPainterPath
 from PySide6.QtCore import QTimer, Qt, QPointF

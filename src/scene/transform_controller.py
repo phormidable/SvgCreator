@@ -1,4 +1,4 @@
-# transform_controller.py
+# scene/transform_controller.py
 import math
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QBrush, QPen

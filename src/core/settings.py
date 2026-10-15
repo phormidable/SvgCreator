@@ -1,4 +1,4 @@
-# settings.py
+# core/settings.py
 from PySide6.QtCore import QRectF
 from PySide6.QtGui import QColor
 

@@ -1,4 +1,4 @@
-# model_registry.py
+# scene/model_registry.py
 """ModelRegistry: the UI ↔ model bridge.
 
 Owns the four maps between Qt items (ControlPoint, BezierCurve) and the
