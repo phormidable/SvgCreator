@@ -252,6 +252,26 @@ class Selection:
             self.scene.messageLogged.emit(f"Selected {len(to_add)} point(s)")
         return len(to_add)
 
+    def toggle_select_all(self) -> bool:
+        """Ctrl+A: select every point on every visible curve, or clear the
+        selection if every one of them is already selected. Hidden curves are
+        skipped, matching select_in_rect."""
+        scene = self.scene
+        all_points = [pt for c in scene.curves
+                      if not c.points_hidden
+                      for pt in c.points]
+        if not all_points:
+            return False
+
+        if all(pt in self.points for pt in all_points):
+            self.clear()
+            scene.messageLogged.emit("Selection cleared")
+        else:
+            self.clear()
+            self.add_points(all_points)
+            scene.messageLogged.emit(f"Selected {len(all_points)} point(s)")
+        return True
+
     # ------------------------------------------------------------
     #  Hover
     # ------------------------------------------------------------

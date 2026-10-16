@@ -138,7 +138,7 @@ class MainWindow(QMainWindow):
             K.Key_S: lambda e: scene.selection.select_shape_from_hover(add=bool(e.modifiers() & Shift)),
             K.Key_C: always(self.color_selected_shape),
             K.Key_H: always(scene.hide_points),
-            K.Key_A: lambda e: scene.select_curve_under_hover(add=bool(e.modifiers() & Shift)),
+            K.Key_A: self._handle_a_key,
             K.Key_X: always(lambda: scene.mirror_selection("x")),
             K.Key_Y: always(lambda: scene.mirror_selection("y")),
             K.Key_U: always(scene.link_manager.try_break_junction),
@@ -160,6 +160,13 @@ class MainWindow(QMainWindow):
             return True
         self.scene.clear_selection()
         return self.scene.cancel_pending_curve()
+
+    def _handle_a_key(self, event) -> bool:
+        """Ctrl+A toggles select-all; plain A selects the hovered curve."""
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            return self.scene.selection.toggle_select_all()
+        add = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+        return self.scene.select_curve_under_hover(add=add)
 
     def _toggle_mode(self):
         new_mode = "edit" if self.scene.mode == "create" else "create"
@@ -302,9 +309,6 @@ class MainWindow(QMainWindow):
         save_action.setShortcut("Ctrl+S")
         save_action.triggered.connect(self.file_io.save_project)
 
-        bg_action = files_menu.addAction("🖼️ Add Background")
-        bg_action.triggered.connect(self.file_io.load_background_image)
-
         export_action = files_menu.addAction("💾 Export SVG")
         export_action.triggered.connect(self.file_io.export_svg)
 
@@ -351,22 +355,41 @@ class MainWindow(QMainWindow):
         effects_btn.setMenu(effects_menu)
         toolbar.addWidget(effects_btn)
 
-        toolbar.addSeparator()
-        color_action = toolbar.addAction("🎨 Curve Color")
-        color_action.triggered.connect(self.pick_curve_color)
+        # ---- Settings menu ----
+        settings_btn = QToolButton()
+        settings_btn.setText("⚙️ Settings")
+        settings_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        settings_menu = QMenu(settings_btn)
+
+        curve_color_action = settings_menu.addAction("🎨 Curve Color")
+        curve_color_action.setToolTip("Set the default colour for new and unshaped curves")
+        curve_color_action.triggered.connect(self.pick_curve_color)
+
+        settings_menu.addSeparator()
+
+        add_bg_action = settings_menu.addAction("🖼️ Add Background")
+        add_bg_action.setToolTip("Load a reference image behind the curves")
+        add_bg_action.triggered.connect(self.file_io.load_background_image)
+
+        remove_bg_action = settings_menu.addAction("🚫 Remove Background")
+        remove_bg_action.setToolTip("Remove the current background image")
+        remove_bg_action.triggered.connect(self.remove_background)
+
+        settings_btn.setMenu(settings_menu)
+        toolbar.addWidget(settings_btn)
 
         show_all_action = toolbar.addAction("👁️ Show all points")
         show_all_action.setToolTip("Restore all hidden curve points")
         show_all_action.triggered.connect(self.show_all_points)
 
-        shortcuts_action = toolbar.addAction("⌨️ Shortcuts")
-        shortcuts_action.setToolTip("Show all keyboard shortcuts")
-        shortcuts_action.triggered.connect(self.show_shortcuts)
-
         # ---- Spacer: pushes the next items to the right ----
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         toolbar.addWidget(spacer)
+
+        shortcuts_action = toolbar.addAction("⌨️ Shortcuts")
+        shortcuts_action.setToolTip("Show all keyboard shortcuts")
+        shortcuts_action.triggered.connect(self.show_shortcuts)
 
         # ---- Right group: Clear All ----
         clear_action = toolbar.addAction("🗑️ Clear All")
@@ -398,8 +421,6 @@ class MainWindow(QMainWindow):
     def _on_grid_size_changed(self, index: int):
         spacing = self.grid_combo.itemData(index)
         self.scene.set_grid_spacing(spacing)
-
-
 
     # ------------------------------------------------------------
     #  Mode switching
@@ -435,6 +456,15 @@ class MainWindow(QMainWindow):
 
     def refresh_preview_background(self):
         self.preview_widget.set_background(self.scene.background_pixmap)
+
+    def remove_background(self):
+        if self.scene.background.path is None:
+            self.statusBar().showMessage("No background to remove")
+            return
+        self.scene.background.remove()
+        self.refresh_preview_background()
+        self.statusBar().showMessage("Background removed")
+        self.log("Background removed")
 
     # ------------------------------------------------------------
     #  Clear scene

@@ -20,6 +20,7 @@ SHORTCUTS = [
     ("Escape",          "Discard the in-progress curve"),
 
     ("Selection", None),
+    ("Ctrl + A",        "Select all points  (again to deselect)"),
     ("Click",           "Select a point"),
     ("Shift + Click",   "Toggle a point in the selection"),
     ("A",               "Select curve under cursor  (Shift+A adds)"),
