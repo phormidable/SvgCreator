@@ -95,3 +95,13 @@ class ModelRegistry:
                 doc.controls.extend(controls)
                 self._model_by_curve[curve_item] = mc
                 self._curve_by_model[mc] = curve_item
+
+    def reset(self):
+        """Drop every UI ↔ model mapping. Call this when the scene's curves
+        are being torn down wholesale (clear_all), so nothing downstream can
+        reach a stale ControlPoint through registry.ui_points() /
+        model_point_for() / model_curve_for()."""
+        self._curve_by_model.clear()
+        self._model_by_curve.clear()
+        self._pt_by_model.clear()
+        self._model_by_pt.clear()

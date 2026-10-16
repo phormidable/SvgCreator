@@ -467,6 +467,7 @@ class BezierScene(QGraphicsScene):
         while self.curves:
             self.curves.pop().dispose()
         self.curves.clear()
+        self.registry.reset()  # ← new
         self.curve_color = QColor(DEFAULT_CURVE_COLOR)
 
         BezierCurve._next_id = 1

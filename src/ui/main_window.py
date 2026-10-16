@@ -161,10 +161,6 @@ class MainWindow(QMainWindow):
         self.scene.clear_selection()
         return self.scene.cancel_pending_curve()
 
-    def _handle_color_selected_shape(self, event) -> bool:
-        self.color_selected_shape()
-        return True
-
     def _toggle_mode(self):
         new_mode = "edit" if self.scene.mode == "create" else "create"
         self.set_mode(new_mode)

@@ -213,14 +213,7 @@ class Document:
         self.shapes[:] = new_shapes
 
     def detect_chains(self):
-        """Recompute chains from topology. A chain is a maximal connected
-        component of curves that is not already part of a shape.
-
-        Identity survives edits:
-        - extension (new curve joins): original ID kept
-        - split: the side that matches more of the old chain keeps the ID
-                 (ties broken by smallest curve id in the piece)
-        - merge: the larger donor chain keeps its ID
+        """TODO: new docstring
         """
         shape_curves = set()
         for s in self.shapes:
