@@ -194,7 +194,12 @@ class MainWindow(QMainWindow):
             self.point_tip.hide()
             return
 
-        text = f"({scene_pos.x():.1f}, {scene_pos.y():.1f})"
+        if self.scene.grid_item.snap_enabled:
+            snapped = self.scene.grid_item.snap_to(scene_pos)
+            text = f"({snapped.x():.0f}, {snapped.y():.0f})"
+        else:
+            text = f"({scene_pos.x():.1f}, {scene_pos.y():.1f})"
+
         self.coord_label.setText(text)
         self.coord_label.adjustSize()
 

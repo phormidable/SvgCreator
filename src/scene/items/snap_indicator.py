@@ -11,7 +11,10 @@ from core.settings import (
 class SnapIndicator(QGraphicsEllipseItem):
     """A red dot marking the grid point a click would snap to. Shown while
     snap-to-grid is on and the mouse is over the canvas. Purely visual: never
-    pickable, never moveable."""
+    pickable, never moveable.
+
+    Ignores view transforms: the dot stays SNAP_INDICATOR_RADIUS device pixels
+    across at any zoom, while its position still follows scene coordinates."""
 
     def __init__(self):
         r = SNAP_INDICATOR_RADIUS
@@ -22,6 +25,7 @@ class SnapIndicator(QGraphicsEllipseItem):
         self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
         self.setVisible(False)
 
     def shape(self):
