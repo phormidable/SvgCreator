@@ -9,11 +9,10 @@ paint time through the item's properties — nothing is cached here.
 from PySide6.QtCore import Qt, QRectF
 from PySide6.QtGui import QBrush, QColor, QPen, QPainter
 
-from core.settings import (POINT_RADIUS, LINKED_RING_COLOR, LINKED_RING_PEN_WIDTH, LINKED_RING_EXTRA,
-    HOVER_COLOR, HOVER_COLOR_FOCUS, HOVER_POINT_PEN_COLOR, SELECTED_POINT_COLOR, SELECTED_POINT_PEN_COLOR,
-    SELECTED_POINT_OUTER_COLOR, SELECTED_POINT_OUTER_WIDTH, POINT_BLUE, ENDPOINT_ALPHA, ENDPOINT_PEN_COLOR,
-    CONTROL_POINT_OUTER_PEN_COLOR, CONTROL_POINT_MIDDLE_RADIUS, CONTROL_POINT_MIDDLE_COLOR, CONTROL_POINT_MIDDLE_PEN_COLOR,
-    CONTROL_POINT_INNER_RADIUS, CONTROL_POINT_INNER_COLOR)
+from core.settings import (POINT_RADIUS, LINKED_RING_COLOR, LINKED_RING_PEN_WIDTH, LINKED_RING_EXTRA, HOVER_COLOR, HOVER_COLOR_FOCUS,
+    HOVER_POINT_PEN_COLOR, SELECTED_POINT_COLOR, SELECTED_POINT_PEN_COLOR, SELECTED_POINT_OUTER_COLOR, SELECTED_POINT_OUTER_WIDTH,
+    POINT_BLUE, ENDPOINT_ALPHA, ENDPOINT_PEN_COLOR, CONTROL_POINT_OUTER_PEN_COLOR, CONTROL_POINT_MIDDLE_RADIUS, CONTROL_POINT_MIDDLE_COLOR,
+    CONTROL_POINT_MIDDLE_PEN_COLOR, CONTROL_POINT_INNER_RADIUS, CONTROL_POINT_INNER_COLOR)
 
 
 class PointRenderer:
@@ -49,7 +48,8 @@ class PointRenderer:
     # ------------------------------------------------------------
     #  Pieces
     # ------------------------------------------------------------
-    def _ellipse(self, painter, rect, brush, pen):
+    @staticmethod
+    def _ellipse(painter, rect, brush, pen):
         """Set brush and pen, then draw one ellipse. Pass Qt.BrushStyle.NoBrush
         or Qt.PenStyle.NoPen when you want either suppressed."""
         painter.setBrush(brush)

@@ -131,9 +131,9 @@ class MainWindow(QMainWindow):
         always = self._always
         return {
             K.Key_Escape: self._handle_escape,
-            K.Key_R: always(scene.start_rotation),
-            K.Key_B: always(scene.start_scaling),
-            K.Key_M: always(scene.start_move),
+            K.Key_R: always(scene.transform.start_rotation),
+            K.Key_B: always(scene.transform.start_scaling),
+            K.Key_M: always(scene.transform.start_move),
             K.Key_L: always(scene.link_manager.try_link_proximity),
             K.Key_S: lambda e: scene.selection.select_shape_from_hover(add=bool(e.modifiers() & Shift)),
             K.Key_C: always(self.color_selected_shape),

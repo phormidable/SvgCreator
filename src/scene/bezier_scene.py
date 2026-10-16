@@ -1,16 +1,15 @@
 # scene/bezier_scene.py
-from PySide6.QtCore import QRectF, Qt, Signal, QSize, QPointF
-from PySide6.QtGui import QPen, QPixmap, QImage, QPainter, QColor
-from PySide6.QtWidgets import (QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsPixmapItem)
-from PySide6.QtSvg import QSvgRenderer
+from PySide6.QtCore import Signal
+from PySide6.QtGui import QPen, QColor
+from PySide6.QtWidgets import (QGraphicsScene, QGraphicsRectItem)
 
 from .scene_io import generate_svg, save_state, load_state
-from core.settings import ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH, DEFAULT_CURVE_COLOR, HOVER_TOLERANCE
+from core.settings import ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH, DEFAULT_CURVE_COLOR, GRID_DEFAULT_SPACING
+from core.model import Document
 from .link_manager import LinkManager
 from .items.bezier_curve import BezierCurve
 from .shape_manager import ShapeManager
 from .selection import Selection
-from core.model import Document
 from .transform_controller import TransformController
 from .preset_controller import PresetController
 from .model_registry import ModelRegistry
@@ -18,9 +17,10 @@ from .curve_builder import CurveBuilder
 from .curve_renderer import CurveRenderer
 from .point_renderer import PointRenderer
 from .items.grid_item import GridItem
-from core.settings import GRID_DEFAULT_SPACING
-from .curve_geometry import curve_bbox
 from .mouse_controller import MouseController
+from .selection_ops import SelectionOps
+from .background_image import BackgroundImage
+
 
 class BezierScene(QGraphicsScene):
     svgCodeChanged = Signal(str)
@@ -44,10 +44,7 @@ class BezierScene(QGraphicsScene):
         self.curve_color = QColor(DEFAULT_CURVE_COLOR)
         self.selection = Selection(self)
 
-        # ---- Background image ----
-        self.background_item = None
-        self.background_image_path = None
-        self.background_pixmap = None
+        self.background = BackgroundImage(self)
 
         # ---- Scene rect = artboard, never changes during editing ----
         self.setSceneRect(self.artboard)
@@ -73,6 +70,7 @@ class BezierScene(QGraphicsScene):
         self.transform = TransformController(self)
         self.presets = PresetController(self)
         self.builder = CurveBuilder(self)
+        self.selection_ops = SelectionOps(self)
 
     # ------------------------------------------------------------
     #  Read-only views on Selection
@@ -101,17 +99,28 @@ class BezierScene(QGraphicsScene):
     def dragging_point(self, value):
         self.mouse.dragging_point = value
 
+    @property
+    def background_image_path(self):
+        return self.background.path
+
+    @property
+    def background_pixmap(self):
+        return self.background.pixmap
+
     # ------------------------------------------------------------
     #  Public delegates (main_window / custom_view API)
     # ------------------------------------------------------------
-    def start_rotation(self) -> bool:
-        return self.transform.start_rotation()
+    #def start_rotation(self) -> bool:
+     #   return self.transform.start_rotation()
 
-    def start_scaling(self) -> bool:
-        return self.transform.start_scaling()
+    #def start_scaling(self) -> bool:
+     #   return self.transform.start_scaling()
 
-    def start_move(self) -> bool:
-        return self.transform.start_move()
+    #def start_move(self) -> bool:
+     #   return self.transform.start_move()
+
+    def load_background_image(self, filepath):
+        return self.background.load(filepath)
 
     def end_transform(self, commit: bool = True):
         return self.transform.end_transform(commit)
@@ -210,6 +219,26 @@ class BezierScene(QGraphicsScene):
         self.emit_svg()
         self.shape_manager.update_fills()
 
+    def mirror_selection(self, axis: str) -> bool:
+        return self.selection_ops.mirror_selection(axis)
+
+    def center_selection(self, axis: str) -> bool:
+        return self.selection_ops.center_selection(axis)
+
+    def move_selected_points(self, dx: float, dy: float) -> bool:
+        return self.selection_ops.move_selected_points(dx, dy)
+
+    def snap_selection_to_grid(self) -> int:
+        return self.selection_ops.snap_selection_to_grid()
+
+    def delete_selection(self) -> int:
+        return self.selection_ops.delete_selection()
+
+    def hide_points(self) -> bool:
+        return self.selection_ops.hide_points()
+
+    def show_all_points(self) -> int:
+        return self.selection_ops.show_all_points()
 
     def set_curve_color(self, color):
         self.curve_color = QColor(color)
@@ -242,256 +271,8 @@ class BezierScene(QGraphicsScene):
         Shape._next_id = 1
         Chain._next_id = 1
         self.dragging_point = None
-        self._remove_background_image()
+        self.background.remove()
         self.emit_svg()
         self.link_manager.reset()
         self.shape_manager.reset()
         self.messageLogged.emit("Scene cleared")
-
-
-    # ------------------------------------------------------------
-    #  Mirror
-    # ------------------------------------------------------------
-    def mirror_selection(self, axis: str) -> bool:
-        """Reflect the selection across the horizontal line (axis='x') or
-        vertical line (axis='y') through the barycentre of its points."""
-        if not self.selected_points:
-            self.messageLogged.emit(
-                "Nothing to mirror — select a curve (A or click) or a shape (S) first")
-            return False
-
-        base_pts = set(self.selected_points)
-        px = sum(p.pos().x() for p in base_pts) / len(base_pts)
-        py = sum(p.pos().y() for p in base_pts) / len(base_pts)
-
-        # Include linked siblings so they stay coincident.
-        targets = self.link_manager.with_linked(base_pts)
-        starts = {p: p.pos() for p in targets}
-        if axis == "x":
-            for p, start in starts.items():
-                p.setPos(start.x(), 2 * py - start.y())
-        else:
-            for p, start in starts.items():
-                p.setPos(2 * px - start.x(), start.y())
-
-        self.messageLogged.emit(
-            f"Mirrored across {axis.upper()} axis around ({px:.1f}, {py:.1f})")
-        if self.transform.is_transforming():
-            self.transform.reanchor_transform()
-        return True
-
-    def center_selection(self, axis: str) -> bool:
-        if not self.selected_points:
-            self.messageLogged.emit(
-                "Nothing to centre — select a curve (A or click) or a shape (S) first")
-            return False
-
-        bbox = self.selection_curve_bbox()
-        if bbox is None:
-            return False
-        min_x, min_y, max_x, max_y = bbox
-
-        targets = self.link_manager.with_linked(set(self.selected_points))
-        starts = {p: p.pos() for p in targets}
-
-        center = self.viewbox.center()
-        if axis == "horizontal":
-            offset = center.x() - (min_x + max_x) / 2
-            for p, start in starts.items():
-                p.setPos(start.x() + offset, start.y())
-            self.messageLogged.emit(f"Centred horizontally on x={center.x():.1f}")
-        elif axis == "vertical":
-            offset = center.y() - (min_y + max_y) / 2
-            for p, start in starts.items():
-                p.setPos(start.x(), start.y() + offset)
-            self.messageLogged.emit(f"Centred vertically on y={center.y():.1f}")
-        else:
-            return False
-
-        if self.transform.is_transforming():
-            self.transform.reanchor_transform()
-        return True
-
-    # ------------------------------------------------------------
-    #  Background image
-    # ------------------------------------------------------------
-    def load_background_image(self, filepath):
-        pixmap = self._read_image(filepath)
-        if pixmap is None:
-            return False
-
-        self._remove_background_image()
-        self.background_image_path = filepath
-        self.background_pixmap = pixmap
-
-        item = QGraphicsPixmapItem(pixmap)
-        item.setOpacity(0.35)
-        item.setZValue(-50)
-        item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
-        item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False)
-        item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
-
-        vb = self.viewbox
-        pw, ph = pixmap.width(), pixmap.height()
-        scale = min(vb.width() / pw, vb.height() / ph)
-        item.setScale(scale)
-        item.setPos(vb.center().x() - pw * scale / 2, vb.center().y() - ph * scale / 2)
-
-        self.addItem(item)
-        self.background_item = item
-        self.messageLogged.emit(f"Background loaded: {filepath}")
-        return True
-
-    def _remove_background_image(self):
-        if self.background_item is not None:
-            self.removeItem(self.background_item)
-            self.background_item = None
-            self.background_image_path = None
-            self.background_pixmap = None
-
-    def _read_image(self, filepath):
-        """Load a raster or SVG file into a QPixmap (or None on failure)."""
-        if filepath.lower().endswith(".svg"):
-            renderer = QSvgRenderer(filepath)
-            if not renderer.isValid():
-                return None
-
-            target = int(max(self.viewbox.width(), self.viewbox.height()) * 2)
-            size = renderer.defaultSize()
-            if size.isEmpty():
-                size = renderer.viewBoxF().size().toSize()
-            if size.isEmpty():
-                size = QSize(target, target)
-
-            scale = target / max(size.width(), size.height())
-            size = QSize(int(size.width() * scale), int(size.height() * scale))
-
-            image = QImage(size, QImage.Format.Format_ARGB32_Premultiplied)
-            image.fill(Qt.GlobalColor.transparent)
-            painter = QPainter(image)
-            renderer.render(painter)
-            painter.end()
-            return QPixmap.fromImage(image)
-
-        pixmap = QPixmap(filepath)
-        return pixmap if not pixmap.isNull() else None
-
-    # ------------------------------------------------------------
-    #  Point movement
-    # ------------------------------------------------------------
-    def move_selected_points(self, dx: float, dy: float) -> bool:
-        if not self.selected_points:
-            return False
-        offset = QPointF(dx, dy)
-        targets = self.link_manager.with_linked(self.selected_points)
-        starts = {p: p.model_pos() for p in targets}
-        for p, start in starts.items():
-            p.setPos(start + offset)
-        # The mouse hasn't moved and the hovered point is unchanged, so nothing
-        # downstream refreshes the tooltip. Re-emit so it picks up the new position.
-        if self.focused_point is not None:
-            self.hoveredPointChanged.emit(self.focused_point)
-        return True
-
-
-    def hide_points(self) -> bool:
-        """Hide the control points of every curve that has a point in the
-        selection. Falls back to the hovered curve when nothing is selected."""
-        if self.dragging_point is not None:
-            return False  # don't yank points out from under an active drag
-
-        curves = {pt.curve for pt in self.selected_points if pt.curve is not None}
-        if not curves and self.hovered_curve is not None:
-            curves = {self.hovered_curve}
-        if not curves:
-            self.messageLogged.emit("Nothing to hide — hover a curve or select points first")
-            return False
-
-        n = sum(1 for c in curves if not c.points_hidden)
-        for c in curves:
-            c.set_points_hidden(True)
-        if n:
-            self.messageLogged.emit(f"Points hidden on {n} curve(s)")
-        return n > 0
-
-    def show_all_points(self) -> int:
-        n = 0
-        for curve in self.curves:
-            if curve.points_hidden:
-                curve.set_points_hidden(False)
-                n += 1
-        if n:
-            self.messageLogged.emit(f"Restored points on {n} curve(s)")
-        return n
-
-    # ------------------------------------------------------------
-    #  Delete selection
-    # ------------------------------------------------------------
-    def delete_selection(self) -> int:
-        """Delete every curve selected directly (curve_selected) or via a
-        selected shape. Returns the number of curves removed."""
-        to_delete: set[BezierCurve] = set()
-        for curve in self.curves:
-            if curve.curve_selected:
-                to_delete.add(curve)
-        for shape in self.selection.selected_shapes():
-            to_delete.update(self.ui_curves(shape))
-
-        if not to_delete:
-            self.messageLogged.emit("Nothing selected to delete")
-            return 0
-
-        self.clear_hover()
-        self.selection.select_shape(None)
-
-        curves = list(to_delete)
-        for curve in curves:
-            self.curves.remove(curve)
-            for pt in curve.points:
-                if pt in self.selected_points:
-                    self.selected_points.remove(pt)
-                pt.update()
-
-        for curve in curves:
-            curve.dispose()
-
-        self.shape_manager.refresh()
-        self.emit_svg()
-        n = len(curves)
-        self.messageLogged.emit(
-            f"Deleted {curves[0].name}" if n == 1 else f"Deleted {n} curves")
-        return n
-
-    def snap_selection_to_grid(self) -> int:
-        """Snap every selected point (plus its linked siblings) to the nearest
-        grid line. Uses the current spacing regardless of the snap toggle —
-        the caller has explicitly asked for it. Returns the number of points
-        whose position actually changed."""
-        if not self.selected_points:
-            return 0
-        targets = self.link_manager.with_linked(self.selected_points)
-        n = 0
-        for pt in targets:
-            start = pt.model_pos()
-            snapped = self.grid_item.snap_to(start)
-            if snapped != start:
-                pt.setPos(snapped)
-                n += 1
-        return n
-
-    def selection_curve_bbox(self):
-        """Tight bbox (min_x, min_y, max_x, max_y) of the actual curve geometry
-        for every curve touched by the selection. None if no curve is involved.
-        Unlike a control-polygon bbox, this ignores handles that wander away
-        from the curve."""
-        curves = {pt.curve for pt in self.selected_points if pt.curve is not None}
-        if not curves:
-            return None
-
-        boxes = []
-        for curve in curves:
-            pts = [(p.model_pos().x(), p.model_pos().y()) for p in curve.points]
-            boxes.append(curve_bbox(pts, curve.degree))
-
-        return (min(b[0] for b in boxes), min(b[1] for b in boxes),
-                max(b[2] for b in boxes), max(b[3] for b in boxes))

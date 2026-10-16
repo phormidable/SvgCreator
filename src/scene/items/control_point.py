@@ -59,9 +59,9 @@ class ControlPoint(QGraphicsEllipseItem):
         if self.linked:
             r = max(r, POINT_RADIUS + LINKED_RING_EXTRA + LINKED_RING_PEN_WIDTH)
         if self.selected:
-            r = max(r, POINT_RADIUS + SELECTED_POINT_OUTER_WIDTH)
+            r = max(r, int(POINT_RADIUS + SELECTED_POINT_OUTER_WIDTH))
         else:
-            r = max(r, POINT_RADIUS + 1.5)  # hover/focus pen
+            r = max(r, int(POINT_RADIUS + 1.5))  # hover/focus pen
         return QRectF(-r, -r, 2 * r, 2 * r)
 
     def set_linked(self, value):

@@ -44,7 +44,7 @@ class LiteralCurveDef:
         self.points = points
         self.degree = len(points) - 1
 
-    def for_degree(self, toolbar_degree):
+    def for_degree(self):
         return self.degree, self.points
 
 class PresetDef:

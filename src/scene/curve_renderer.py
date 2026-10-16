@@ -10,13 +10,8 @@ lives on the item itself.
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPainterPath, QPainterPathStroker, QPen
 
-from core.settings import (
-    CURVE_PEN_WIDTH,
-    HOVER_COLOR, HOVER_COLOR_FOCUS, HIDDEN_CURVE_COLOR,
-    SHAPE_SELECTED_CURVE_COLOR, SHAPE_SELECTED_CURVE_PEN_WIDTH,
-    CURVE_SELECTED_PEN_COLOR, CURVE_SELECTED_PEN_WIDTH,
-    HOVER_TOLERANCE,
-)
+from core.settings import (CURVE_PEN_WIDTH,HOVER_COLOR, HOVER_COLOR_FOCUS, HIDDEN_CURVE_COLOR, SHAPE_SELECTED_CURVE_COLOR,
+                           SHAPE_SELECTED_CURVE_PEN_WIDTH, CURVE_SELECTED_PEN_COLOR, CURVE_SELECTED_PEN_WIDTH, HOVER_TOLERANCE)
 
 
 class CurveRenderer:
@@ -31,27 +26,10 @@ class CurveRenderer:
         self._pen_curve_selected = QPen(CURVE_SELECTED_PEN_COLOR, CURVE_SELECTED_PEN_WIDTH)
 
     # ------------------------------------------------------------
-    #  Pens
-    # ------------------------------------------------------------
-    def pen_for(self, ui_curve) -> QPen:
-        # Persistent selection wins over transient hover/focus.
-        if ui_curve.shape_selected:
-            return self._pen_shape_selected
-        if ui_curve.curve_selected:
-            return self._pen_curve_selected
-        # Focus (mouse directly on the stroke) beats group hover.
-        if ui_curve.focused:
-            return self._pen_focus
-        if ui_curve.hovered:
-            return self._pen_hover
-        if ui_curve.points_hidden:
-            return self._pen_hidden
-        return ui_curve.pen
-
-    # ------------------------------------------------------------
     #  Paths
     # ------------------------------------------------------------
-    def paths_for(self, positions, degree):
+    @staticmethod
+    def paths_for(positions, degree):
         """Build (visual, hit) paths from a list of QPointF positions.
 
         Handles partial curves — fewer than degree+1 points draws a
@@ -74,3 +52,21 @@ class CurveRenderer:
         stroker.setCapStyle(Qt.PenCapStyle.RoundCap)
         stroker.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         return path, stroker.createStroke(path)
+
+    # ------------------------------------------------------------
+    #  Pens
+    # ------------------------------------------------------------
+    def pen_for(self, ui_curve) -> QPen:
+        # Persistent selection wins over transient hover/focus.
+        if ui_curve.shape_selected:
+            return self._pen_shape_selected
+        if ui_curve.curve_selected:
+            return self._pen_curve_selected
+        # Focus (mouse directly on the stroke) beats group hover.
+        if ui_curve.focused:
+            return self._pen_focus
+        if ui_curve.hovered:
+            return self._pen_hover
+        if ui_curve.points_hidden:
+            return self._pen_hidden
+        return ui_curve.pen

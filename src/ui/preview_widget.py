@@ -7,7 +7,7 @@ background pixmap.
 - Zoom is a view transform (base fit × user zoom); panning is ScrollHandDrag.
 """
 
-from PySide6.QtCore import Qt, QByteArray, QRectF, Signal, QSize
+from PySide6.QtCore import Qt, QByteArray, QRectF, Signal
 from PySide6.QtGui import QPainter, QPixmap, QTransform
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtSvgWidgets import QGraphicsSvgItem
