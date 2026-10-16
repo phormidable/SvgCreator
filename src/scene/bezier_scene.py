@@ -7,7 +7,6 @@ from PySide6.QtSvg import QSvgRenderer
 from .scene_io import generate_svg, save_state, load_state
 from core.settings import ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH, DEFAULT_CURVE_COLOR, HOVER_TOLERANCE
 from .link_manager import LinkManager
-from .items.control_point import ControlPoint
 from .items.bezier_curve import BezierCurve
 from .shape_manager import ShapeManager
 from .selection import Selection
@@ -20,7 +19,8 @@ from .curve_renderer import CurveRenderer
 from .point_renderer import PointRenderer
 from .items.grid_item import GridItem
 from core.settings import GRID_DEFAULT_SPACING
-
+from .curve_geometry import curve_bbox
+from .mouse_controller import MouseController
 class BezierScene(QGraphicsScene):
     svgCodeChanged = Signal(str)
     messageLogged = Signal(str)
@@ -43,19 +43,15 @@ class BezierScene(QGraphicsScene):
         self.curve_color = QColor(DEFAULT_CURVE_COLOR)
         self.selection = Selection(self)
 
-        self.dragging_point = None
-        self._ensuring_visible = False
+
+
 
         # ---- Background image ----
         self.background_item = None
         self.background_image_path = None
         self.background_pixmap = None
 
-        # ---- Drag bookkeeping ----
-        self._pending_collapse_point: ControlPoint | None = None
-        self._drag_press_pos: QPointF | None = None
-        self._drag_targets: dict[ControlPoint, QPointF] = {}
-        self._drag_primary_start: QPointF | None = None
+
 
         # ---- Scene rect = artboard, never changes during editing ----
         self.setSceneRect(self.artboard)
@@ -71,21 +67,13 @@ class BezierScene(QGraphicsScene):
         self.grid_item.setVisible(False)  # MainWindow turns it on at startup
         self.addItem(self.grid_item)
 
-        # ---- Rubber-band selection rectangle ----
-        self._rubber_start: QPointF | None = None
-        self._rubber_item = QGraphicsRectItem()
-        self._rubber_item.setPen(QPen(QColor(0, 120, 215), 1, Qt.PenStyle.DashLine))
-        self._rubber_item.setBrush(QColor(0, 120, 215, 40))
-        self._rubber_item.setZValue(2000)
-        self._rubber_item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
-        self._rubber_item.setVisible(False)
-        self.addItem(self._rubber_item)
 
         # ---- Collaborators ----
         self.registry = ModelRegistry(self)
         self.curve_renderer = CurveRenderer(self)
         self.point_renderer = PointRenderer(self)
         self.link_manager = LinkManager(self)
+        self.mouse = MouseController(self)
         self.shape_manager = ShapeManager(self)
         self.transform = TransformController(self)
         self.presets = PresetController(self)
@@ -110,6 +98,14 @@ class BezierScene(QGraphicsScene):
     @property
     def pending_curve(self):
         return self.builder.pending_curve
+
+    @property
+    def dragging_point(self):
+        return self.mouse.dragging_point
+
+    @dragging_point.setter
+    def dragging_point(self, value):
+        self.mouse.dragging_point = value
 
     # ------------------------------------------------------------
     #  Public delegates (main_window / custom_view API)
@@ -162,196 +158,28 @@ class BezierScene(QGraphicsScene):
     def handle_transform_key(self, event) -> bool:
         return self.transform.handle_key(event)
 
-    # ------------------------------------------------------------
-    #  Mouse interaction
-    # ------------------------------------------------------------
     def mousePressEvent(self, event):
-        if event.button() != Qt.MouseButton.LeftButton:
+        if self.mouse.mouse_press(event):
             super().mousePressEvent(event)
-            return
-
-        # A pending preset consumes this click, whatever the mode.
-        if self.presets._pending is not None:
-            keep = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
-            self.presets.place_preset(event.scenePos(), keep_armed=keep)
-            return
-
-        # ---- Create mode ----
-        if self.mode == "create":
-            self.builder.handle_click(event.scenePos())
-            return
-
-        # ---- Edit mode ----
-        views = self.views()
-        if not views:
-            super().mousePressEvent(event)
-            return
-        item = self.itemAt(event.scenePos(), views[0].transform())
-
-        if isinstance(item, ControlPoint) and item.curve.committed:
-            if item not in self.selected_points:
-                # Several points coincide at a junction, and itemAt returns the
-                # topmost. If another curve's endpoint is stacked above the one
-                # we selected, the click would land on it and collapse the
-                # selection. Prefer a linked sibling that is already selected.
-                group = self.link_manager.group_of(item) or ()
-                item = next((pt for pt in group if pt in self.selected_points), item)
-            shift = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
-
-            if shift:
-                self.toggle_selection(item)
-                self.clear_hover()
-                event.accept()
-                return
-
-            # Non-shift: selection collapses to exactly this point.
-            # If the point is already part of a multi-point selection, defer
-            # the collapse to release: a click collapses, a drag keeps the
-            # whole selection and moves everything together.
-            if item in self.selected_points and len(self.selected_points) > 1:
-                self._pending_collapse_point = item
-            else:
-                self.set_selected_point(item)
-                self._pending_collapse_point = None
-
-            self._drag_press_pos = event.scenePos()
-            self.clear_hover()
-            self.dragging_point = item
-            self._start_drag(item)
-            super().mousePressEvent(event)
-            return
-
-        # Not on a point. Refresh hover for this exact scene position.
-        self._update_hover(event.scenePos())
-        if self.hovered_curve is not None:
-            add = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
-            self.select_curve_under_hover(add=add)
-            event.accept()
-            return
-
-        # Empty space → begin a rubber-band selection. A click without a drag
-        # still clears the selection (done here, on press); a real drag
-        # replaces it with whatever's inside the rectangle on release.
-        if not (event.modifiers() & Qt.KeyboardModifier.ShiftModifier):
-            self.clear_selection()
-        self._rubber_start = event.scenePos()
-        self._rubber_item.setRect(QRectF(self._rubber_start, self._rubber_start))
-        self._rubber_item.setVisible(True)
-        event.accept()
 
     def mouseMoveEvent(self, event):
-        if self._rubber_start is not None:
-            rect = QRectF(self._rubber_start, event.scenePos()).normalized()
-            self._rubber_item.setRect(rect)
-            return
-        super().mouseMoveEvent(event)
-
-        if self._pending_collapse_point is not None and self._drag_press_pos is not None:
-            press = self._drag_press_pos
-            cur = event.scenePos()
-            dx, dy = cur.x() - press.x(), cur.y() - press.y()
-            if dx * dx + dy * dy > 25:  # ~5 px — real movement, not jitter
-                self._pending_collapse_point = None
-
-        if self.dragging_point is not None:
-            # Snap only the primary. Siblings linked to it follow via propagate_move;
-            # other selected points are translated rigidly by the resulting delta so
-            # a multi-point selection never gets distorted by per-point rounding.
-            if self.grid_item.snap_enabled:
-                self.dragging_point.setPos(self.grid_item.snap(self.dragging_point.model_pos()))
-            delta = self.dragging_point.model_pos() - self._drag_primary_start
-            for pt, start in self._drag_targets.items():
-                pt.setPos(start + delta)
-            self.link_manager.update_proximity(self.dragging_point)
-
-        if self.dragging_point is None or self._ensuring_visible:
-            return
-        self._ensuring_visible = True
-        try:
-            pos = event.scenePos()
-            target = QRectF(pos.x() - 1, pos.y() - 1, 2, 2)
-            for view in self.views():
-                view.ensureVisible(target, 60, 60)
-        finally:
-            self._ensuring_visible = False
+        if self.mouse.mouse_move(event):
+            super().mouseMoveEvent(event)
+        self.mouse.post_mouse_move(event)
 
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            if self._rubber_start is not None:
-                start = self._rubber_start
-                self._rubber_start = None
-                self._rubber_item.setVisible(False)
-                rect = QRectF(start, event.scenePos()).normalized()
-                # A tiny rect means the user just clicked empty space; the
-                # selection was already cleared on press.
-                if rect.width() >= 3 or rect.height() >= 3:
-                    add = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
-                    self.select_in_rect(rect, add=add)
-                self._update_hover(event.scenePos())
-                event.accept()
-                return
-            if self.dragging_point is not None:
-                pending = self._pending_collapse_point
-                self._pending_collapse_point = None
-                self._drag_press_pos = None
-                self.dragging_point = None
-                self._drag_targets = {}
-                self._drag_primary_start = None
-                self.link_manager.clear_proximity()
+        if self.mouse.mouse_release(event):
+            super().mouseReleaseEvent(event)
 
-                if pending is not None:
-                    self.set_selected_point(pending)
-
-                self._update_hover(event.scenePos())
-        super().mouseReleaseEvent(event)
-
-    # ------------------------------------------------------------
-    #  Hover tracking
-    # ------------------------------------------------------------
     def on_mouse_moved(self, scene_pos):
-        if self.transform.is_transforming():
-            if self.transform.is_rotating():
-                self.transform._update_rotation(scene_pos)
-            elif self.transform.is_scaling():
-                self.transform._update_scaling(scene_pos)
-            else:
-                self.transform._update_move(scene_pos)
-            return
-        if self.dragging_point is not None:
-            return
-        if self._rubber_start is not None:
-            return
-        if self.mode == "create":
-            return
-        self._update_hover(scene_pos)
+        self.mouse.on_mouse_moved(scene_pos)
 
     def clear_hover(self):
-        self._set_hover(None, None)
+        self.mouse.clear_hover()
 
-    def _update_hover(self, pos):
-        new_hovered = None
-        new_focused_pt = None
-        if pos is not None:
-            tol2 = HOVER_TOLERANCE * HOVER_TOLERANCE
-            for curve in reversed(self.curves):
-                if not curve.is_near(pos):
-                    continue
-                new_hovered = curve
-                for pt in curve.points:
-                    p = pt.model_pos()
-                    dx, dy = p.x() - pos.x(), p.y() - pos.y()
-                    if dx * dx + dy * dy <= tol2:
-                        new_focused_pt = pt
-                        break
-                break
-        self._set_hover(new_hovered, new_focused_pt)
-
-    def _set_hover(self, curve, point):
-        old = self.selection.focused_point
-        self.selection.set_hover(curve, point)
-        if old is not point:
-            self.hoveredPointChanged.emit(point)
-
+    def on_point_moved(self, point):
+        """Called by ControlPoint when its position changed."""
+        self.mouse.on_point_moved(point)
     # ------------------------------------------------------------
     #  Selection
     # ------------------------------------------------------------
@@ -437,23 +265,6 @@ class BezierScene(QGraphicsScene):
         self.shape_manager.update_fills()
 
 
-    # ------------------------------------------------------------
-    #  Drag helpers
-    # ------------------------------------------------------------
-    def _with_linked(self, points) -> set[ControlPoint]:
-        """Return `points` plus every link-group sibling of any of them."""
-        result = set(points)
-        for pt in points:
-            group = self.link_manager.group_of(pt)
-            if group:
-                result.update(group)
-        return result
-
-    def _start_drag(self, primary):
-        primary_group = self._with_linked({primary})
-        seeds = set(self.selected_points) | {primary}
-        self._drag_targets = {pt: pt.model_pos() for pt in self._with_linked(seeds) - primary_group}
-        self._drag_primary_start = primary.pos()
 
     # ------------------------------------------------------------
     #  Clear everything
@@ -516,7 +327,7 @@ class BezierScene(QGraphicsScene):
         py = sum(p.pos().y() for p in base_pts) / len(base_pts)
 
         # Include linked siblings so they stay coincident.
-        targets = self._with_linked(base_pts)
+        targets = self.link_manager.with_linked(base_pts)
         starts = {p: p.pos() for p in targets}
         if axis == "x":
             for p, start in starts.items():
@@ -527,6 +338,38 @@ class BezierScene(QGraphicsScene):
 
         self.messageLogged.emit(
             f"Mirrored across {axis.upper()} axis around ({px:.1f}, {py:.1f})")
+        if self.transform.is_transforming():
+            self.transform.reanchor_transform()
+        return True
+
+    def center_selection(self, axis: str) -> bool:
+        if not self.selected_points:
+            self.messageLogged.emit(
+                "Nothing to centre — select a curve (A or click) or a shape (S) first")
+            return False
+
+        bbox = self.selection_curve_bbox()
+        if bbox is None:
+            return False
+        min_x, min_y, max_x, max_y = bbox
+
+        targets = self.link_manager.with_linked(set(self.selected_points))
+        starts = {p: p.pos() for p in targets}
+
+        center = self.viewbox.center()
+        if axis == "horizontal":
+            offset = center.x() - (min_x + max_x) / 2
+            for p, start in starts.items():
+                p.setPos(start.x() + offset, start.y())
+            self.messageLogged.emit(f"Centred horizontally on x={center.x():.1f}")
+        elif axis == "vertical":
+            offset = center.y() - (min_y + max_y) / 2
+            for p, start in starts.items():
+                p.setPos(start.x(), start.y() + offset)
+            self.messageLogged.emit(f"Centred vertically on y={center.y():.1f}")
+        else:
+            return False
+
         if self.transform.is_transforming():
             self.transform.reanchor_transform()
         return True
@@ -602,7 +445,7 @@ class BezierScene(QGraphicsScene):
         if not self.selected_points:
             return False
         offset = QPointF(dx, dy)
-        targets = self._with_linked(self.selected_points)
+        targets = self.link_manager.with_linked(self.selected_points)
         starts = {p: p.model_pos() for p in targets}
         for p, start in starts.items():
             p.setPos(start + offset)
@@ -612,10 +455,6 @@ class BezierScene(QGraphicsScene):
             self.hoveredPointChanged.emit(self.focused_point)
         return True
 
-    def on_point_moved(self, point):
-        """Called by ControlPoint when its position changed."""
-        if self.dragging_point is point:
-            self.link_manager.update_proximity(point)
 
     def hide_points(self) -> bool:
         """Hide the control points of every curve that has a point in the
@@ -692,7 +531,7 @@ class BezierScene(QGraphicsScene):
         whose position actually changed."""
         if not self.selected_points:
             return 0
-        targets = self._with_linked(self.selected_points)
+        targets = self.link_manager.with_linked(self.selected_points)
         n = 0
         for pt in targets:
             start = pt.model_pos()
@@ -701,3 +540,20 @@ class BezierScene(QGraphicsScene):
                 pt.setPos(snapped)
                 n += 1
         return n
+
+    def selection_curve_bbox(self):
+        """Tight bbox (min_x, min_y, max_x, max_y) of the actual curve geometry
+        for every curve touched by the selection. None if no curve is involved.
+        Unlike a control-polygon bbox, this ignores handles that wander away
+        from the curve."""
+        curves = {pt.curve for pt in self.selected_points if pt.curve is not None}
+        if not curves:
+            return None
+
+        boxes = []
+        for curve in curves:
+            pts = [(p.model_pos().x(), p.model_pos().y()) for p in curve.points]
+            boxes.append(curve_bbox(pts, curve.degree))
+
+        return (min(b[0] for b in boxes), min(b[1] for b in boxes),
+                max(b[2] for b in boxes), max(b[3] for b in boxes))

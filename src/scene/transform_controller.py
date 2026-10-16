@@ -124,7 +124,7 @@ class TransformController:
         self._pivot = QPointF(cx, cy)
         self._ref = None
         self._typed_angle = None
-        self._starts = {p: p.model_pos() for p in self.scene._with_linked(base)}
+        self._starts = {p: p.model_pos() for p in self.scene.link_manager.with_linked(base)}
         self._last_pos = None
 
         if mode != "move":

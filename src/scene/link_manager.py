@@ -193,3 +193,14 @@ class LinkManager:
                     pt.setPos(pos)
         finally:
             self._propagating = False
+
+    # scene/link_manager.py — add this method
+
+    def with_linked(self, points):
+        """Return `points` plus every link-group sibling of any of them."""
+        result = set(points)
+        for pt in points:
+            group = self.group_of(pt)
+            if group:
+                result.update(group)
+        return result

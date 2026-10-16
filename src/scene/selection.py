@@ -1,6 +1,7 @@
 # scene/selection.py
 """Selection: authoritative selection state for the scene."""
 
+from PySide6.QtCore import QRectF
 class Selection:
     def __init__(self, scene):
         self.scene = scene

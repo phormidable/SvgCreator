@@ -329,6 +329,14 @@ class MainWindow(QMainWindow):
         mirror_y_action.setToolTip("Flip horizontally — mirror across the vertical line through the selection")
         mirror_y_action.triggered.connect(lambda: self.scene.mirror_selection("y"))
 
+        center_h_action = effects_menu.addAction("↔ Center H")
+        center_h_action.setToolTip("Centre the selection horizontally in the viewbox")
+        center_h_action.triggered.connect(lambda: self.scene.center_selection("horizontal"))
+
+        center_v_action = effects_menu.addAction("↕ Center V")
+        center_v_action.setToolTip("Centre the selection vertically in the viewbox")
+        center_v_action.triggered.connect(lambda: self.scene.center_selection("vertical"))
+
         effects_menu.addSeparator()
 
         self.transparent_action = effects_menu.addAction("👻 Make transparent")
