@@ -2,6 +2,8 @@
 """Selection: authoritative selection state for the scene."""
 
 from PySide6.QtCore import QRectF
+
+from PySide6.QtCore import QRectF
 class Selection:
     def __init__(self, scene):
         self.scene = scene
@@ -27,11 +29,22 @@ class Selection:
     #  Point mutations
     # ------------------------------------------------------------
     def set_point(self, pt):
+        """Replace the whole selection (points AND shapes) with just `pt`
+        (or clear everything if None)."""
+        if pt is None:
+            self.clear()
+            return
+        if len(self.points) == 1 and self.points[0] is pt:
+            return
+        self.clear()
+        self.points.append(pt)
+        pt.update()
+        pt.curve.update()
+
+    def clear(self):
+        """Clear both point and shape selection."""
         self.clear_points()
-        if pt is not None:
-            self.points.append(pt)
-            pt.update()
-            pt.curve.update()
+        self.select_shape(None)
 
     def toggle_point(self, pt):
         if pt in self.points:
@@ -169,7 +182,7 @@ class Selection:
         any_curve_selected = any(c.curve_selected for c in self.scene.curves)
         sole_selection = (self.shapes == {shape} and not any_curve_selected)
 
-        self.scene.clear_selection()
+        self.clear()
         if sole_selection:
             self.scene.messageLogged.emit(f"{shape.name} deselected")
         else:
@@ -178,21 +191,66 @@ class Selection:
         return True
 
     def _select_chain(self, chain, add: bool) -> bool:
-        scene = self.scene
         chain_pts = [pt for c in chain for pt in c.points]
         if add:
             if all(self.is_curve_selected(c) for c in chain):
                 self.remove_points(chain_pts)
-                scene.messageLogged.emit("Chain removed from selection")
+                self.scene.messageLogged.emit("Chain removed from selection")
             else:
                 self.add_points(chain_pts)
-                scene.messageLogged.emit(f"Added chain of {len(chain)} curves")
+                self.scene.messageLogged.emit(f"Added chain of {len(chain)} curves")
+        else:
+            self.clear()
+            self.add_points(chain_pts)
+            self.scene.messageLogged.emit(f"Selected chain of {len(chain)} curves")
+        return True
+
+    def select_curve_under_hover(self, add: bool = False) -> bool:
+        """Toggle selection of the hovered curve. With `add`, the curve joins
+        the existing selection instead of replacing it. Returns True if handled."""
+        curve = self.hovered_curve
+        if curve is None:
+            return False
+        in_selection = self.is_curve_selected(curve)
+
+        if add:
+            if in_selection:
+                self.remove_points(curve.points)
+                self.scene.messageLogged.emit(f"{curve.name} removed from selection")
+            else:
+                self.add_points(curve.points)
+                self.scene.messageLogged.emit(f"Added {curve.name} to selection")
             return True
 
-        scene.clear_selection()
-        self.add_points(chain_pts)
-        scene.messageLogged.emit(f"Selected chain of {len(chain)} curves")
+        # No shift: replace, unless this curve is already the whole selection.
+        if in_selection and len(self.points) == len(curve.points):
+            self.clear()
+            self.scene.messageLogged.emit(f"{curve.name} deselected")
+            return True
+        self.clear()
+        self.add_points(curve.points)
+        self.scene.messageLogged.emit(f"Selected {curve.name} ({len(curve.points)} points)")
         return True
+
+    def select_in_rect(self, rect: QRectF, add: bool = False) -> int:
+        """Select every visible control point whose position lies inside
+        `rect` (scene coordinates). With `add`, keeps the existing selection."""
+        if not add:
+            self.clear()
+        selected = self.points
+        to_add = []
+        for curve in self.scene.curves:
+            if curve.points_hidden:
+                continue
+            for pt in curve.points:
+                if pt in selected:
+                    continue
+                if rect.contains(pt.model_pos()):
+                    to_add.append(pt)
+        self.add_points(to_add)
+        if to_add:
+            self.scene.messageLogged.emit(f"Selected {len(to_add)} point(s)")
+        return len(to_add)
 
     # ------------------------------------------------------------
     #  Hover

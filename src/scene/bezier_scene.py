@@ -21,6 +21,7 @@ from .items.grid_item import GridItem
 from core.settings import GRID_DEFAULT_SPACING
 from .curve_geometry import curve_bbox
 from .mouse_controller import MouseController
+
 class BezierScene(QGraphicsScene):
     svgCodeChanged = Signal(str)
     messageLogged = Signal(str)
@@ -43,15 +44,10 @@ class BezierScene(QGraphicsScene):
         self.curve_color = QColor(DEFAULT_CURVE_COLOR)
         self.selection = Selection(self)
 
-
-
-
         # ---- Background image ----
         self.background_item = None
         self.background_image_path = None
         self.background_pixmap = None
-
-
 
         # ---- Scene rect = artboard, never changes during editing ----
         self.setSceneRect(self.artboard)
@@ -67,7 +63,6 @@ class BezierScene(QGraphicsScene):
         self.grid_item.setVisible(False)  # MainWindow turns it on at startup
         self.addItem(self.grid_item)
 
-
         # ---- Collaborators ----
         self.registry = ModelRegistry(self)
         self.curve_renderer = CurveRenderer(self)
@@ -78,7 +73,6 @@ class BezierScene(QGraphicsScene):
         self.transform = TransformController(self)
         self.presets = PresetController(self)
         self.builder = CurveBuilder(self)
-
 
     # ------------------------------------------------------------
     #  Read-only views on Selection
@@ -158,6 +152,37 @@ class BezierScene(QGraphicsScene):
     def handle_transform_key(self, event) -> bool:
         return self.transform.handle_key(event)
 
+    def set_selected_point(self, point):
+        self.selection.set_point(point)
+
+    def toggle_selection(self, point):
+        self.selection.toggle_point(point)
+
+    def clear_selection(self):
+        self.selection.clear()
+
+    def select_curve_under_hover(self, add: bool = False) -> bool:
+        return self.selection.select_curve_under_hover(add=add)
+
+    def select_in_rect(self, rect, add: bool = False) -> int:
+        return self.selection.select_in_rect(rect, add=add)
+
+    # ------------------------------------------------------------
+    #  Save / load / SVG
+    # ------------------------------------------------------------
+    def generate_svg(self, bordered: bool = False):
+        return generate_svg(self, bordered=bordered)
+
+    def emit_svg(self):
+        # Preview mirrors the drawing area, so it always uses borders.
+        self.svgCodeChanged.emit(generate_svg(self, bordered=True))
+
+    def save_state(self) -> dict:
+        return save_state(self)
+
+    def load_state(self, state: dict):
+        load_state(self, state)
+
     def mousePressEvent(self, event):
         if self.mouse.mouse_press(event):
             super().mousePressEvent(event)
@@ -180,73 +205,11 @@ class BezierScene(QGraphicsScene):
     def on_point_moved(self, point):
         """Called by ControlPoint when its position changed."""
         self.mouse.on_point_moved(point)
-    # ------------------------------------------------------------
-    #  Selection
-    # ------------------------------------------------------------
-    def set_selected_point(self, point):
-        """Replace the whole selection with just `point` (or clear if None)."""
-        if point is None:
-            self.clear_selection()
-            return
-        if len(self.selection.points) == 1 and self.selection.points[0] is point:
-            return
-        self.clear_selection()
-        self.selection.set_point(point)
 
-    def toggle_selection(self, point):
-        self.selection.toggle_point(point)
+    def on_curve_changed(self):
+        self.emit_svg()
+        self.shape_manager.update_fills()
 
-    def clear_selection(self):
-        self.selection.clear_points()
-        self.selection.select_shape(None)
-
-    def select_curve_under_hover(self, add: bool = False) -> bool:
-        """Toggle selection of the hovered curve. With `add`, the curve joins
-        the existing selection instead of replacing it. Returns True if handled."""
-        if self.hovered_curve is None:
-            return False
-        curve = self.hovered_curve
-        sel = self.selection
-        in_selection = sel.is_curve_selected(curve)
-
-        if add:
-            if in_selection:
-                sel.remove_points(curve.points)
-                self.messageLogged.emit(f"{curve.name} removed from selection")
-            else:
-                sel.add_points(curve.points)
-                self.messageLogged.emit(f"Added {curve.name} to selection")
-            return True
-
-        # No shift: replace, unless this curve is already the whole selection.
-        if in_selection and len(sel.points) == len(curve.points):
-            self.clear_selection()
-            self.messageLogged.emit(f"{curve.name} deselected")
-            return True
-        self.clear_selection()
-        sel.add_points(curve.points)
-        self.messageLogged.emit(f"Selected {curve.name} ({len(curve.points)} points)")
-        return True
-
-    def select_in_rect(self, rect: QRectF, add: bool = False) -> int:
-        """Select every visible control point whose position lies inside
-        `rect` (scene coordinates). With `add`, keeps the existing selection."""
-        if not add:
-            self.clear_selection()
-        selected = self.selection.points
-        to_add = []
-        for curve in self.curves:
-            if curve.points_hidden:
-                continue
-            for pt in curve.points:
-                if pt in selected:
-                    continue
-                if rect.contains(pt.model_pos()):
-                    to_add.append(pt)
-        self.selection.add_points(to_add)
-        if to_add:
-            self.messageLogged.emit(f"Selected {len(to_add)} point(s)")
-        return len(to_add)
 
     def set_curve_color(self, color):
         self.curve_color = QColor(color)
@@ -255,16 +218,6 @@ class BezierScene(QGraphicsScene):
         if self.pending_curve is not None:
             self.pending_curve.set_color(self.curve_color)
         self.shape_manager.apply_curve_colors()
-
-    # ------------------------------------------------------------
-    #  Degree, curve finalization, change notification
-    # ------------------------------------------------------------
-
-    def on_curve_changed(self):
-        self.emit_svg()
-        self.shape_manager.update_fills()
-
-
 
     # ------------------------------------------------------------
     #  Clear everything
@@ -295,21 +248,6 @@ class BezierScene(QGraphicsScene):
         self.shape_manager.reset()
         self.messageLogged.emit("Scene cleared")
 
-    # ------------------------------------------------------------
-    #  Save / load / SVG
-    # ------------------------------------------------------------
-    def generate_svg(self, bordered: bool = False):
-        return generate_svg(self, bordered=bordered)
-
-    def emit_svg(self):
-        # Preview mirrors the drawing area, so it always uses borders.
-        self.svgCodeChanged.emit(generate_svg(self, bordered=True))
-
-    def save_state(self) -> dict:
-        return save_state(self)
-
-    def load_state(self, state: dict):
-        load_state(self, state)
 
     # ------------------------------------------------------------
     #  Mirror
