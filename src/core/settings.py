@@ -55,6 +55,11 @@ HOVER_POINT_PEN_COLOR = QColor("darkred")
 # ---- Curve style ----
 CURVE_PEN_WIDTH = 2
 
+# ---- Snap-to-grid indicator ----
+SNAP_INDICATOR_RADIUS = 2
+SNAP_INDICATOR_COLOR = QColor("red")
+SNAP_INDICATOR_Z = 900        # above curves, below the link indicator (z=1000)
+
 # ---- Export defaults ----
 SVG_STROKE_COLOR = "black"
 SVG_STROKE_WIDTH = 2

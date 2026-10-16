@@ -8,6 +8,8 @@ from core.settings import ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR,
 from core.model import Document
 from .link_manager import LinkManager
 from .items.bezier_curve import BezierCurve
+from .items.snap_indicator import SnapIndicator
+from .items.grid_item import GridItem
 from .shape_manager import ShapeManager
 from .selection import Selection
 from .transform_controller import TransformController
@@ -16,10 +18,10 @@ from .model_registry import ModelRegistry
 from .curve_builder import CurveBuilder
 from .curve_renderer import CurveRenderer
 from .point_renderer import PointRenderer
-from .items.grid_item import GridItem
 from .mouse_controller import MouseController
 from .selection_ops import SelectionOps
 from .background_image import BackgroundImage
+
 
 
 class BezierScene(QGraphicsScene):
@@ -59,6 +61,9 @@ class BezierScene(QGraphicsScene):
         self.grid_item = GridItem(self.artboard, GRID_DEFAULT_SPACING)
         self.grid_item.setVisible(False)  # MainWindow turns it on at startup
         self.addItem(self.grid_item)
+
+        self.snap_indicator = SnapIndicator()
+        self.addItem(self.snap_indicator)
 
         # ---- Collaborators ----
         self.registry = ModelRegistry(self)
@@ -157,6 +162,8 @@ class BezierScene(QGraphicsScene):
 
     def set_snap_enabled(self, enabled: bool):
         self.grid_item.set_snap_enabled(enabled)
+        if not enabled:
+            self.snap_indicator.hide_indicator()
 
     def handle_transform_key(self, event) -> bool:
         return self.transform.handle_key(event)
@@ -206,7 +213,18 @@ class BezierScene(QGraphicsScene):
             super().mouseReleaseEvent(event)
 
     def on_mouse_moved(self, scene_pos):
+        self._update_snap_indicator(scene_pos)
         self.mouse.on_mouse_moved(scene_pos)
+
+    def _update_snap_indicator(self, scene_pos):
+        if scene_pos is None or not self.grid_item.snap_enabled:
+            self.snap_indicator.hide_indicator()
+            return
+        if self.transform.is_transforming():
+            # Transforms don't snap — showing the dot would be misleading.
+            self.snap_indicator.hide_indicator()
+            return
+        self.snap_indicator.show_at(self.grid_item.snap_to(scene_pos))
 
     def clear_hover(self):
         self.mouse.clear_hover()
@@ -256,6 +274,7 @@ class BezierScene(QGraphicsScene):
         self.transform.end_transform(commit=False)
         self.set_selected_point(None)
         self.builder.clear()
+        self.snap_indicator.hide_indicator()
 
         while self.curves:
             self.curves.pop().dispose()
