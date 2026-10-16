@@ -57,7 +57,7 @@ class MouseController:
         scene = self.scene
 
         # A pending preset consumes this click, whatever the mode.
-        if scene.presets._pending is not None:
+        if scene.presets.pending is not None:
             keep = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
             scene.presets.place_preset(event.scenePos(), keep_armed=keep)
             return False

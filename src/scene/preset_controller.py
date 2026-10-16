@@ -11,6 +11,10 @@ class PresetController:
         self.scene = scene
         self._pending: str | None = None
 
+    @property
+    def pending(self) -> str | None:
+        return self._pending
+
     # ------------------------------------------------------------
     #  Arm / cancel
     # ------------------------------------------------------------
