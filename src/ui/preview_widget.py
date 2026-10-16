@@ -7,16 +7,22 @@ background pixmap.
 - Zoom is a view transform (base fit × user zoom); panning is ScrollHandDrag.
 """
 
-from PySide6.QtCore import Qt, QByteArray, QRectF, Signal
+from PySide6.QtCore import Qt, QByteArray, QRectF, Signal, QSize
 from PySide6.QtGui import QPainter, QPixmap, QTransform
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtSvgWidgets import QGraphicsSvgItem
 from PySide6.QtWidgets import QComboBox, QGraphicsPixmapItem, QGraphicsScene, QGraphicsView, QLabel, QToolBar, QVBoxLayout, QWidget
 
-from core.settings import PREVIEW_FIT_MARGIN, PREVIEW_HEIGHT, PREVIEW_WIDTH, ZOOM_LEVELS
+from core.settings import PREVIEW_FIT_MARGIN, ZOOM_LEVELS
 
 class PreviewWidget(QWidget):
     showSvgRequested = Signal()
+
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._apply_zoom()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._zoom = 1.0
@@ -27,18 +33,19 @@ class PreviewWidget(QWidget):
         outer.setSpacing(0)
 
         # ---- Toolbar ----
-        bar = QToolBar()
-        bar.setMovable(False)
-        bar.addWidget(QLabel(" Zoom: "))
+        self.bar = QToolBar()
+        self.bar.setMovable(False)
+        self.bar.addWidget(QLabel(" Zoom: "))
         self._zoom_combo = QComboBox()
         for label, factor in ZOOM_LEVELS:
             self._zoom_combo.addItem(label, factor)
+
         self._zoom_combo.setCurrentIndex(1)
         self._zoom_combo.currentIndexChanged.connect(self._on_zoom_changed)
-        bar.addWidget(self._zoom_combo)
-        bar.addAction("↺ Reset").triggered.connect(self.reset_view)
-        bar.addAction("📄 SVG code").triggered.connect(self.showSvgRequested.emit)
-        outer.addWidget(bar)
+        self.bar.addWidget(self._zoom_combo)
+        self.bar.addAction("↺ Reset").triggered.connect(self.reset_view)
+        self.bar.addAction("📄 SVG code").triggered.connect(self.showSvgRequested.emit)
+        outer.addWidget(self.bar)
 
         # ---- Scene: background item, then SVG item ----
         self._scene = QGraphicsScene(self)
@@ -120,8 +127,11 @@ class PreviewWidget(QWidget):
         rect = self._scene.sceneRect()
         if rect.isEmpty():
             return
-        ref_w = PREVIEW_WIDTH - 4
-        ref_h = PREVIEW_HEIGHT - PREVIEW_FIT_MARGIN
+        vp = self._view.viewport().size()
+        ref_w = vp.width()  - PREVIEW_FIT_MARGIN
+        ref_h = vp.height() - PREVIEW_FIT_MARGIN
+        if ref_w <= 0 or ref_h <= 0:
+            return
         base = min(ref_w / rect.width(), ref_h / rect.height())
         anchor = self._view.mapToScene(self._view.viewport().rect().center())
         self._view.setTransform(QTransform().scale(base * self._zoom, base * self._zoom))

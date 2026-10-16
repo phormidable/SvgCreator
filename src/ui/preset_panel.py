@@ -3,7 +3,7 @@ from PySide6.QtWidgets import QGroupBox, QGridLayout, QToolButton
 from PySide6.QtCore import Signal
 
 from core.presets import PRESETS
-
+from core.settings import PRESET_PANEL_HEIGHT
 
 class PresetPanel(QGroupBox):
     """Grid of preset buttons. Clicking one arms it in the scene; the next
@@ -18,7 +18,7 @@ class PresetPanel(QGroupBox):
         grid = QGridLayout()
         grid.setSpacing(2)
         grid.setContentsMargins(4, 2, 4, 2)
-
+        self.setFixedHeight(PRESET_PANEL_HEIGHT)
         cols = 10
         for i, preset in enumerate(PRESETS.values()):
             btn = QToolButton()

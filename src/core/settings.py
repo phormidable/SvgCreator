@@ -2,6 +2,8 @@
 from PySide6.QtCore import QRectF
 from PySide6.QtGui import QColor
 
+from pathlib import Path
+USER_SHAPES_PATH = Path(__file__).resolve().parent.parent / "user_shape.txt"
 
 # ---- Zoom levels (used by the drawing view and the preview) ----
 ZOOM_LEVELS = [("0.5x", 0.5), ("1x", 1.0), ("2x", 2.0), ("4x", 4.0), ("8x", 8.0), ("16x", 16.0)]
@@ -21,8 +23,15 @@ GRID_Z = -40
 DRAWING_MIN_WIDTH = 1100
 DRAWING_MIN_HEIGHT = 700
 
+# Preview: fixed width for the right column; the *view* inside it is
+# kept square via PreviewWidget.heightForWidth(). So PREVIEW_WIDTH is
+# effectively both the column width and the minimum side of the square
+# viewport — changing it below 300 would break the intent, not the layout.
 PREVIEW_WIDTH = 626
 PREVIEW_HEIGHT = 670
+
+PRESET_PANEL_HEIGHT = 120
+CONSOLE_HEIGHT = 120
 
 WINDOW_WIDTH = DRAWING_MIN_WIDTH + PREVIEW_WIDTH + 15
 WINDOW_HEIGHT = DRAWING_MIN_HEIGHT + 10

@@ -8,13 +8,10 @@ paths, dialogs, and user-facing success/failure messages.
 
 import json
 
-from pathlib import Path
 
 from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QFileDialog, QMessageBox, QPlainTextEdit, QVBoxLayout
 from PySide6.QtGui import QFont
-
-
-USER_SHAPES_PATH = Path(__file__).resolve().parent.parent / "user_shape.txt"
+from .settings import USER_SHAPES_PATH
 
 class FileIO:
     def __init__(self, window):
