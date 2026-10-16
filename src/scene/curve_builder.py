@@ -23,17 +23,17 @@ class CurveBuilder:
         self.current_degree = degree
         if self.pending_curve is not None:
             self.discard()
-        self.scene.messageLogged.emit(
-            f"Curve type → {'quadratic' if degree == 2 else 'cubic'}")
+        self.scene.messageLogged.emit(f"Curve type → {'quadratic' if degree == 2 else 'cubic'}")
 
     # ------------------------------------------------------------
     #  Create-mode click
     # ------------------------------------------------------------
     def handle_click(self, scene_pos):
+        pos = self.scene.grid_item.snap(scene_pos)
         if self.pending_curve is None:
             self.pending_curve = BezierCurve(
                 self.scene, degree=self.current_degree)
-        self.pending_curve.add_point(scene_pos)
+        self.pending_curve.add_point(pos)
         if self.pending_curve.is_complete():
             self.finalize()
             self.scene.messageLogged.emit("Curve created")
