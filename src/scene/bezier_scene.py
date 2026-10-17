@@ -21,6 +21,7 @@ from .point_renderer import PointRenderer
 from .mouse_controller import MouseController
 from .selection_ops import SelectionOps
 from .background_image import BackgroundImage
+from .items.origin_marker import OriginMarker
 
 
 
@@ -57,6 +58,9 @@ class BezierScene(QGraphicsScene):
         self.viewbox_item.setPen(QPen(VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH))
         self.viewbox_item.setZValue(-100)
         self.addItem(self.viewbox_item)
+
+        self.origin_marker = OriginMarker()
+        self.addItem(self.origin_marker)
 
         self.grid_item = GridItem(self.artboard, GRID_DEFAULT_SPACING)
         self.grid_item.setVisible(False)  # MainWindow turns it on at startup

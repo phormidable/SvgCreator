@@ -35,12 +35,18 @@ PREVIEW_HEIGHT = 670
 PRESET_PANEL_HEIGHT = 120
 CONSOLE_HEIGHT = 100
 
+# ---- Origin marker ----
+ORIGIN_MARKER_COLOR = QColor(0, 0, 0, 180)   # mostly opaque black
+ORIGIN_MARKER_PEN_WIDTH = 1
+ORIGIN_MARKER_ARM = 6          # half-length of each arm, device pixels
+ORIGIN_MARKER_Z = -35          # above grid (-40), below shape fills (-10)
+
 WINDOW_WIDTH = DRAWING_MIN_WIDTH + PREVIEW_WIDTH + 15
 WINDOW_HEIGHT = DRAWING_MIN_HEIGHT + 10
 
 # ---- Scene / viewBox ----
-ARTBOARD_RECT = QRectF(0, 0, 2000, 2000)
-VIEWBOX_RECT = QRectF(488, 488, 1024, 1024)
+ARTBOARD_RECT = QRectF(-1000, -1000, 2000, 2000)
+VIEWBOX_RECT = QRectF(-512, -512, 1024, 1024)
 
 # ---- Canvas colors ----
 CANVAS_BACKGROUND_COLOR = QColor(170, 170, 170)    # light grey: work area
