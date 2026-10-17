@@ -87,6 +87,15 @@ class SelectionOps:
             for p, start in starts.items():
                 p.setPos(2 * px - start.x(), start.y())
 
+        if axis == "x":
+            if all(abs(p.pos().y() - py) < 1e-6 for p in base_pts):
+                scene.messageLogged.emit("Nothing to mirror — selection is on the axis")
+                return True
+        else:
+            if all(abs(p.pos().x() - px) < 1e-6 for p in base_pts):
+                scene.messageLogged.emit("Nothing to mirror — selection is on the axis")
+                return True
+
         scene.messageLogged.emit(
             f"Mirrored across {axis.upper()} axis around ({px:.1f}, {py:.1f})")
         if scene.transform.is_transforming():
@@ -122,6 +131,10 @@ class SelectionOps:
             scene.messageLogged.emit(f"Centred vertically on y={center.y():.1f}")
         else:
             return False
+
+        if abs(offset) < 1e-6:
+            scene.messageLogged.emit(f"Already centred {'horizontally' if axis == 'horizontal' else 'vertically'}")
+            return True
 
         if scene.transform.is_transforming():
             scene.transform.reanchor_transform()

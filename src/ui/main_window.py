@@ -119,8 +119,7 @@ class MainWindow(QMainWindow):
             self.scene.end_transform(commit=False)
             return
         label = self.scene.undo.undo()
-        if label:
-            self.statusBar().showMessage(f"Undid: {label}")
+        self.statusBar().showMessage(f"Undid: {label}" if label else "Nothing to undo")
 
     def _do_redo(self):
         # Match undo's intercept: mid-gesture redo cancels the gesture, it
@@ -132,8 +131,7 @@ class MainWindow(QMainWindow):
             self.scene.end_transform(commit=False)
             return
         label = self.scene.undo.redo()
-        if label:
-            self.statusBar().showMessage(f"Redid: {label}")
+        self.statusBar().showMessage(f"Redid: {label}" if label else "Nothing to redo")
 
     def _refresh_undo_actions(self):
         u = self.scene.undo
@@ -621,16 +619,19 @@ class MainWindow(QMainWindow):
     def color_selected_shape(self):
         shapes = self.scene.selection.selected_shapes()
         if not shapes:
-            self.statusBar().showMessage(
-                "No shape selected — hover a curve and press S first")
+            self.statusBar().showMessage("No shape selected — hover a curve and press S first")
             return
-        initial = shapes[0].color if shapes[0].color is not None \
-            else QColor(180, 180, 180)
-        title = (f"Color for {shapes[0].name}" if len(shapes) == 1
-                 else f"Color for {len(shapes)} shapes")
+
+        initial = shapes[0].color if shapes[0].color is not None else QColor(180, 180, 180)
+        title = (f"Color for {shapes[0].name}" if len(shapes) == 1 else f"Color for {len(shapes)} shapes")
         color = QColorDialog.getColor(initial, self, title)
+
         if not color.isValid():
             return
+
+        if all(s.color is not None and s.color == color for s in shapes):
+            return  # every selected shape already this colour
+
         for shape in shapes:
             self.scene.shape_manager.set_color(shape, color)
         self.log(f"Colored {len(shapes)} shape(s) {color.name()}")
@@ -640,6 +641,8 @@ class MainWindow(QMainWindow):
         color = QColorDialog.getColor(self.scene.curve_color, self, "Curve Color")
         if not color.isValid():
             return
+        if color == self.scene.curve_color:
+            return  # no change
         self.scene.set_curve_color(color)
         self.log(f"Curve color → {color.name()}")
         self.scene.undo.push("Curve color")
