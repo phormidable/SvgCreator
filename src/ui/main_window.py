@@ -4,7 +4,7 @@ from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QPainter, QColor, QShortcut, QKeySequence
 
 from core.settings import (DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, ZOOM_LEVELS,
-    PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT, GRID_SIZE_OPTIONS, GRID_DEFAULT_SPACING)
+    PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT, GRID_SIZE_OPTIONS, GRID_DEFAULT_SPACING, TOOLBAR_CHECKED_STYLE)
 
 from scene.bezier_scene import BezierScene
 from ui.custom_view import CustomGraphicsView
@@ -274,6 +274,10 @@ class MainWindow(QMainWindow):
         self.grid_action.setCheckable(True)
         self.grid_action.toggled.connect(self._on_grid_toggled)
 
+        grid_btn = toolbar.widgetForAction(self.grid_action)
+        if grid_btn is not None:
+            grid_btn.setStyleSheet(TOOLBAR_CHECKED_STYLE)
+
         toolbar.addWidget(QLabel(" Grid size: "))
         self.grid_combo = QComboBox()
         for label, spacing in GRID_SIZE_OPTIONS:
@@ -297,8 +301,7 @@ class MainWindow(QMainWindow):
         # that represents this action on the toolbar.
         snap_btn = toolbar.widgetForAction(self.snap_action)
         if snap_btn is not None:
-            snap_btn.setStyleSheet(
-                "QToolButton:checked { background-color: #cc3333; color: white; }")
+            snap_btn.setStyleSheet(TOOLBAR_CHECKED_STYLE)
 
         # ---- Files menu ----
         files_btn = QToolButton()

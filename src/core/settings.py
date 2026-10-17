@@ -7,6 +7,8 @@ USER_SHAPES_PATH = Path(__file__).resolve().parent.parent / "user_shape.txt"
 
 # ---- Zoom levels (used by the drawing view and the preview) ----
 ZOOM_LEVELS = [("0.5x", 0.5), ("1x", 1.0), ("2x", 2.0), ("4x", 4.0), ("8x", 8.0), ("16x", 16.0)]
+# ---- UI: checked-toolbar-button style ----
+TOOLBAR_CHECKED_STYLE = "QToolButton:checked { background-color: #cc3333; color: white; }"
 
 PREVIEW_FIT_MARGIN = 40   # rough allowance for the preview toolbar + borders
 
