@@ -57,6 +57,8 @@ class SelectionOps:
             if snapped != start:
                 pt.setPos(snapped)
                 n += 1
+        if n:
+            scene.undo.push("Snap to grid")
         return n
 
     # ------------------------------------------------------------
@@ -89,15 +91,10 @@ class SelectionOps:
             f"Mirrored across {axis.upper()} axis around ({px:.1f}, {py:.1f})")
         if scene.transform.is_transforming():
             scene.transform.reanchor_transform()
+        scene.undo.push(f"Mirror {axis.upper()}")
         return True
 
     def center_selection(self, axis: str) -> bool:
-        """Move the selection so its curve-bbox centre aligns with the
-        viewbox centre along one axis.
-
-        axis='horizontal': equal margins left/right (adjusts x).
-        axis='vertical':   equal margins top/bottom (adjusts y).
-        """
         scene = self.scene
         if not scene.selected_points:
             scene.messageLogged.emit(
@@ -128,6 +125,7 @@ class SelectionOps:
 
         if scene.transform.is_transforming():
             scene.transform.reanchor_transform()
+        scene.undo.push(f"Center {axis}")
         return True
 
     def selection_curve_bbox(self):
@@ -152,11 +150,9 @@ class SelectionOps:
     #  Visibility
     # ------------------------------------------------------------
     def hide_points(self) -> bool:
-        """Hide the control points of every curve that has a point in the
-        selection. Falls back to the hovered curve when nothing is selected."""
         scene = self.scene
         if scene.dragging_point is not None:
-            return False  # don't yank points out from under an active drag
+            return False
 
         curves = {pt.curve for pt in scene.selected_points if pt.curve is not None}
         if not curves and scene.hovered_curve is not None:
@@ -171,6 +167,7 @@ class SelectionOps:
             c.set_points_hidden(True)
         if n:
             scene.messageLogged.emit(f"Points hidden on {n} curve(s)")
+            scene.undo.push(f"Hide points ({n})")
         return n > 0
 
     def show_all_points(self) -> int:
@@ -182,14 +179,13 @@ class SelectionOps:
                 n += 1
         if n:
             scene.messageLogged.emit(f"Restored points on {n} curve(s)")
+            scene.undo.push(f"Show all points ({n})")
         return n
 
     # ------------------------------------------------------------
     #  Delete
     # ------------------------------------------------------------
     def delete_selection(self) -> int:
-        """Delete every curve selected directly (curve_selected) or via a
-        selected shape. Returns the number of curves removed."""
         scene = self.scene
         to_delete: set[BezierCurve] = set()
         for curve in scene.curves:
@@ -221,4 +217,5 @@ class SelectionOps:
         n = len(curves)
         scene.messageLogged.emit(
             f"Deleted {curves[0].name}" if n == 1 else f"Deleted {n} curves")
+        scene.undo.push(f"Delete ({n})")
         return n

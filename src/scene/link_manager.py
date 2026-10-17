@@ -110,10 +110,9 @@ class LinkManager:
         scene = self.scene
         scene.messageLogged.emit(
             f"Linked {source.curve.name}·P{source.point_idx} "
-            f"→ {target.curve.name}·P{target.point_idx}"
-        )
+            f"→ {target.curve.name}·P{target.point_idx}")
         scene.emit_svg()
-
+        scene.undo.push("Link points")
         return True
 
     # ------------------------------------------------------------
@@ -175,6 +174,7 @@ class LinkManager:
 
         self.scene.messageLogged.emit(
             f"Broke junction — freed {len(members)} point(s)")
+        self.scene.undo.push(f"Break junction ({len(members)})")
         return True
 
     def propagate_move(self, source, pos):

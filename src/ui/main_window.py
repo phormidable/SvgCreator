@@ -123,6 +123,14 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Undid: {label}")
 
     def _do_redo(self):
+        # Match undo's intercept: mid-gesture redo cancels the gesture, it
+        # does not walk the history.
+        if self.scene.pending_curve is not None:
+            self.scene.builder.discard()
+            return
+        if self.scene.is_transforming():
+            self.scene.end_transform(commit=False)
+            return
         label = self.scene.undo.redo()
         if label:
             self.statusBar().showMessage(f"Redid: {label}")
@@ -165,7 +173,9 @@ class MainWindow(QMainWindow):
     def _arrow_nudge(self, dx: int, dy: int, event) -> bool:
         """Move the selection by 1 unit, or 10 when Shift is held."""
         step = 10 if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else 1
-        self.scene.move_selected_points(dx * step, dy * step)
+        if self.scene.move_selected_points(dx * step, dy * step):
+            arrow = {(1, 0): "→", (-1, 0): "←", (0, -1): "↑", (0, 1): "↓"}[(dx, dy)]
+            self.scene.undo.push(f"Nudge {arrow}")
         return True
 
     def _build_key_handlers(self) -> dict:
@@ -445,9 +455,6 @@ class MainWindow(QMainWindow):
         settings_menu = QMenu(settings_btn)
 
         settings_menu.addSeparator()
-        test_push = settings_menu.addAction("🔄 Test Push (DEBUG)")
-        test_push.setToolTip("Manually push a snapshot — for testing undo before commit points are wired")
-        test_push.triggered.connect(self._test_push)
 
         curve_color_action = settings_menu.addAction("🎨 Curve Color")
         curve_color_action.setToolTip("Set the default colour for new and unshaped curves")
@@ -564,6 +571,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------
     def clear_scene(self):
         self.scene.clear_all()
+        self.scene.undo.push("Clear all")
 
     def show_shortcuts(self):
         ShortcutsDialog(self).exec()
@@ -626,6 +634,7 @@ class MainWindow(QMainWindow):
         for shape in shapes:
             self.scene.shape_manager.set_color(shape, color)
         self.log(f"Colored {len(shapes)} shape(s) {color.name()}")
+        self.scene.undo.push(f"Color {len(shapes)} shape(s)")
 
     def pick_curve_color(self):
         color = QColorDialog.getColor(self.scene.curve_color, self, "Curve Color")
@@ -633,6 +642,7 @@ class MainWindow(QMainWindow):
             return
         self.scene.set_curve_color(color)
         self.log(f"Curve color → {color.name()}")
+        self.scene.undo.push("Curve color")
 
     def on_transparent_toggled(self, checked):
         self.scene.shape_manager.set_transparent(checked)

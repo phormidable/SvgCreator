@@ -77,3 +77,5 @@ class PresetController:
                 f"{preset.label} placed ({kind}) — still armed, release Shift to stop")
         else:
             self.scene.messageLogged.emit(f"{preset.label} placed ({kind})")
+
+        self.scene.undo.push(f"Place {preset.label}")

@@ -206,6 +206,14 @@ class MouseController:
             return False
 
         if self.dragging_point is not None:
+            start = self._drag_primary_start
+            moved = False
+            if start is not None:
+                end = self.dragging_point.model_pos()
+                dx = end.x() - start.x()
+                dy = end.y() - start.y()
+                moved = (dx * dx + dy * dy) > 1e-4  # tolerance for sub-pixel jitter
+
             pending = self._pending_collapse_point
             self._pending_collapse_point = None
             self._drag_press_pos = None
@@ -216,6 +224,9 @@ class MouseController:
 
             if pending is not None:
                 scene.set_selected_point(pending)
+
+            if moved:
+                scene.undo.push("Move point")
 
             self._update_hover(event.scenePos())
         return True
@@ -282,7 +293,7 @@ class MouseController:
             pt: pt.model_pos()
             for pt in scene.link_manager.with_linked(seeds) - primary_group
         }
-        self._drag_primary_start = primary.pos()
+        self._drag_primary_start = primary.model_pos()
 
     # ------------------------------------------------------------
     #  Point-move callback (invoked by ControlPoint.itemChange)

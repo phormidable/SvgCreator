@@ -37,6 +37,7 @@ class CurveBuilder:
         if self.pending_curve.is_complete():
             self.finalize()
             self.scene.messageLogged.emit("Curve created")
+            self.scene.undo.push("Create curve")
 
     # ------------------------------------------------------------
     #  Finalize / discard / clear

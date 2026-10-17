@@ -160,6 +160,9 @@ class TransformController:
         self.scene.messageLogged.emit(f"{verb} validated" if commit else f"{verb} cancelled")
         self.scene.transformTypedChanged.emit("")
 
+        if commit:
+            self.scene.undo.push(verb)
+
     def start_rotation(self) -> bool:
         return self._start_transform("rotate")
 

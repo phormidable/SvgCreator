@@ -133,4 +133,5 @@ class Clipboard:
 
         scene.emit_svg()
         scene.messageLogged.emit(f"Pasted {len(new_curves)} curve(s)")
+        scene.undo.push(f"Paste ({len(new_curves)})")
         return len(new_curves)

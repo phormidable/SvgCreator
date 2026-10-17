@@ -124,6 +124,7 @@ class FileIO:
             with open(filepath, "r", encoding="utf-8") as f:
                 state = json.load(f)
             self.scene.load_state(state)
+            self.scene.undo.clear()
             self.window.set_status(f"📂 Loaded from {filepath}")
         except Exception as e:
             QMessageBox.critical(self.window, "Error", f"Could not load file:\n{e}")
