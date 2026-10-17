@@ -21,6 +21,8 @@ SHORTCUTS = [
 
     ("Selection", None),
     ("Ctrl + A",        "Select all points  (again to deselect)"),
+    ("Ctrl + C",        "Copy the current selection"),
+    ("Ctrl + V",        "Paste the copied content at the cursor"),
     ("Click",           "Select a point"),
     ("Shift + Click",   "Toggle a point in the selection"),
     ("A",               "Select curve under cursor  (Shift+A adds)"),

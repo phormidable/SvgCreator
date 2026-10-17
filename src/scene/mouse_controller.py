@@ -33,6 +33,7 @@ class MouseController:
         self._drag_targets: dict[ControlPoint, QPointF] = {}
         self._drag_primary_start: QPointF | None = None
         self._ensuring_visible = False
+        self._last_scene_pos: QPointF | None = None
 
         # ---- Rubber-band selection rectangle ----
         self._rubber_start: QPointF | None = None
@@ -44,6 +45,9 @@ class MouseController:
         self._rubber_item.setVisible(False)
         scene.addItem(self._rubber_item)
 
+    @property
+    def last_scene_pos(self):
+        return self._last_scene_pos
     # ------------------------------------------------------------
     #  Press
     # ------------------------------------------------------------
@@ -220,6 +224,8 @@ class MouseController:
     #  Hover (driven by the view's mouseMoved signal, not by events)
     # ------------------------------------------------------------
     def on_mouse_moved(self, scene_pos):
+        if scene_pos is not None:
+            self._last_scene_pos = QPointF(scene_pos)
         scene = self.scene
         if scene.transform.is_transforming():
             if scene.transform.is_rotating():

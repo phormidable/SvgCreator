@@ -22,6 +22,7 @@ from .mouse_controller import MouseController
 from .selection_ops import SelectionOps
 from .background_image import BackgroundImage
 from .items.origin_marker import OriginMarker
+from .clipboard import Clipboard
 
 
 
@@ -80,6 +81,7 @@ class BezierScene(QGraphicsScene):
         self.presets = PresetController(self)
         self.builder = CurveBuilder(self)
         self.selection_ops = SelectionOps(self)
+        self.clipboard = Clipboard(self)
 
     # ------------------------------------------------------------
     #  Read-only views on Selection

@@ -139,6 +139,8 @@ class MainWindow(QMainWindow):
             K.Key_C: always(self.color_selected_shape),
             K.Key_H: always(scene.hide_points),
             K.Key_A: self._handle_a_key,
+            K.Key_C: self._handle_c_key,
+            K.Key_V: self._handle_v_key,
             K.Key_X: always(lambda: scene.mirror_selection("x")),
             K.Key_Y: always(lambda: scene.mirror_selection("y")),
             K.Key_U: always(scene.link_manager.try_break_junction),
@@ -167,6 +169,21 @@ class MainWindow(QMainWindow):
             return self.scene.selection.toggle_select_all()
         add = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
         return self.scene.select_curve_under_hover(add=add)
+
+    def _handle_c_key(self, event) -> bool:
+        """Ctrl+C copies; plain C opens the colour picker."""
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            return self.scene.clipboard.copy()
+        self.color_selected_shape()
+        return True
+
+    def _handle_v_key(self, event) -> bool:
+        """Ctrl+V pastes at the current cursor position (no snap)."""
+        if not (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            return False  # plain V is unbound
+        pos = self.scene.mouse.last_scene_pos or self.scene.viewbox.center()
+        self.scene.clipboard.paste(pos)
+        return True
 
     def _toggle_mode(self):
         new_mode = "edit" if self.scene.mode == "create" else "create"
