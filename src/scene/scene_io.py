@@ -74,9 +74,18 @@ def save_state(scene) -> dict:
             links.append(serialized)
 
     state = {
-        "version": 2,
-        "curves": [[[round(p.model_pos().x(), 3), round(p.model_pos().y(), 3)] for p in curve.points] for curve in scene.curves],
+        "version": 3,
+        "curves": [[[round(p.model_pos().x(), 3), round(p.model_pos().y(), 3)]
+                    for p in curve.points]
+                   for curve in scene.curves],
+        "curve_color": scene.curve_color.name(),
     }
+
+    # Curves whose points are hidden, by index.
+    hidden = [i for i, c in enumerate(scene.curves) if c.points_hidden]
+    if hidden:
+        state["points_hidden"] = hidden
+
     shape_colors = []
     for shape in scene.shape_manager.shapes:
         if shape.color is None:
@@ -94,16 +103,36 @@ def save_state(scene) -> dict:
     return state
 
 
-def load_state(scene, state: dict):
+def load_state(scene, state: dict, quiet: bool = False):
     curves_data = state.get("curves", [])
     links_data = state.get("links", [])
 
     scene.blockSignals(True)
     try:
         scene.clear_all()
+
+        # Set the default curve color *before* building curves, so each
+        # freshly-constructed BezierCurve inherits it via __init__.
+        color_str = state.get("curve_color")
+        if color_str:
+            scene.set_curve_color(QColor(color_str))
+
         for points_data in curves_data:
             curve = _build_curve_from_points(scene, points_data)
             scene.curves.append(curve)
+
+        out_of_bounds = [p for c in curves_data for p in c if not scene.artboard.contains(QPointF(p[0], p[1]))]
+        if out_of_bounds:
+            scene.messageLogged.emit(
+                f"⚠ {len(out_of_bounds)} point(s) fall outside the current artboard "
+                f"— they may be clamped on the next move")
+
+        # Restore hidden-point flags. set_points_hidden() touches only the
+        # ControlPoint visibility and the curve's own flag — safe before or
+        # after link restoration.
+        for ci in state.get("points_hidden", []):
+            if 0 <= ci < len(scene.curves):
+                scene.curves[ci].set_points_hidden(True)
 
         _restore_links(scene, links_data)
         scene.shape_manager.rebuild_from_links()
@@ -114,9 +143,12 @@ def load_state(scene, state: dict):
     finally:
         scene.blockSignals(False)
 
+    # SVG preview must always reflect the new document — even on a quiet
+    # restore triggered by undo. Only the console messages are gated.
     scene.emit_svg()
-    scene.messageLogged.emit(f"Loaded {len(scene.curves)} curve(s)")
-    scene.shape_manager.log_shapes()
+    if not quiet:
+        scene.messageLogged.emit(f"Loaded {len(scene.curves)} curve(s)")
+        scene.shape_manager.log_shapes()
 
 
 
