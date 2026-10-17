@@ -290,3 +290,17 @@ class MouseController:
     def on_point_moved(self, point):
         if self.dragging_point is point:
             self.scene.link_manager.update_proximity(point)
+
+    def abort_interaction(self):
+        """UndoManager calls this before a restore to drop any in-flight drag
+        or rubber-band. Does NOT touch item positions — that is the restore's
+        job. Also dismisses the proximity indicator."""
+        self.dragging_point = None
+        self._pending_collapse_point = None
+        self._drag_press_pos = None
+        self._drag_targets = {}
+        self._drag_primary_start = None
+        if self._rubber_start is not None:
+            self._rubber_start = None
+            self._rubber_item.setVisible(False)
+        self.scene.link_manager.clear_proximity()

@@ -30,6 +30,8 @@ SHORTCUTS = [
     ("Escape",          "Clear selection"),
 
     ("Editing", None),
+    ("Ctrl + Z",         "Undo the last action"),
+    ("Ctrl + Y / Ctrl+Shift+Z", "Redo the last undone action"),
     ("Arrow keys",      "Nudge selected points by 1 unit"),
     ("Backspace",       "Delete selection"),
     ("H",               "Hide points on the hovered curve"),

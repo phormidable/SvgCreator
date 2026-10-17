@@ -23,6 +23,7 @@ from .selection_ops import SelectionOps
 from .background_image import BackgroundImage
 from .items.origin_marker import OriginMarker
 from .clipboard import Clipboard
+from .undo_manager import UndoManager
 
 
 
@@ -33,6 +34,7 @@ class BezierScene(QGraphicsScene):
     presetStateChanged = Signal(str)
     hoveredPointChanged = Signal(object)  # ControlPoint | None
     transformTypedChanged = Signal(str)
+    undoStateChanged = Signal()
 
     def __init__(self):
         super().__init__()
@@ -82,6 +84,7 @@ class BezierScene(QGraphicsScene):
         self.builder = CurveBuilder(self)
         self.selection_ops = SelectionOps(self)
         self.clipboard = Clipboard(self)
+        self.undo = UndoManager(self)
 
     # ------------------------------------------------------------
     #  Read-only views on Selection

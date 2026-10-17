@@ -102,10 +102,54 @@ class MainWindow(QMainWindow):
         self.preview_widget.showSvgRequested.connect(self.file_io.show_svg_code_dialog)
         self.scene.hoveredPointChanged.connect(self.show_point_tip)
         self.scene.transformTypedChanged.connect(lambda text: self.statusBar().showMessage( f"Rotate: {text}°" if text else ""))
+        self.scene.undoStateChanged.connect(self._refresh_undo_actions)
 
+        self._refresh_undo_actions()
         # Initial state
         self.set_mode("create")
         self.scene.emit_svg()
+
+    def _do_undo(self):
+        # Intercept: undo during an in-flight gesture cancels the gesture,
+        # it does not walk the history.
+        if self.scene.pending_curve is not None:
+            self.scene.builder.discard()
+            return
+        if self.scene.is_transforming():
+            self.scene.end_transform(commit=False)
+            return
+        label = self.scene.undo.undo()
+        if label:
+            self.statusBar().showMessage(f"Undid: {label}")
+
+    def _do_redo(self):
+        label = self.scene.undo.redo()
+        if label:
+            self.statusBar().showMessage(f"Redid: {label}")
+
+    def _refresh_undo_actions(self):
+        u = self.scene.undo
+        self.undo_action.setEnabled(u.can_undo())
+        self.redo_action.setEnabled(u.can_redo())
+        self.undo_action.setToolTip(
+            f"Undo: {u.undo_label()}" if u.can_undo() else "Nothing to undo")
+        self.redo_action.setToolTip(
+            f"Redo: {u.redo_label()}" if u.can_redo() else "Nothing to redo")
+
+    def _handle_z_key(self, event):
+        if not (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            return False
+        if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+            self._do_redo()
+        else:
+            self._do_undo()
+        return True
+
+    def _handle_y_key(self, event):
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self._do_redo()
+            return True
+        return self.scene.mirror_selection("y")
 
     @staticmethod
     def _always(fn):
@@ -136,13 +180,15 @@ class MainWindow(QMainWindow):
             K.Key_M: always(scene.transform.start_move),
             K.Key_L: always(scene.link_manager.try_link_proximity),
             K.Key_S: lambda e: scene.selection.select_shape_from_hover(add=bool(e.modifiers() & Shift)),
-            K.Key_C: always(self.color_selected_shape),
+            #K.Key_C: always(self.color_selected_shape),
             K.Key_H: always(scene.hide_points),
             K.Key_A: self._handle_a_key,
             K.Key_C: self._handle_c_key,
             K.Key_V: self._handle_v_key,
             K.Key_X: always(lambda: scene.mirror_selection("x")),
-            K.Key_Y: always(lambda: scene.mirror_selection("y")),
+            #K.Key_Y: always(lambda: scene.mirror_selection("y")),
+            K.Key_Y: self._handle_y_key,
+            K.Key_Z: self._handle_z_key,
             K.Key_U: always(scene.link_manager.try_break_junction),
             K.Key_Plus: always(lambda: self._step_zoom(+1)),
             K.Key_Equal: always(lambda: self._step_zoom(+1)),
@@ -257,6 +303,18 @@ class MainWindow(QMainWindow):
     def _setup_toolbar(self):
         toolbar = self.addToolBar("Tools")
 
+        # ---- Undo / Redo ----
+        self.undo_action = toolbar.addAction("↶")
+        self.undo_action.setToolTip("Undo (Ctrl+Z)")
+        self.undo_action.setEnabled(False)
+        self.undo_action.triggered.connect(self._do_undo)
+
+        self.redo_action = toolbar.addAction("↷")
+        self.redo_action.setToolTip("Redo (Ctrl+Shift+Z / Ctrl+Y)")
+        self.redo_action.setEnabled(False)
+        self.redo_action.triggered.connect(self._do_redo)
+
+        toolbar.addSeparator()
         # ---- Mode ----
         toolbar.addWidget(QLabel(" Mode: "))
         self.mode_combo = QComboBox()
@@ -386,6 +444,11 @@ class MainWindow(QMainWindow):
         settings_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         settings_menu = QMenu(settings_btn)
 
+        settings_menu.addSeparator()
+        test_push = settings_menu.addAction("🔄 Test Push (DEBUG)")
+        test_push.setToolTip("Manually push a snapshot — for testing undo before commit points are wired")
+        test_push.triggered.connect(self._test_push)
+
         curve_color_action = settings_menu.addAction("🎨 Curve Color")
         curve_color_action.setToolTip("Set the default colour for new and unshaped curves")
         curve_color_action.triggered.connect(self.pick_curve_color)
@@ -419,6 +482,11 @@ class MainWindow(QMainWindow):
         # ---- Right group: Clear All ----
         clear_action = toolbar.addAction("🗑️ Clear All")
         clear_action.triggered.connect(self.clear_scene)
+
+    def _test_push(self):
+        self.scene.undo.push("manual push")
+        self.statusBar().showMessage(
+            f"Snapshot pushed. Stack: {self.scene.undo.describe()}")
 
     def _on_zoom_changed(self, index):
         factor = self.zoom_combo.itemData(index)

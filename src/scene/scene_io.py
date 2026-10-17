@@ -62,6 +62,7 @@ def generate_svg(scene, bordered: bool = False) -> str:
 
 
 def save_state(scene) -> dict:
+    scene.registry.sync()
     location = {}
     for ci, curve in enumerate(scene.curves):
         for pi, pt in enumerate(curve.points):
