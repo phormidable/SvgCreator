@@ -154,43 +154,43 @@ class BezierScene(QGraphicsScene):
     def ui_curves(self, shape):
         return self.registry.ui_curves(shape)
 
-    def set_degree(self, degree: int):
-        self.builder.set_degree(degree)
+    #def set_degree(self, degree: int):
+     #   self.builder.set_degree(degree)
 
-    def discard_current_points(self):
-        self.builder.discard()
+    #def discard_current_points(self):
+     #   self.builder.discard()
 
-    def cancel_pending_curve(self) -> bool:
-        return self.builder.cancel_pending_curve()
+    #def cancel_pending_curve(self) -> bool:
+     #   return self.builder.cancel_pending_curve()
 
-    def set_grid_visible(self, visible: bool):
-        self.grid_item.setVisible(visible)
+    #def set_grid_visible(self, visible: bool):
+     #   self.grid_item.setVisible(visible)
 
-    def set_grid_spacing(self, spacing: int):
-        self.grid_item.set_spacing(spacing)
+    #def set_grid_spacing(self, spacing: int):
+     #   self.grid_item.set_spacing(spacing)
 
     def set_snap_enabled(self, enabled: bool):
         self.grid_item.set_snap_enabled(enabled)
         if not enabled:
             self.snap_indicator.hide_indicator()
 
-    def handle_transform_key(self, event) -> bool:
-        return self.transform.handle_key(event)
+    #def handle_transform_key(self, event) -> bool:
+     #   return self.transform.handle_key(event)
 
     def set_selected_point(self, point):
         self.selection.set_point(point)
 
-    def toggle_selection(self, point):
-        self.selection.toggle_point(point)
+    #def toggle_selection(self, point):
+     #   self.selection.toggle_point(point)
 
     def clear_selection(self):
         self.selection.clear()
 
     def select_curve_under_hover(self, add: bool = False) -> bool:
-        return self.selection.select_curve_under_hover(add=add)
+        return self.selection_ops.select_curve_under_hover(add=add)
 
-    def select_in_rect(self, rect, add: bool = False) -> int:
-        return self.selection.select_in_rect(rect, add=add)
+    #def select_in_rect(self, rect, add: bool = False) -> int:
+     #   return self.selection.select_in_rect(rect, add=add)
 
     # ------------------------------------------------------------
     #  Save / load / SVG

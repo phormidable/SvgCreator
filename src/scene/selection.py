@@ -1,16 +1,22 @@
 # scene/selection.py
-"""Selection: authoritative selection state for the scene."""
+"""Selection: authoritative selection and hover state for the scene.
 
-from PySide6.QtCore import QRectF
+State only. Holds points, shapes, hovered_curve, focused_point, plus the
+low-level mutations that keep `points` and `shapes` consistent with each
+other (set_point, toggle_point, clear, add_points, select_shape,
+set_hover, …). Actions that read from the scene to *decide* what to
+select — hover-driven selection, rect selection, select-all, chain and
+shape resolution, the save-shape payload — live in SelectionOps.
+"""
 
-from PySide6.QtCore import QRectF
+
 class Selection:
     def __init__(self, scene):
         self.scene = scene
-        self.points: list = []   # ControlPoint, in selection order
-        self.shapes: set = set()   # UI Shape objects
-        self.hovered_curve = None    # BezierCurve | None
-        self.focused_point = None    # ControlPoint | None
+        self.points: list = []           # ControlPoint, in selection order
+        self.shapes: set = set()         # UI Shape objects
+        self.hovered_curve = None        # BezierCurve | None
+        self.focused_point = None        # ControlPoint | None
 
     # ------------------------------------------------------------
     #  Queries
@@ -24,6 +30,26 @@ class Selection:
         curve_selected flag on BezierCurve."""
         return bool(curve.points) and all(
             p in self.points for p in curve.points)
+
+    def is_shape_selected(self, shape) -> bool:
+        return shape in self.shapes
+
+    def is_curve_shape_selected(self, curve) -> bool:
+        shape = self.scene.shape_manager.shape_of_curve(curve)
+        return shape is not None and shape in self.shapes
+
+    def selected_shapes(self) -> list:
+        return list(self.shapes)
+
+    def shapes_in_selection(self) -> list:
+        """Shapes that are effectively part of the selection: explicitly
+        S-selected ones, plus any shape whose every curve is curve_selected."""
+        result = set(self.shapes)
+        flagged = {c for c in self.scene.curves if c.curve_selected}
+        for shape in self.scene.shape_manager.shapes:
+            if shape.curves and set(self.scene.ui_curves(shape)) <= flagged:
+                result.add(shape)
+        return list(result)
 
     # ------------------------------------------------------------
     #  Point mutations
@@ -61,39 +87,42 @@ class Selection:
             pt.update()
             pt.curve.update()
 
-    # ------------------------------------------------------------
-    #  Shape queries
-    # ------------------------------------------------------------
-    def is_shape_selected(self, shape) -> bool:
-        return shape in self.shapes
+    def add_points(self, points):
+        """Add every point not already in the selection and repaint them."""
+        added = []
+        for pt in points:
+            if pt not in self.points:
+                self.points.append(pt)
+                added.append(pt)
+        self._repaint(added)
 
-    def is_curve_shape_selected(self, curve) -> bool:
-        shape = self.scene.shape_manager.shape_of_curve(curve)
-        return shape is not None and shape in self.shapes
+    def remove_points(self, points):
+        """Drop every point that is currently in the selection and repaint."""
+        removed = []
+        for pt in points:
+            if pt in self.points:
+                self.points.remove(pt)
+                removed.append(pt)
+        self._repaint(removed)
 
-    # def first_selected_shape(self):
-    #     return next(iter(self.shapes), None)
-
-    def selected_shapes(self) -> list:
-        return list(self.shapes)
-
-    def shapes_in_selection(self) -> list:
-        """Shapes that are effectively part of the selection: explicitly
-        S-selected ones, plus any shape whose every curve is curve_selected."""
-        result = set(self.shapes)
-        flagged = {c for c in self.scene.curves if c.curve_selected}
-        for shape in self.scene.shape_manager.shapes:
-            if shape.curves and set(self.scene.ui_curves(shape)) <= flagged:
-                result.add(shape)
-        return list(result)
+    @staticmethod
+    def _repaint(points):
+        """One update() per touched curve, not per point."""
+        curves = set()
+        for pt in points:
+            pt.update()
+            if pt.curve is not None:
+                curves.add(pt.curve)
+        for c in curves:
+            c.update()
 
     # ------------------------------------------------------------
     #  Shape mutations
     # ------------------------------------------------------------
     def select_shape(self, shape, add: bool = False):
         """Make `shape` the selected shape (add=True joins the selection).
-        shape=None clears the shape selection. Mirrors the point-selection
-        side of the API: keeps self.points in sync with shape membership."""
+        shape=None clears the shape selection. Keeps self.points in sync
+        with shape membership."""
         if shape is None:
             to_remove = list(self.shapes)
             self.clear_shapes()
@@ -145,134 +174,6 @@ class Selection:
             self.remove_points(pts)
 
     # ------------------------------------------------------------
-    #  Selection from hover (S key)
-    # ------------------------------------------------------------
-    def select_shape_from_hover(self, add: bool = False) -> bool:
-        """S key: select the hovered curve's shape (or its chain if the
-        curve is not part of a closed loop)."""
-        hovered = self.scene.hovered_curve
-        if hovered is None:
-            return False
-
-        shape = self.scene.shape_manager.shape_of_curve(hovered)
-        if shape is not None:
-            return self._select_single_shape(shape, add)
-
-        chain = self.scene.shape_manager.chain_of(hovered)
-        if len(chain) < 2:
-            self.scene.messageLogged.emit(
-                f"{hovered.name} is not linked to anything")
-            return False
-        return self._select_chain(chain, add)
-
-    def _select_single_shape(self, shape, add: bool) -> bool:
-        if add:
-            if self.is_shape_selected(shape):
-                self.deselect_shape(shape)
-                self.scene.messageLogged.emit(
-                    f"{shape.name} removed from selection")
-            else:
-                self.select_shape(shape, add=True)
-                self.scene.messageLogged.emit(
-                    f"Added {shape.name} to selection")
-            return True
-
-        # No shift: this shape becomes the whole selection — unless it
-        # already was, in which case toggle it off.
-        any_curve_selected = any(c.curve_selected for c in self.scene.curves)
-        sole_selection = (self.shapes == {shape} and not any_curve_selected)
-
-        self.clear()
-        if sole_selection:
-            self.scene.messageLogged.emit(f"{shape.name} deselected")
-        else:
-            self.select_shape(shape, add=False)
-            self.scene.messageLogged.emit(f"{shape.name} selected")
-        return True
-
-    def _select_chain(self, chain, add: bool) -> bool:
-        chain_pts = [pt for c in chain for pt in c.points]
-        if add:
-            if all(self.is_curve_selected(c) for c in chain):
-                self.remove_points(chain_pts)
-                self.scene.messageLogged.emit("Chain removed from selection")
-            else:
-                self.add_points(chain_pts)
-                self.scene.messageLogged.emit(f"Added chain of {len(chain)} curves")
-        else:
-            self.clear()
-            self.add_points(chain_pts)
-            self.scene.messageLogged.emit(f"Selected chain of {len(chain)} curves")
-        return True
-
-    def select_curve_under_hover(self, add: bool = False) -> bool:
-        """Toggle selection of the hovered curve. With `add`, the curve joins
-        the existing selection instead of replacing it. Returns True if handled."""
-        curve = self.hovered_curve
-        if curve is None:
-            return False
-        in_selection = self.is_curve_selected(curve)
-
-        if add:
-            if in_selection:
-                self.remove_points(curve.points)
-                self.scene.messageLogged.emit(f"{curve.name} removed from selection")
-            else:
-                self.add_points(curve.points)
-                self.scene.messageLogged.emit(f"Added {curve.name} to selection")
-            return True
-
-        # No shift: replace, unless this curve is already the whole selection.
-        if in_selection and len(self.points) == len(curve.points):
-            self.clear()
-            self.scene.messageLogged.emit(f"{curve.name} deselected")
-            return True
-        self.clear()
-        self.add_points(curve.points)
-        self.scene.messageLogged.emit(f"Selected {curve.name} ({len(curve.points)} points)")
-        return True
-
-    def select_in_rect(self, rect: QRectF, add: bool = False) -> int:
-        """Select every visible control point whose position lies inside
-        `rect` (scene coordinates). With `add`, keeps the existing selection."""
-        if not add:
-            self.clear()
-        selected = self.points
-        to_add = []
-        for curve in self.scene.curves:
-            if curve.points_hidden:
-                continue
-            for pt in curve.points:
-                if pt in selected:
-                    continue
-                if rect.contains(pt.model_pos()):
-                    to_add.append(pt)
-        self.add_points(to_add)
-        if to_add:
-            self.scene.messageLogged.emit(f"Selected {len(to_add)} point(s)")
-        return len(to_add)
-
-    def toggle_select_all(self) -> bool:
-        """Ctrl+A: select every point on every visible curve, or clear the
-        selection if every one of them is already selected. Hidden curves are
-        skipped, matching select_in_rect."""
-        scene = self.scene
-        all_points = [pt for c in scene.curves
-                      if not c.points_hidden
-                      for pt in c.points]
-        if not all_points:
-            return False
-
-        if all(pt in self.points for pt in all_points):
-            self.clear()
-            scene.messageLogged.emit("Selection cleared")
-        else:
-            self.clear()
-            self.add_points(all_points)
-            scene.messageLogged.emit(f"Selected {len(all_points)} point(s)")
-        return True
-
-    # ------------------------------------------------------------
     #  Hover
     # ------------------------------------------------------------
     def set_hover(self, curve, point):
@@ -301,66 +202,3 @@ class Selection:
 
     def clear_hover(self):
         self.set_hover(None, None)
-
-    def exportable_selection(self):
-        """Return (kind, curves) for the Save Shape action, or (None, None).
-
-        Accepts exactly one of: a shape, a chain, or a single curve.
-        kind is "shape" / "chain" / "curve"; curves are UI BezierCurve objects
-        in the order they should be saved.
-        """
-        scene = self.scene
-
-        # 1) Exactly one shape (S-selected, or all its curves curve-selected).
-        shapes = self.shapes_in_selection()
-        if len(shapes) > 1:
-            return None, None
-        if len(shapes) == 1:
-            return "shape", scene.ui_curves(shapes[0])
-
-        # 2) Curves selected directly (via A / click).
-        selected = [c for c in scene.curves if c.curve_selected]
-        if not selected:
-            return None, None
-        if len(selected) == 1:
-            return "curve", selected
-
-        # 3) Several curves: they must form exactly one chain.
-        ids = frozenset(c.id for c in selected)
-        for chain in scene.document.chains:  # ← `chain` lives here
-            if frozenset(c.id for c in chain.curves) == ids:
-                ordered = [scene.registry.ui_curve_for(mc) for mc in chain.curves
-                           if scene.registry.ui_curve_for(mc) is not None]
-                return "chain", ordered
-        return None, None
-
-    # in Selection
-
-    def add_points(self, points):
-        """Add every point not already in the selection and repaint them."""
-        added = []
-        for pt in points:
-            if pt not in self.points:
-                self.points.append(pt)
-                added.append(pt)
-        self._repaint(added)
-
-    def remove_points(self, points):
-        """Drop every point that is currently in the selection and repaint."""
-        removed = []
-        for pt in points:
-            if pt in self.points:
-                self.points.remove(pt)
-                removed.append(pt)
-        self._repaint(removed)
-
-    @staticmethod
-    def _repaint(points):
-        """One update() per touched curve, not per point."""
-        curves = set()
-        for pt in points:
-            pt.update()
-            if pt.curve is not None:
-                curves.add(pt.curve)
-        for c in curves:
-            c.update()

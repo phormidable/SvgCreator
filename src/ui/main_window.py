@@ -187,7 +187,7 @@ class MainWindow(QMainWindow):
             K.Key_B: always(scene.transform.start_scaling),
             K.Key_M: always(scene.transform.start_move),
             K.Key_L: always(scene.link_manager.try_link_proximity),
-            K.Key_S: lambda e: scene.selection.select_shape_from_hover(add=bool(e.modifiers() & Shift)),
+            K.Key_S: lambda e: scene.selection_ops.select_shape_from_hover(add=bool(e.modifiers() & Shift)),
             #K.Key_C: always(self.color_selected_shape),
             K.Key_H: always(scene.hide_points),
             K.Key_A: self._handle_a_key,
@@ -215,12 +215,12 @@ class MainWindow(QMainWindow):
         if self.scene.cancel_preset():
             return True
         self.scene.clear_selection()
-        return self.scene.cancel_pending_curve()
+        return self.scene.builder.cancel_pending_curve()
 
     def _handle_a_key(self, event) -> bool:
         """Ctrl+A toggles select-all; plain A selects the hovered curve."""
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            return self.scene.selection.toggle_select_all()
+            return self.scene.selection_ops.toggle_select_all()
         add = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
         return self.scene.select_curve_under_hover(add=add)
 
@@ -244,7 +244,7 @@ class MainWindow(QMainWindow):
         self.set_mode(new_mode)
 
     def keyPressEvent(self, event):
-        if self.scene.handle_transform_key(event):
+        if self.scene.transform.handle_key(event):
             event.accept()
             return
         handler = self._key_handlers.get(event.key())
@@ -498,7 +498,7 @@ class MainWindow(QMainWindow):
         self.drawing_view.set_zoom(factor)
 
     def _on_degree_changed(self, index):
-        self.scene.set_degree(self.degree_combo.itemData(index))
+        self.scene.builder.set_degree(self.degree_combo.itemData(index))
 
     def _on_mode_changed(self, index):
         self.set_mode(self.mode_combo.itemData(index))
@@ -514,11 +514,11 @@ class MainWindow(QMainWindow):
 
     def _on_grid_toggled(self, checked: bool):
         self.grid_action.setText("Hide Grid" if checked else "Show Grid")
-        self.scene.set_grid_visible(checked)
+        self.scene.grid_item.setVisible(checked)
 
     def _on_grid_size_changed(self, index: int):
         spacing = self.grid_combo.itemData(index)
-        self.scene.set_grid_spacing(spacing)
+        self.scene.grid_item.set_spacing(spacing)
 
     # ------------------------------------------------------------
     #  Mode switching
@@ -531,7 +531,7 @@ class MainWindow(QMainWindow):
 
         self.log(f"Mode → {mode}")
         if mode == "edit" and self.scene.pending_curve is not None:
-            self.scene.discard_current_points()
+            self.scene.builder.discard()
             self.statusBar().showMessage("Incomplete curve discarded. Switch to Edit mode.")
 
         self.scene.set_selected_point(None)
@@ -575,7 +575,7 @@ class MainWindow(QMainWindow):
         ShortcutsDialog(self).exec()
 
     def save_selected_shape(self):
-        kind, curves = self.scene.selection.exportable_selection()
+        kind, curves = self.scene.selection_ops.exportable_selection()
         if not curves:
             self.statusBar().showMessage(
                 "Select exactly one shape, chain, or curve first")

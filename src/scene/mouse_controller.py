@@ -109,7 +109,7 @@ class MouseController:
 
         shift = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
         if shift:
-            scene.toggle_selection(item)
+            scene.selection.toggle_point(item)
             self.clear_hover()
             return
 
@@ -201,7 +201,7 @@ class MouseController:
             # selection was already cleared on press.
             if rect.width() >= 3 or rect.height() >= 3:
                 add = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
-                scene.select_in_rect(rect, add=add)
+                scene.selection_ops.select_in_rect(rect, add=add)
             self._update_hover(event.scenePos())
             return False
 

@@ -1,15 +1,14 @@
 # scene/selection_ops.py
-"""SelectionOps: discrete one-shot operations on the current selection.
+"""SelectionOps: selection-driven actions on the scene.
 
-These all share a shape — guard on an empty selection, read the current
-selection, mutate the underlying points/curves, log a message, and
-re-anchor a live transform if one is running. None of them track state
-between calls, unlike TransformController, which drives an interactive
-pivot-through-mouse gesture.
+State (points, shapes, hovered_curve, focused_point) lives in Selection.
+This module holds the one-shot actions that *read* that state and act on
+the scene through it: hit-testing under the cursor, rect selection,
+select-all, chain/shape resolution from a hover, the save-shape payload.
+It also holds the discrete edit operations that take their target from
+the current selection (move, mirror, centre, snap, hide, delete).
 
-Reads through `self.scene`: selected_points, hovered_curve, focused_point,
-dragging_point, curves, viewbox, link_manager, selection, shape_manager,
-transform, grid_item, plus the messageLogged / hoveredPointChanged signals.
+None of these track state between calls.
 """
 
 from PySide6.QtCore import QPointF
@@ -232,3 +231,173 @@ class SelectionOps:
             f"Deleted {curves[0].name}" if n == 1 else f"Deleted {n} curves")
         scene.undo.push(f"Delete ({n})")
         return n
+
+    # ------------------------------------------------------------
+    #  Hover-driven selection (A and S keys)
+    # ------------------------------------------------------------
+    def select_curve_under_hover(self, add: bool = False) -> bool:
+        """Toggle selection of the hovered curve. With `add`, the curve joins
+        the existing selection instead of replacing it. Returns True if handled."""
+        scene = self.scene
+        curve = scene.hovered_curve
+        if curve is None:
+            return False
+        sel = scene.selection
+        in_selection = sel.is_curve_selected(curve)
+
+        if add:
+            if in_selection:
+                sel.remove_points(curve.points)
+                scene.messageLogged.emit(f"{curve.name} removed from selection")
+            else:
+                sel.add_points(curve.points)
+                scene.messageLogged.emit(f"Added {curve.name} to selection")
+            return True
+
+        if in_selection and len(sel.points) == len(curve.points):
+            sel.clear()
+            scene.messageLogged.emit(f"{curve.name} deselected")
+            return True
+        sel.clear()
+        sel.add_points(curve.points)
+        scene.messageLogged.emit(f"Selected {curve.name} ({len(curve.points)} points)")
+        return True
+
+    def select_shape_from_hover(self, add: bool = False) -> bool:
+        """S key: select the hovered curve's shape (or its chain if the
+        curve is not part of a closed loop)."""
+        scene = self.scene
+        hovered = scene.hovered_curve
+        if hovered is None:
+            return False
+
+        shape = scene.shape_manager.shape_of_curve(hovered)
+        if shape is not None:
+            return self._select_single_shape(shape, add)
+
+        chain = scene.shape_manager.chain_of(hovered)
+        if len(chain) < 2:
+            scene.messageLogged.emit(f"{hovered.name} is not linked to anything")
+            return False
+        return self._select_chain(chain, add)
+
+    def _select_single_shape(self, shape, add: bool) -> bool:
+        scene = self.scene
+        sel = scene.selection
+        if add:
+            if sel.is_shape_selected(shape):
+                sel.deselect_shape(shape)
+                scene.messageLogged.emit(f"{shape.name} removed from selection")
+            else:
+                sel.select_shape(shape, add=True)
+                scene.messageLogged.emit(f"Added {shape.name} to selection")
+            return True
+
+        any_curve_selected = any(c.curve_selected for c in scene.curves)
+        sole_selection = (sel.shapes == {shape} and not any_curve_selected)
+
+        sel.clear()
+        if sole_selection:
+            scene.messageLogged.emit(f"{shape.name} deselected")
+        else:
+            sel.select_shape(shape, add=False)
+            scene.messageLogged.emit(f"{shape.name} selected")
+        return True
+
+    def _select_chain(self, chain, add: bool) -> bool:
+        scene = self.scene
+        sel = scene.selection
+        chain_pts = [pt for c in chain for pt in c.points]
+        if add:
+            if all(sel.is_curve_selected(c) for c in chain):
+                sel.remove_points(chain_pts)
+                scene.messageLogged.emit("Chain removed from selection")
+            else:
+                sel.add_points(chain_pts)
+                scene.messageLogged.emit(f"Added chain of {len(chain)} curves")
+        else:
+            sel.clear()
+            sel.add_points(chain_pts)
+            scene.messageLogged.emit(f"Selected chain of {len(chain)} curves")
+        return True
+
+    # ------------------------------------------------------------
+    #  Rect selection (rubber band)
+    # ------------------------------------------------------------
+    def select_in_rect(self, rect, add: bool = False) -> int:
+        """Select every visible control point whose position lies inside
+        `rect` (scene coordinates). With `add`, keeps the existing selection."""
+        scene = self.scene
+        sel = scene.selection
+        if not add:
+            sel.clear()
+        selected = sel.points
+        to_add = []
+        for curve in scene.curves:
+            if curve.points_hidden:
+                continue
+            for pt in curve.points:
+                if pt in selected:
+                    continue
+                if rect.contains(pt.model_pos()):
+                    to_add.append(pt)
+        sel.add_points(to_add)
+        if to_add:
+            scene.messageLogged.emit(f"Selected {len(to_add)} point(s)")
+        return len(to_add)
+
+    # ------------------------------------------------------------
+    #  Select all
+    # ------------------------------------------------------------
+    def toggle_select_all(self) -> bool:
+        """Ctrl+A: select every point on every visible curve, or clear the
+        selection if every one of them is already selected."""
+        scene = self.scene
+        sel = scene.selection
+        all_points = [pt for c in scene.curves
+                      if not c.points_hidden
+                      for pt in c.points]
+        if not all_points:
+            return False
+
+        if all(pt in sel.points for pt in all_points):
+            sel.clear()
+            scene.messageLogged.emit("Selection cleared")
+        else:
+            sel.clear()
+            sel.add_points(all_points)
+            scene.messageLogged.emit(f"Selected {len(all_points)} point(s)")
+        return True
+
+    # ------------------------------------------------------------
+    #  Save-shape payload
+    # ------------------------------------------------------------
+    def exportable_selection(self):
+        """Return (kind, curves) for the Save Shape action, or (None, None).
+
+        Accepts exactly one of: a shape, a chain, or a single curve.
+        kind is "shape" / "chain" / "curve"; curves are UI BezierCurve objects
+        in the order they should be saved.
+        """
+        scene = self.scene
+        sel = scene.selection
+
+        shapes = sel.shapes_in_selection()
+        if len(shapes) > 1:
+            return None, None
+        if len(shapes) == 1:
+            return "shape", scene.ui_curves(shapes[0])
+
+        selected = [c for c in scene.curves if c.curve_selected]
+        if not selected:
+            return None, None
+        if len(selected) == 1:
+            return "curve", selected
+
+        ids = frozenset(c.id for c in selected)
+        for chain in scene.document.chains:
+            if frozenset(c.id for c in chain.curves) == ids:
+                ordered = [scene.registry.ui_curve_for(mc) for mc in chain.curves
+                           if scene.registry.ui_curve_for(mc) is not None]
+                return "chain", ordered
+        return None, None
