@@ -8,6 +8,7 @@ class CustomGraphicsView(QGraphicsView):
     mouseMoved = Signal(object)
     transformLeftClick = Signal()
     shiftReleased = Signal()
+    zoomChanged = Signal(float)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -41,14 +42,54 @@ class CustomGraphicsView(QGraphicsView):
         super().mousePressEvent(event)
 
     def set_zoom(self, factor):
+        """Set the zoom level, anchored on the viewport centre. Called from the
+        combo box and from Ctrl+= / Ctrl+-. Does not emit zoomChanged: the
+        caller already knows what it set."""
         if factor == self._zoom_factor:
             return
-        # Anchor on the scene point currently at the viewport center,
-        # so zooming in/out keeps the same area roughly under the eye.
         anchor = self.mapToScene(self.viewport().rect().center())
         self.setTransform(QTransform().scale(factor, factor))
         self.centerOn(anchor)
         self._zoom_factor = factor
+
+    def _zoom_at_cursor(self, factor, viewport_pos):
+        """Set the zoom level, keeping the scene point under `viewport_pos`
+        fixed on screen. Called from Ctrl+wheel. Emits zoomChanged so the
+        combo box can follow."""
+        if factor == self._zoom_factor:
+            return
+        anchor_scene = self.mapToScene(viewport_pos)
+        self.setTransform(QTransform().scale(factor, factor))
+        new_vp = self.mapFromScene(anchor_scene)
+        dx = new_vp.x() - viewport_pos.x()
+        dy = new_vp.y() - viewport_pos.y()
+        self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() + dx)
+        self.verticalScrollBar().setValue(self.verticalScrollBar().value() + dy)
+        self._zoom_factor = factor
+        self.zoomChanged.emit(factor)
+
+    def wheelEvent(self, event):
+        if not (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            super().wheelEvent(event)
+            return
+        delta = event.angleDelta().y()
+        if delta == 0:
+            event.accept()
+            return
+        from core.settings import ZOOM_LEVELS
+        factors = [f for _, f in ZOOM_LEVELS]
+        try:
+            idx = factors.index(self._zoom_factor)
+        except ValueError:
+            idx = min(range(len(factors)),
+                      key=lambda i: abs(factors[i] - self._zoom_factor))
+        new_idx = max(0, min(len(factors) - 1,
+                             idx + (1 if delta > 0 else -1)))
+        if new_idx == idx:
+            event.accept()
+            return
+        self._zoom_at_cursor(factors[new_idx], event.position().toPoint())
+        event.accept()
 
     def set_transform_mode(self, active: bool):
         self._transform_mode = active

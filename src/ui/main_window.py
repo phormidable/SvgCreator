@@ -103,6 +103,7 @@ class MainWindow(QMainWindow):
         self.scene.hoveredPointChanged.connect(self.show_point_tip)
         self.scene.transformTypedChanged.connect(lambda text: self.statusBar().showMessage( f"Rotate: {text}°" if text else ""))
         self.scene.undoStateChanged.connect(self._refresh_undo_actions)
+        self.drawing_view.zoomChanged.connect(self._sync_zoom_combo)
 
         self._refresh_undo_actions()
         # Initial state
@@ -188,17 +189,14 @@ class MainWindow(QMainWindow):
             K.Key_M: always(scene.transform.start_move),
             K.Key_L: always(scene.link_manager.try_link_proximity),
             K.Key_S: lambda e: scene.selection_ops.select_shape_from_hover(add=bool(e.modifiers() & Shift)),
-            #K.Key_C: always(self.color_selected_shape),
             K.Key_H: always(scene.hide_points),
             K.Key_A: self._handle_a_key,
             K.Key_C: self._handle_c_key,
             K.Key_V: self._handle_v_key,
             K.Key_X: always(lambda: scene.mirror_selection("x")),
-            #K.Key_Y: always(lambda: scene.mirror_selection("y")),
             K.Key_Y: self._handle_y_key,
             K.Key_Z: self._handle_z_key,
             K.Key_U: always(scene.link_manager.try_break_junction),
-            K.Key_Plus: always(lambda: self._step_zoom(+1)),
             K.Key_Equal: always(lambda: self._step_zoom(+1)),
             K.Key_Minus: always(lambda: self._step_zoom(-1)),
             K.Key_Backspace: always(scene.delete_selection),
@@ -443,6 +441,16 @@ class MainWindow(QMainWindow):
         snap_action.setToolTip("Move every selected point to the nearest grid line")
         snap_action.triggered.connect(self.snap_selection_to_grid)
 
+        effects_menu.addSeparator()
+
+        hide_action = effects_menu.addAction("🙈 Hide Selection")
+        hide_action.setToolTip("Hide the control points of the selected curve(s) — hover a curve if nothing is selected")
+        hide_action.triggered.connect(self.hide_selection)
+
+        show_all_action = effects_menu.addAction("👁️ Show all points")
+        show_all_action.setToolTip("Restore all hidden curve points")
+        show_all_action.triggered.connect(self.show_all_points)
+
         effects_btn.setMenu(effects_menu)
         toolbar.addWidget(effects_btn)
 
@@ -471,10 +479,6 @@ class MainWindow(QMainWindow):
         settings_btn.setMenu(settings_menu)
         toolbar.addWidget(settings_btn)
 
-        show_all_action = toolbar.addAction("👁️ Show all points")
-        show_all_action.setToolTip("Restore all hidden curve points")
-        show_all_action.triggered.connect(self.show_all_points)
-
         # ---- Spacer: pushes the next items to the right ----
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
@@ -496,6 +500,17 @@ class MainWindow(QMainWindow):
     def _on_zoom_changed(self, index):
         factor = self.zoom_combo.itemData(index)
         self.drawing_view.set_zoom(factor)
+
+    # New method, near _on_zoom_changed:
+    def _sync_zoom_combo(self, factor):
+        """Reflect a zoom the view applied on its own (Ctrl+wheel) in the
+        combo box, without re-firing set_zoom."""
+        for i in range(self.zoom_combo.count()):
+            if self.zoom_combo.itemData(i) == factor:
+                self.zoom_combo.blockSignals(True)
+                self.zoom_combo.setCurrentIndex(i)
+                self.zoom_combo.blockSignals(False)
+                return
 
     def _on_degree_changed(self, index):
         self.scene.builder.set_degree(self.degree_combo.itemData(index))
@@ -608,6 +623,13 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"👁️ Restored points on {n} curve(s)")
         else:
             self.statusBar().showMessage("Nothing to restore")
+
+    def hide_selection(self):
+        if self.scene.hide_points():
+            self.statusBar().showMessage("🙈 Points hidden")
+        else:
+            self.statusBar().showMessage(
+                "Nothing to hide — select points or hover a curve")
 
     def _step_zoom(self, direction: int) -> bool:
         idx = self.zoom_combo.currentIndex()

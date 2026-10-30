@@ -199,8 +199,8 @@ PRESETS = {
     "W": _poly_preset("W", "W",[(-60, -40), (-30, 40), (0, -40), (30, 40), (60, -40)],closed=False, tooltip="W shape", category="Letters"),
     "Z": _poly_preset("Z", "Z",[(-50, -50), (50, -50), (-50, 50), (50, 50)],closed=False, tooltip="Z shape", category="Letters"),
 
-    "C": _literal_preset(
-        "C", "C",
+    "C_shape": _literal_preset(
+        "C_shape", "C",
         [
             [(60, -160), (-6.2, -160), (-60, -88.4), (-60, 0)],
             [(-60, 0), (-60, 88.4), (-6.2, 160), (60, 160)],
