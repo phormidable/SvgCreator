@@ -48,11 +48,14 @@ WINDOW_HEIGHT = DRAWING_MIN_HEIGHT + 10
 ARTBOARD_RECT = QRectF(-1000, -1000, 2000, 2000)
 VIEWBOX_RECT = QRectF(-512, -512, 1024, 1024)
 
-# ---- Canvas colors ----
+# ---- Canvas colors and sizes----
 CANVAS_BACKGROUND_COLOR = QColor(170, 170, 170)    # light grey: work area
 VIEWBOX_BACKGROUND_COLOR = QColor("white")         # exported area
 VIEWBOX_BORDER_COLOR = QColor(120, 120, 120)
 VIEWBOX_BORDER_WIDTH = 1
+
+CANVAS_MIN_SIZE = 100
+CANVAS_MAX_SIZE = 2000     # also matches ARTBOARD_RECT's side
 
 # ---- Hover highlight ----
 HOVER_TOLERANCE = 10

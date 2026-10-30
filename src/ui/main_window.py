@@ -14,6 +14,7 @@ from ui.preview_widget import PreviewWidget
 from ui.preset_panel import PresetPanel
 from ui.shortcuts_dialog import ShortcutsDialog
 from ui.save_shape_dialog import SaveShapeDialog
+from ui.canvas_size_dialog import CanvasSizeDialog
 
 POINT_TIP_GAP = 22  # viewport pixels above the point's centre
 
@@ -384,6 +385,11 @@ class MainWindow(QMainWindow):
         if snap_btn is not None:
             snap_btn.setStyleSheet(TOOLBAR_CHECKED_STYLE)
 
+        toolbar.addSeparator()
+        canvas_action = toolbar.addAction("📐 Canvas Size")
+        canvas_action.setToolTip("Set the exported SVG's width and height")
+        canvas_action.triggered.connect(self.set_canvas_size)
+
         # ---- Files menu ----
         files_btn = QToolButton()
         files_btn.setText("📁 Files")
@@ -668,6 +674,18 @@ class MainWindow(QMainWindow):
         self.scene.set_curve_color(color)
         self.log(f"Curve color → {color.name()}")
         self.scene.undo.push("Curve color")
+
+    def set_canvas_size(self):
+        current = self.scene.viewbox
+        dialog = CanvasSizeDialog(current.width(), current.height(), self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        w, h = dialog.values()
+        if w == int(current.width()) and h == int(current.height()):
+            return
+        self.scene.set_viewbox(w, h)
+        self.scene.undo.push(f"Canvas {w}×{h}")
+        self.statusBar().showMessage(f"Canvas size → {w}×{h}")
 
     def on_transparent_toggled(self, checked):
         self.scene.shape_manager.set_transparent(checked)

@@ -1,5 +1,5 @@
 # scene/bezier_scene.py
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, QRectF
 from PySide6.QtGui import QPen, QColor
 from PySide6.QtWidgets import (QGraphicsScene, QGraphicsRectItem)
 
@@ -274,6 +274,19 @@ class BezierScene(QGraphicsScene):
         if self.pending_curve is not None:
             self.pending_curve.set_color(self.curve_color)
         self.shape_manager.apply_curve_colors()
+
+    def set_viewbox(self, width: float, height: float):
+        """Resize the viewbox (kept centered on origin). The artboard is
+        untouched. Called by MainWindow on Canvas Size confirmation, and by
+        load_state when restoring a saved document."""
+        new_rect = QRectF(-width / 2, -height / 2, width, height)
+        if new_rect == self.viewbox:
+            return
+        self.viewbox = new_rect
+        self.viewbox_item.setRect(new_rect)
+        self.background.refit()
+        self.emit_svg()
+
 
     # ------------------------------------------------------------
     #  Clear everything

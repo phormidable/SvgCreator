@@ -90,3 +90,15 @@ class BackgroundImage:
 
         pixmap = QPixmap(filepath)
         return pixmap if not pixmap.isNull() else None
+
+    def refit(self):
+        """Re-scale and re-centre the background to fit the current viewbox.
+        Called after the viewbox is resized."""
+        if self.item is None or self.pixmap is None:
+            return
+        pw, ph = self.pixmap.width(), self.pixmap.height()
+        vb = self.scene.viewbox
+        scale = min(vb.width() / pw, vb.height() / ph)
+        self.item.setScale(scale)
+        self.item.setPos(vb.center().x() - pw * scale / 2,
+                         vb.center().y() - ph * scale / 2)

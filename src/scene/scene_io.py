@@ -74,13 +74,13 @@ def save_state(scene) -> dict:
         if len(serialized) >= 2:
             links.append(serialized)
 
-    state = {
-        "version": 3,
-        "curves": [[[round(p.model_pos().x(), 3), round(p.model_pos().y(), 3)]
-                    for p in curve.points]
-                   for curve in scene.curves],
-        "curve_color": scene.curve_color.name(),
-    }
+    state = {"curves": [[[round(p.model_pos().x(), 3), round(p.model_pos().y(), 3)]
+                         for p in curve.points]
+                        for curve in scene.curves],
+             "curve_color": scene.curve_color.name(),
+             "version": 3,
+             "viewbox": [round(scene.viewbox.width(), 2),
+                         round(scene.viewbox.height(), 2)]}
 
     # Curves whose points are hidden, by index.
     hidden = [i for i, c in enumerate(scene.curves) if c.points_hidden]
@@ -111,6 +111,12 @@ def load_state(scene, state: dict, quiet: bool = False):
     scene.blockSignals(True)
     try:
         scene.clear_all()
+
+        # Viewbox first: anything that reads scene.viewbox during load
+        # (background scaling) depends on the restored value.
+        vb_data = state.get("viewbox")
+        if isinstance(vb_data, list) and len(vb_data) == 2:
+            scene.set_viewbox(float(vb_data[0]), float(vb_data[1]))
 
         # Set the default curve color *before* building curves, so each
         # freshly-constructed BezierCurve inherits it via __init__.
