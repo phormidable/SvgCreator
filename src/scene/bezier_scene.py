@@ -6,24 +6,24 @@ from PySide6.QtWidgets import (QGraphicsScene, QGraphicsRectItem)
 from .scene_io import generate_svg, save_state, load_state
 from core.settings import ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH, DEFAULT_CURVE_COLOR, GRID_DEFAULT_SPACING
 from core.model import Document
-from .link_manager import LinkManager
+from scene.managers_controllers.link_manager import LinkManager
 from .items.bezier_curve import BezierCurve
 from .items.snap_indicator import SnapIndicator
 from .items.grid_item import GridItem
-from .shape_manager import ShapeManager
+from scene.managers_controllers.shape_manager import ShapeManager
 from .selection import Selection
-from .transform_controller import TransformController
-from .preset_controller import PresetController
+from scene.managers_controllers.transform_controller import TransformController
+from scene.managers_controllers.preset_controller import PresetController
 from .model_registry import ModelRegistry
 from .curve_builder import CurveBuilder
 from .curve_renderer import CurveRenderer
 from .point_renderer import PointRenderer
-from .mouse_controller import MouseController
+from scene.managers_controllers.mouse_controller import MouseController
 from .selection_ops import SelectionOps
 from .background_image import BackgroundImage
 from .items.origin_marker import OriginMarker
 from .clipboard import Clipboard
-from .undo_manager import UndoManager
+from scene.managers_controllers.undo_manager import UndoManager
 
 
 

@@ -28,6 +28,8 @@ class CurveDef:
     def offsets_for_degree(self, degree: int):
         if degree == 3:
             return self.offsets
+        if degree == 1:
+            return [self.offsets[0], self.offsets[3]]
         if self.quadratic_offsets is not None:
             return self.quadratic_offsets
         return [self.offsets[0], self.offsets[1], self.offsets[3]]
@@ -39,8 +41,8 @@ class CurveDef:
 class LiteralCurveDef:
     """Fixed at the degree it was saved. points is 3 or 4."""
     def __init__(self, points):
-        if len(points) not in (3, 4):
-            raise ValueError(f"Need 3 or 4 points, got {len(points)}")
+        if len(points) not in (2, 3, 4):
+            raise ValueError(f"Need 2, 3 or 4 points, got {len(points)}")
         self.points = points
         self.degree = len(points) - 1
 

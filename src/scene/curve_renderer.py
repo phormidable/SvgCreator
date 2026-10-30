@@ -38,7 +38,9 @@ class CurveRenderer:
         path = QPainterPath()
         if len(positions) == degree + 1:
             path.moveTo(positions[0])
-            if degree == 2:
+            if degree == 1:
+                path.lineTo(positions[1])
+            elif degree == 2:
                 path.quadTo(positions[1], positions[2])
             else:
                 path.cubicTo(positions[1], positions[2], positions[3])

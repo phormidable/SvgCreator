@@ -9,6 +9,9 @@ from core.settings import SVG_PRECISION
 
 def svg_string_from_points(pts, degree: int) -> str:
     p = SVG_PRECISION
+    if degree == 1:
+        (x0, y0), (x1, y1) = pts
+        return f"M {x0:.{p}f},{y0:.{p}f} L {x1:.{p}f},{y1:.{p}f}"
     if degree == 2:
         (x0, y0), (x1, y1), (x2, y2) = pts
         return (f"M {x0:.{p}f},{y0:.{p}f} "
@@ -54,6 +57,8 @@ def curve_bbox(points, degree):
 
 def _extrema_ts(pts, degree):
     """Parameter values in (0, 1) where B'(t) = 0 along either axis."""
+    if degree <= 1:
+        return set()
     result = set()
     if degree == 2:
         p0, p1, p2 = pts
@@ -90,6 +95,9 @@ def _solve_quadratic(a, b, c):
 def _evaluate(pts, degree, t):
     """Point on the Bezier at parameter t."""
     u = 1.0 - t
+    if degree == 1:
+        (x0, y0), (x1, y1) = pts
+        return u * x0 + t * x1, u * y0 + t * y1
     if degree == 2:
         (x0, y0), (x1, y1), (x2, y2) = pts
         return (u * u * x0 + 2 * u * t * x1 + t * t * x2,

@@ -136,10 +136,10 @@ class BezierCurve(QGraphicsItem):
         return False
 
     def cubic_segment(self, start_pt):
-        """Return (c1_pos, c2_pos, end_pt) describing a cubic that traces
-        the same path as this curve, starting from `start_pt` (which must
-        be one of the two endpoints). `end_pt` is the point at the other end.
-        Quadratics are converted to their exact cubic equivalent."""
+        """Return (c1_pos, c2_pos, end_pt) describing a cubic that traces the
+        same path as this curve, starting from `start_pt` (one of the two
+        endpoints). Quadratics and lines are converted to their exact cubic
+        equivalent."""
         pts = self.points
         if start_pt is pts[0]:
             ctrl = pts[1:-1]
@@ -147,11 +147,17 @@ class BezierCurve(QGraphicsItem):
         else:
             ctrl = list(reversed(pts[1:-1]))
             end = pts[0]
+        p0 = start_pt.pos()
+        p2 = end.pos()
         if self.degree == 3:
             return ctrl[0].pos(), ctrl[1].pos(), end
-        p0 = start_pt.pos()
+        if self.degree == 1:
+            # Line as cubic: controls at 1/3 and 2/3 along the segment.
+            c1 = p0 + (p2 - p0) * (1.0 / 3.0)
+            c2 = p0 + (p2 - p0) * (2.0 / 3.0)
+            return c1, c2, end
+        # degree 2
         p1 = ctrl[0].pos()
-        p2 = end.pos()
         c1 = p0 + (p1 - p0) * (2.0 / 3.0)
         c2 = p2 + (p1 - p2) * (2.0 / 3.0)
         return c1, c2, end

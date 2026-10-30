@@ -7,14 +7,14 @@ from core.settings import (DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH,
     PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT, GRID_SIZE_OPTIONS, GRID_DEFAULT_SPACING, TOOLBAR_CHECKED_STYLE)
 
 from scene.bezier_scene import BezierScene
-from ui.custom_view import CustomGraphicsView
-from ui.info_panel import InfoPanel
+from ui.elements.custom_view import CustomGraphicsView
+from ui.elements.info_panel import InfoPanel
 from core.file_io import FileIO
-from ui.preview_widget import PreviewWidget
-from ui.preset_panel import PresetPanel
-from ui.shortcuts_dialog import ShortcutsDialog
-from ui.save_shape_dialog import SaveShapeDialog
-from ui.canvas_size_dialog import CanvasSizeDialog
+from ui.elements.preview_widget import PreviewWidget
+from ui.elements.preset_panel import PresetPanel
+from ui.dialogs.shortcuts_dialog import ShortcutsDialog
+from ui.dialogs.save_shape_dialog import SaveShapeDialog
+from ui.dialogs.canvas_size_dialog import CanvasSizeDialog
 
 POINT_TIP_GAP = 22  # viewport pixels above the point's centre
 
@@ -333,9 +333,12 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
         toolbar.addWidget(QLabel(" Type: "))
         self.degree_combo = QComboBox()
+        self.degree_combo.addItem("Line", 1)
         self.degree_combo.addItem("Quadratic", 2)
         self.degree_combo.addItem("Cubic", 3)
         self.degree_combo.currentIndexChanged.connect(self._on_degree_changed)
+        # Reflect the builder's current degree in the combo.
+        self.degree_combo.setCurrentIndex(self.degree_combo.findData(self.scene.builder.current_degree))
         toolbar.addWidget(self.degree_combo)
 
         toolbar.addSeparator()

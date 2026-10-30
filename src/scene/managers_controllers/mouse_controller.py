@@ -19,7 +19,7 @@ from PySide6.QtGui import QColor, QPen
 from PySide6.QtWidgets import QGraphicsRectItem
 
 from core.settings import HOVER_TOLERANCE
-from .items.control_point import ControlPoint
+from scene.items.control_point import ControlPoint
 
 
 class MouseController:

@@ -18,12 +18,13 @@ class CurveBuilder:
     #  Degree
     # ------------------------------------------------------------
     def set_degree(self, degree: int):
-        if degree not in (2, 3) or degree == self.current_degree:
+        if degree not in (1, 2, 3) or degree == self.current_degree:
             return
         self.current_degree = degree
         if self.pending_curve is not None:
             self.discard()
-        self.scene.messageLogged.emit(f"Curve type → {'quadratic' if degree == 2 else 'cubic'}")
+        label = {1: "line", 2: "quadratic", 3: "cubic"}[degree]
+        self.scene.messageLogged.emit(f"Curve type → {label}")
 
     # ------------------------------------------------------------
     #  Create-mode click
