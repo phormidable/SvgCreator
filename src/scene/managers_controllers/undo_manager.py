@@ -1,4 +1,4 @@
-# scene/undo_manager.py
+# scene/managers_controllers/undo_manager.py
 """UndoManager: linear history of scene snapshots.
 
 Model B (single list of states + position pointer):

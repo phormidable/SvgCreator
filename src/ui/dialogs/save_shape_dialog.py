@@ -1,4 +1,4 @@
-# ui/save_shape_dialog.py
+# ui/dialogs/save_shape_dialog.py
 """Dialog for the Save Shape action: name, tooltip, and a read-only
 description of what is being saved."""
 

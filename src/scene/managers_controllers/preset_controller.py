@@ -1,4 +1,4 @@
-# scene/preset_controller.py
+# scene/managers_controllers/preset_controller.py
 from PySide6.QtCore import QPointF
 
 from core.presets import PRESETS

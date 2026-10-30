@@ -1,4 +1,4 @@
-# ui/preset_panel.py
+# ui/elements/preset_panel.py
 from PySide6.QtWidgets import (QButtonGroup, QGridLayout, QGroupBox, QHBoxLayout, QToolButton, QVBoxLayout)
 from PySide6.QtCore import Signal
 

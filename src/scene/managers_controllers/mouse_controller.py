@@ -1,4 +1,4 @@
-# scene/mouse_controller.py
+# scene/managers_controllers/mouse_controller.py
 """MouseController: all pointer interaction for the drawing area.
 
 Owns:

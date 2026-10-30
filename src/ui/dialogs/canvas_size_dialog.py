@@ -1,4 +1,4 @@
-# ui/canvas_size_dialog.py
+# ui/dialogs/canvas_size_dialog.py
 """CanvasSizeDialog: set the viewbox width and height.
 
 The viewbox stays centered on the origin — the dialog only exposes the

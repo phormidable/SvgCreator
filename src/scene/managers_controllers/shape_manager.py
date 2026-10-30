@@ -1,4 +1,4 @@
-# scene/shape_manager.py
+# scene/managers_controllers/shape_manager.py
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QPainterPath, QPen

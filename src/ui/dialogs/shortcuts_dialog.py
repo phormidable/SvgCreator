@@ -1,4 +1,4 @@
-# ui/shortcuts_dialog.py
+# ui/dialogs/shortcuts_dialog.py
 """Shortcuts dialog: a table of key → action, grouped by section.
 
 The list below is hand-maintained. It duplicates the truth that lives in
