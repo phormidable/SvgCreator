@@ -136,3 +136,6 @@ SHAPE_TRANSPARENT_OPACITY = 0.25
 # ---- Rotation ----
 ROTATION_PIVOT_RADIUS = 4
 ROTATION_PIVOT_COLOR = QColor("orange")
+
+# ---- Stroke curves ----
+STROKE_DEFAULT_WIDTH = 250

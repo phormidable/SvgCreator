@@ -56,6 +56,7 @@ class Clipboard:
         # Curve payloads, positions relative to the centre.
         curve_payloads = [{
             "degree": c.degree,
+            "stroke_width": c.stroke_width,
             "points": [(p.model_pos().x() - cx, p.model_pos().y() - cy)
                        for p in c.points],
         } for c in curves]
@@ -103,7 +104,7 @@ class Clipboard:
         # ---- 1. Build new curves. ----
         new_curves = []
         for cp in self._payload["curves"]:
-            c = BezierCurve(scene, degree=cp["degree"])
+            c = BezierCurve(scene, degree=cp["degree"], stroke_width=cp.get("stroke_width"))
             for dx, dy in cp["points"]:
                 c.add_point(QPointF(center.x() + dx, center.y() + dy))
             c.committed = True

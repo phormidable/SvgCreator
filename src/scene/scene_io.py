@@ -87,6 +87,8 @@ def save_state(scene) -> dict:
     if hidden:
         state["points_hidden"] = hidden
 
+    state["curve_strokes"] = [c.stroke_width for c in scene.curves]
+
     shape_colors = []
     for shape in scene.shape_manager.shapes:
         if shape.color is None:
@@ -124,8 +126,10 @@ def load_state(scene, state: dict, quiet: bool = False):
         if color_str:
             scene.set_curve_color(QColor(color_str))
 
-        for points_data in curves_data:
-            curve = _build_curve_from_points(scene, points_data)
+        strokes = state.get("curve_strokes", [])
+        for i, points_data in enumerate(curves_data):
+            w = strokes[i] if i < len(strokes) else None
+            curve = _build_curve_from_points(scene, points_data, stroke_width=w)
             scene.curves.append(curve)
 
         out_of_bounds = [p for c in curves_data for p in c if not scene.artboard.contains(QPointF(p[0], p[1]))]
@@ -194,11 +198,11 @@ def _restore_links(scene, links_data):
             scene.link_manager.link_points(points[i], points[i + 1])
 
 
-def _build_curve_from_points(scene, points_data) -> BezierCurve:
+def _build_curve_from_points(scene, points_data, stroke_width=None) -> BezierCurve:
     if not isinstance(points_data, list) or len(points_data) not in (2, 3, 4):
         raise ValueError(f"Expected 2, 3 or 4 points per curve, got {points_data!r}")
     degree = len(points_data) - 1
-    curve = BezierCurve(scene, degree=degree)
+    curve = BezierCurve(scene, degree=degree, stroke_width=stroke_width)
     curve.committed = True
     for i, coords in enumerate(points_data):
         try:

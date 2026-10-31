@@ -6,15 +6,16 @@ from PySide6.QtCore import QPointF
 from PySide6.QtWidgets import QGraphicsItem
 
 from scene.items.bezier_curve import BezierCurve
-
+from core.settings import STROKE_DEFAULT_WIDTH
 
 class CurveBuilder:
     def __init__(self, scene):
         self.scene = scene
         self.current_degree = 2
         self.pending_curve = None
+        self.current_stroke_width = None
 
-    # ------------------------------------------------------------
+        # ------------------------------------------------------------
     #  Degree
     # ------------------------------------------------------------
     def set_degree(self, degree: int):
@@ -26,6 +27,20 @@ class CurveBuilder:
         label = {1: "line", 2: "quadratic", 3: "cubic"}[degree]
         self.scene.messageLogged.emit(f"Curve type → {label}")
 
+    def set_curve_style(self, degree: int, is_stroke: bool):
+        new_width = STROKE_DEFAULT_WIDTH if is_stroke else None
+        if degree not in (1, 2, 3):
+            return
+        if degree == self.current_degree and new_width == self.current_stroke_width:
+            return
+        self.current_degree = degree
+        self.current_stroke_width = new_width
+        if self.pending_curve is not None:
+            self.discard()
+        name = {1: "line", 2: "quadratic", 3: "cubic"}[degree]
+        suffix = " stroke" if is_stroke else ""
+        self.scene.messageLogged.emit(f"Curve type → {name}{suffix}")
+
     # ------------------------------------------------------------
     #  Create-mode click
     # ------------------------------------------------------------
@@ -33,12 +48,17 @@ class CurveBuilder:
         pos = self.scene.grid_item.snap(scene_pos)
         if self.pending_curve is None:
             self.pending_curve = BezierCurve(
-                self.scene, degree=self.current_degree)
+                self.scene,
+                degree=self.current_degree,
+                stroke_width=self.current_stroke_width,
+            )
         self.pending_curve.add_point(pos)
         if self.pending_curve.is_complete():
             self.finalize()
             self.scene.messageLogged.emit("Curve created")
             self.scene.undo.push("Create curve")
+
+
 
     # ------------------------------------------------------------
     #  Finalize / discard / clear
@@ -86,9 +106,8 @@ class CurveBuilder:
     # ------------------------------------------------------------
     #  Preset helper
     # ------------------------------------------------------------
-    def build_from_offsets(self, center: QPointF, offsets, degree: int):
-        """Build, commit, and return a curve from offsets around `center`."""
-        curve = BezierCurve(self.scene, degree=degree)
+    def build_from_offsets(self, center, offsets, degree, stroke_width=None):
+        curve = BezierCurve(self.scene, degree=degree, stroke_width=stroke_width)
         for dx, dy in offsets:
             curve.add_point(QPointF(center.x() + dx, center.y() + dy))
         self.pending_curve = curve

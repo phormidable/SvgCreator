@@ -63,7 +63,7 @@ class PresetController:
         curves = []
         for cdef in preset.curves:
             d, offsets = cdef.for_degree(degree)
-            curve = self.scene.builder.build_from_offsets(center, offsets, d)
+            curve = self.scene.builder.build_from_offsets(center, offsets, d, stroke_width=self.scene.builder.current_stroke_width)
             curves.append(curve)
 
         for (ci, pi), (cj, pj) in preset.links:

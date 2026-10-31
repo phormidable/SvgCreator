@@ -3,7 +3,7 @@ from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QL
 from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QPainter, QColor, QShortcut, QKeySequence
 
-from core.settings import (DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, ZOOM_LEVELS,
+from core.settings import (DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, ZOOM_LEVELS, STROKE_DEFAULT_WIDTH,
     PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT, GRID_SIZE_OPTIONS, GRID_DEFAULT_SPACING, TOOLBAR_CHECKED_STYLE)
 
 from scene.bezier_scene import BezierScene
@@ -341,12 +341,24 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
         toolbar.addWidget(QLabel(" Type: "))
         self.degree_combo = QComboBox()
-        self.degree_combo.addItem("Line", 1)
-        self.degree_combo.addItem("Quadratic", 2)
-        self.degree_combo.addItem("Cubic", 3)
+        self.degree_combo.addItem("Line", (1, False))
+        self.degree_combo.addItem("Line Stroke", (1, True))
+        self.degree_combo.addItem("Quadratic", (2, False))
+        self.degree_combo.addItem("Quadratic Stroke", (2, True))
+        self.degree_combo.addItem("Cubic", (3, False))
+        self.degree_combo.addItem("Cubic Stroke", (3, True))
         self.degree_combo.currentIndexChanged.connect(self._on_degree_changed)
-        # Reflect the builder's current degree in the combo.
-        self.degree_combo.setCurrentIndex(self.degree_combo.findData(self.scene.builder.current_degree))
+        # Sync to builder's current style
+        target = 0
+        for i in range(self.degree_combo.count()):
+            d, s = self.degree_combo.itemData(i)
+            matches = (d == self.scene.builder.current_degree
+                       and (STROKE_DEFAULT_WIDTH if s else None)
+                       == self.scene.builder.current_stroke_width)
+            if matches:
+                target = i
+                break
+        self.degree_combo.setCurrentIndex(target)
         toolbar.addWidget(self.degree_combo)
 
         toolbar.addSeparator()
@@ -540,7 +552,11 @@ class MainWindow(QMainWindow):
                 return
 
     def _on_degree_changed(self, index):
-        self.scene.builder.set_degree(self.degree_combo.itemData(index))
+        data = self.degree_combo.itemData(index)
+        if data is None:
+            return
+        degree, is_stroke = data
+        self.scene.builder.set_curve_style(degree, is_stroke)
 
     def _on_mode_changed(self, index):
         self.set_mode(self.mode_combo.itemData(index))

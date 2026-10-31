@@ -15,22 +15,21 @@ if TYPE_CHECKING:
 class BezierCurve(QGraphicsItem):
     _next_id = 1
 
-    def __init__(self, scene, degree: int = 3):
+    def __init__(self, scene, degree: int = 3, stroke_width: int | None = None):
         super().__init__()
         self.id = BezierCurve._next_id
         BezierCurve._next_id += 1
         self.name = f"Curve {self.id}"
         self.degree = degree
+        self.stroke_width = stroke_width
         self.color = QColor(scene.curve_color)
-        self.pen = QPen(self.color, CURVE_PEN_WIDTH)
+        self.pen = QPen(self.color, stroke_width if stroke_width is not None
+        else CURVE_PEN_WIDTH)
         self.points: list[ControlPoint] = []
-
         self.committed = False
         self.points_hidden = False
-
         self._path = QPainterPath()
         self._hit_path = QPainterPath()
-
         self.setZValue(-1)
         scene.addItem(self)
 
@@ -114,15 +113,23 @@ class BezierCurve(QGraphicsItem):
     def positions(self):
         return [p.pos() for p in self.points]
 
+    def set_color(self, color):
+        self.color = QColor(color)
+        width = self.stroke_width if self.stroke_width is not None else CURVE_PEN_WIDTH
+        self.pen = QPen(self.color, width)
+        self.update()
+
+    def set_stroke_width(self, width):
+        if self.stroke_width == width:
+            return
+        self.stroke_width = width
+        self.set_color(self.color)  # rebuild pen at new width
+        self.rebuild_path()  # hit path depends on width
+
     def rebuild_path(self):
         self.prepareGeometryChange()
         self._path, self._hit_path = self._scene.curve_renderer.paths_for(
-            self.positions(), self.degree)
-        self.update()
-
-    def set_color(self, color):
-        self.color = QColor(color)
-        self.pen = QPen(self.color, CURVE_PEN_WIDTH)  # NEW
+            self.positions(), self.degree, self.stroke_width)
         self.update()
 
     def is_near(self, pos):

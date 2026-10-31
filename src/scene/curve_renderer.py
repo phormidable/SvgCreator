@@ -29,12 +29,7 @@ class CurveRenderer:
     #  Paths
     # ------------------------------------------------------------
     @staticmethod
-    def paths_for(positions, degree):
-        """Build (visual, hit) paths from a list of QPointF positions.
-
-        Handles partial curves — fewer than degree+1 points draws a
-        polyline preview, matching the pre-refactor behaviour so the
-        in-progress curve still shows while the user places points."""
+    def paths_for(positions, degree, stroke_width=None):
         path = QPainterPath()
         if len(positions) == degree + 1:
             path.moveTo(positions[0])
@@ -50,7 +45,9 @@ class CurveRenderer:
                 path.lineTo(p)
 
         stroker = QPainterPathStroker()
-        stroker.setWidth(2 * HOVER_TOLERANCE)
+        hit_width = max(2 * HOVER_TOLERANCE,
+                        (stroke_width or 0) + 2 * HOVER_TOLERANCE)
+        stroker.setWidth(hit_width)
         stroker.setCapStyle(Qt.PenCapStyle.RoundCap)
         stroker.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         return path, stroker.createStroke(path)
@@ -59,16 +56,16 @@ class CurveRenderer:
     #  Pens
     # ------------------------------------------------------------
     def pen_for(self, ui_curve) -> QPen:
-        # Persistent selection wins over transient hover/focus.
+        w = (ui_curve.stroke_width if ui_curve.stroke_width is not None
+             else CURVE_PEN_WIDTH)
         if ui_curve.shape_selected:
-            return self._pen_shape_selected
+            return QPen(SHAPE_SELECTED_CURVE_COLOR, max(w, SHAPE_SELECTED_CURVE_PEN_WIDTH))
         if ui_curve.curve_selected:
-            return self._pen_curve_selected
-        # Focus (mouse directly on the stroke) beats group hover.
+            return QPen(CURVE_SELECTED_PEN_COLOR, max(w, CURVE_SELECTED_PEN_WIDTH))
         if ui_curve.focused:
-            return self._pen_focus
+            return QPen(HOVER_COLOR_FOCUS, w) if w != CURVE_PEN_WIDTH else self._pen_focus
         if ui_curve.hovered:
-            return self._pen_hover
+            return QPen(HOVER_COLOR, w) if w != CURVE_PEN_WIDTH else self._pen_hover
         if ui_curve.points_hidden:
-            return self._pen_hidden
+            return QPen(HIDDEN_CURVE_COLOR, w) if w != CURVE_PEN_WIDTH else self._pen_hidden
         return ui_curve.pen
