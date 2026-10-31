@@ -43,3 +43,9 @@ class LinkIndicator(QGraphicsEllipseItem):
     def hide_indicator(self):
         self._timer.stop()
         self.setVisible(False)
+
+    def __del__(self):
+        try:
+            self._timer.stop()
+        except RuntimeError:
+            pass  # C++ already gone

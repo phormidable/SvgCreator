@@ -199,6 +199,7 @@ class SelectionOps:
     # ------------------------------------------------------------
     def delete_selection(self) -> int:
         scene = self.scene
+        scene.mouse.abort_interaction()
         to_delete: set[BezierCurve] = set()
         for curve in scene.curves:
             if curve.curve_selected:

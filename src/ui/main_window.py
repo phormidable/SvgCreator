@@ -214,6 +214,7 @@ class MainWindow(QMainWindow):
             return True
         if self.scene.cancel_preset():
             return True
+        self.scene.mouse.abort_interaction()
         self.scene.clear_selection()
         return self.scene.builder.cancel_pending_curve()
 
