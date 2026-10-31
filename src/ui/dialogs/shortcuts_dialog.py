@@ -37,6 +37,7 @@ SHORTCUTS = [
     ("H",               "Hide points on the hovered curve"),
     ("U",               "Break the junction under the cursor"),
 
+
     ("Transform", None),
     ("R",               "Rotate the selection"),
     ("B",               "Scale the selection"),
@@ -46,6 +47,8 @@ SHORTCUTS = [
 
     ("Linking", None),
     ("L",               "Link the dragged point to the flashing target"),
+    ("J", "Connect 2 selected points with a line"),
+    ("Ctrl + J", "Connect and link the 2 selected points"),
 
     ("Appearance", None),
     ("C",               "Pick a colour for the selected shape"),

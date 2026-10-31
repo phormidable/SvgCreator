@@ -61,6 +61,16 @@ class CurveBuilder:
         self.scene.emit_svg()
         self.scene.messageLogged.emit("Incomplete curve discarded")
 
+    def build_line_between(self, p1: QPointF, p2: QPointF):
+        """Create and commit a degree-1 line between two positions. Returns
+        the curve. Caller is responsible for linking (or not) and undo push."""
+        curve = BezierCurve(self.scene, degree=1)
+        curve.add_point(QPointF(p1))
+        curve.add_point(QPointF(p2))
+        self.pending_curve = curve
+        self.finalize()
+        return curve
+
     def clear(self):
         """Dispose the pending curve silently. Used by clear_all."""
         if self.pending_curve is not None:

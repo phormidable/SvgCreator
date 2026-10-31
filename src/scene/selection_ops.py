@@ -232,6 +232,42 @@ class SelectionOps:
         scene.undo.push(f"Delete ({n})")
         return n
 
+    def join_with_line(self, link: bool) -> bool:
+        """Create a straight line between exactly two selected points. If
+        `link` is True, the new line's endpoints join the source points'
+        junctions so they move together; otherwise they sit at the same
+        coordinates but are independent."""
+        scene = self.scene
+        pts = scene.selected_points
+        if len(pts) != 2:
+            scene.messageLogged.emit(
+                f"Select exactly 2 points to connect (have {len(pts)})")
+            return False
+
+        p1, p2 = pts
+        pos1 = p1.model_pos()
+        pos2 = p2.model_pos()
+        dx = pos1.x() - pos2.x()
+        dy = pos1.y() - pos2.y()
+        if dx * dx + dy * dy < 1e-12:
+            scene.messageLogged.emit("Selected points are at the same location")
+            return False
+
+        curve = scene.builder.build_line_between(pos1, pos2)
+
+        if link:
+            scene.link_manager.link_points(curve.points[0], p1)
+            scene.link_manager.link_points(curve.points[1], p2)
+            scene.messageLogged.emit("Connected with linked line")
+            scene.undo.push("New linked line")
+        else:
+            scene.messageLogged.emit("Connected with line")
+            scene.undo.push("New line")
+
+        scene.clear_selection()
+        scene.selection.add_points(curve.points)
+        return True
+
     # ------------------------------------------------------------
     #  Hover-driven selection (A and S keys)
     # ------------------------------------------------------------

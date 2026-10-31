@@ -205,6 +205,7 @@ class MainWindow(QMainWindow):
             K.Key_Right: lambda e: self._arrow_nudge(+1, 0, e),
             K.Key_Up: lambda e: self._arrow_nudge(0, -1, e),
             K.Key_Down: lambda e: self._arrow_nudge(0, +1, e),
+            K.Key_J: self._handle_j_key,
         }
 
     def _handle_escape(self, event) -> bool:
@@ -229,6 +230,12 @@ class MainWindow(QMainWindow):
             return self.scene.clipboard.copy()
         self.color_selected_shape()
         return True
+
+    def _handle_j_key(self, event) -> bool:
+        """J connects the two selected points with a straight line.
+        Ctrl+J does the same and links the new line's endpoints to the sources."""
+        link = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
+        return self.scene.selection_ops.join_with_line(link=link)
 
     def _handle_v_key(self, event) -> bool:
         """Ctrl+V pastes at the current cursor position (no snap)."""
@@ -438,6 +445,16 @@ class MainWindow(QMainWindow):
         center_v_action = effects_menu.addAction("↕ Center V")
         center_v_action.setToolTip("Centre the selection vertically in the viewbox")
         center_v_action.triggered.connect(lambda: self.scene.center_selection("vertical"))
+
+        effects_menu.addSeparator()
+
+        create_line_action = effects_menu.addAction("📏 Create Line")
+        create_line_action.setToolTip("Connect the two selected points with a line (J)")
+        create_line_action.triggered.connect(lambda: self.scene.selection_ops.join_with_line(link=False))
+
+        create_linked_line_action = effects_menu.addAction("📏🔗 Create Line and Join")
+        create_linked_line_action.setToolTip("Connect and link the two selected points (Ctrl+J)")
+        create_linked_line_action.triggered.connect(lambda: self.scene.selection_ops.join_with_line(link=True))
 
         effects_menu.addSeparator()
 
