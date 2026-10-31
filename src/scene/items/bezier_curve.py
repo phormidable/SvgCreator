@@ -88,6 +88,9 @@ class BezierCurve(QGraphicsItem):
     def paint(self, painter, option, widget=None):
         if self._path.isEmpty():
             return
+        scene = self.scene()
+        if scene is None:
+            return
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setPen(self._scene.curve_renderer.pen_for(self))
         painter.setBrush(Qt.BrushStyle.NoBrush)

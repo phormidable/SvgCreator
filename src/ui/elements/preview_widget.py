@@ -73,8 +73,10 @@ class PreviewWidget(QWidget):
     #  Public API (same surface as before)
     # ------------------------------------------------------------
     def set_svg(self, data: QByteArray):
-        self._renderer = QSvgRenderer(data)
-        self._svg.setSharedRenderer(self._renderer)
+        new_renderer = QSvgRenderer(data)
+        self._svg.setSharedRenderer(new_renderer)  # swap first
+        self._renderer = new_renderer
+
 
         vb = self._renderer.viewBoxF()
         if vb.isEmpty():

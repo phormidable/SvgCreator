@@ -72,8 +72,12 @@ class ControlPoint(QGraphicsEllipseItem):
         self.update()
 
     # ---- New: paint delegates to the renderer ----
+
     def paint(self, painter, option, widget=None):
-        self.scene().point_renderer.draw(painter, self)
+        scene = self.scene()
+        if scene is None:
+            return
+        scene.point_renderer.draw(painter, self)
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
