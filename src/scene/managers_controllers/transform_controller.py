@@ -19,6 +19,7 @@ class TransformController:
         self._last_pos: QPointF | None = None
         self._pivot_item: QGraphicsEllipseItem | None = None
         self._typed_angle: str | None = None
+        self._commit_on_release = False
 
     # ------------------------------------------------------------
     #  State queries
@@ -143,6 +144,7 @@ class TransformController:
         if not self.is_transforming():
             return
         mode = self._mode
+        moved = any(pt.pos() != start for pt, start in self._starts.items())
 
         if not commit:
             for pt, start in self._starts.items():
@@ -154,13 +156,14 @@ class TransformController:
         self._ref = None
         self._starts = {}
         self._typed_angle = None
+        self._commit_on_release = False
         self._hide_pivot()
         self.scene.transformModeChanged.emit(False)
         verb = {"rotate": "Rotation", "scale": "Scaling", "move": "Move"}[mode]
         self.scene.messageLogged.emit(f"{verb} validated" if commit else f"{verb} cancelled")
         self.scene.transformTypedChanged.emit("")
 
-        if commit:
+        if commit and moved:
             self.scene.undo.push(verb)
 
     def start_rotation(self) -> bool:
@@ -274,3 +277,21 @@ class TransformController:
             sx, sy = start.x() - px, start.y() - py
             pt.setPos(px + sx * cos_a - sy * sin_a,
                       py + sx * sin_a + sy * cos_a)
+
+    ##############""
+    def start_move_drag(self) -> bool:
+        """Move gesture committed on mouse release (press-drag), rather than
+        on the next click (M-key). Shares _starts/_ref/_update_move with the
+        M-key move."""
+        if not self._start_transform("move"):
+            return False
+        self._commit_on_release = True
+        return True
+
+    def end_move_drag(self) -> bool:
+        """Called from mouse_release. Commits a press-drag move if one is
+        active. Returns True if it did something."""
+        if not (self.is_moving() and self._commit_on_release):
+            return False
+        self._end_transform(commit=True)
+        return True

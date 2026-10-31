@@ -83,9 +83,18 @@ class MouseController:
 
         # Not on a point. Refresh hover for this exact scene position.
         self._update_hover(event.scenePos())
-        if scene.hovered_curve is not None:
+        curve = scene.hovered_curve
+        if curve is not None:
             add = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
-            scene.select_curve_under_hover(add=add)
+            if add:
+                scene.select_curve_under_hover(add=True)
+                return False
+            if not scene.selection.is_curve_selected(curve):
+                scene.clear_selection()
+                scene.selection.add_points(curve.points)
+                scene.messageLogged.emit(
+                    f"Selected {curve.name} ({len(curve.points)} points)")
+            scene.transform.start_move_drag()  # ← was: _start_curve_drag(...)
             return False
 
         # Empty space → begin a rubber-band selection. A click without a
@@ -191,6 +200,11 @@ class MouseController:
             return True
 
         scene = self.scene
+
+        # NEW: commit a press-drag move before anything else
+        if scene.transform.end_move_drag():
+            self._update_hover(event.scenePos())
+            return False
 
         if self._rubber_start is not None:
             start = self._rubber_start
