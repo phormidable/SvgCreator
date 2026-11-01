@@ -1,11 +1,9 @@
 # ui/main_window.py
-from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QColorDialog,
-                               QComboBox, QSizePolicy, QMenu, QToolButton, QDialog, QMessageBox)
+from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QColorDialog, QDialog, QMessageBox
 from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QPainter, QColor, QShortcut, QKeySequence
 
-from core.settings import (DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, ZOOM_LEVELS, STROKE_DEFAULT_WIDTH,
-    PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT, GRID_SIZE_OPTIONS, GRID_DEFAULT_SPACING, TOOLBAR_CHECKED_STYLE)
+from core.settings import DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
 
 from scene.bezier_scene import BezierScene
 from ui.elements.custom_view import CustomGraphicsView
@@ -384,10 +382,6 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("No changes")
 
 
-
-
-
-
     # ------------------------------------------------------------
     #  Mode switching
     # ------------------------------------------------------------
@@ -495,7 +489,6 @@ class MainWindow(QMainWindow):
             self.scene.shape_manager.set_color(shape, color)
         self.log(f"Colored {len(shapes)} shape(s) {color.name()}")
         self.scene.undo.push(f"Color {len(shapes)} shape(s)")
-
 
 
     def on_transparent_toggled(self, checked):
