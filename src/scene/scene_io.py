@@ -32,21 +32,24 @@ def generate_svg(scene, bordered: bool = False) -> str:
         for curve in scene.ui_curves(shape):
             curve_color[curve] = stroke
 
-    by_color: dict[str, list[str]] = defaultdict(list)
+    by_key: dict[tuple[str, float], list[str]] = defaultdict(list)
     for curve in scene.curves:
         mc = scene.registry.model_curve_for(curve)
         if mc is None:
             continue
         d = model_curve_svg_string(mc)
         if d:
-            color = curve_color.get(curve, SVG_STROKE_COLOR)
-            by_color[color].append(d)
+            color = curve_color.get(curve, curve.color.name())
+            width = (curve.stroke_width if curve.stroke_width is not None
+                     else SVG_STROKE_WIDTH)
+            by_key[(color, width)].append(d)
 
     stroke_paths = []
-    for color, ds in by_color.items():
+    for (color, width), ds in by_key.items():
         stroke_paths.append(
             f'<path d="{" ".join(ds)}" fill="{SVG_FILL}" '
-            f'stroke="{color}" stroke-width="{SVG_STROKE_WIDTH}"/>')
+            f'stroke="{color}" stroke-width="{width}" '
+            f'stroke-linecap="round" stroke-linejoin="round"/>')
 
     vb = scene.viewbox
     header = (

@@ -14,16 +14,23 @@ from core.settings import (CURVE_PEN_WIDTH,HOVER_COLOR, HOVER_COLOR_FOCUS, HIDDE
                            SHAPE_SELECTED_CURVE_PEN_WIDTH, CURVE_SELECTED_PEN_COLOR, CURVE_SELECTED_PEN_WIDTH, HOVER_TOLERANCE)
 
 
+def _rounded(color, width) -> QPen:
+    """QPen with round caps and joins — the house style for every curve."""
+    p = QPen(color, width)
+    p.setCapStyle(Qt.PenCapStyle.RoundCap)
+    p.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    return p
+
 class CurveRenderer:
     def __init__(self, scene):
         self.scene = scene
 
         # Static pens — one per interaction state, built once.
-        self._pen_hover = QPen(HOVER_COLOR, CURVE_PEN_WIDTH)
-        self._pen_focus = QPen(HOVER_COLOR_FOCUS, CURVE_PEN_WIDTH)
-        self._pen_hidden = QPen(HIDDEN_CURVE_COLOR, CURVE_PEN_WIDTH)
-        self._pen_shape_selected = QPen(SHAPE_SELECTED_CURVE_COLOR, SHAPE_SELECTED_CURVE_PEN_WIDTH)
-        self._pen_curve_selected = QPen(CURVE_SELECTED_PEN_COLOR, CURVE_SELECTED_PEN_WIDTH)
+        self._pen_hover = _rounded(HOVER_COLOR, CURVE_PEN_WIDTH)
+        self._pen_focus = _rounded(HOVER_COLOR_FOCUS, CURVE_PEN_WIDTH)
+        self._pen_hidden = _rounded(HIDDEN_CURVE_COLOR, CURVE_PEN_WIDTH)
+        self._pen_shape_selected = _rounded( SHAPE_SELECTED_CURVE_COLOR, SHAPE_SELECTED_CURVE_PEN_WIDTH)
+        self._pen_curve_selected = _rounded( CURVE_SELECTED_PEN_COLOR, SHAPE_SELECTED_CURVE_PEN_WIDTH)
 
     # ------------------------------------------------------------
     #  Paths
@@ -59,13 +66,13 @@ class CurveRenderer:
         w = (ui_curve.stroke_width if ui_curve.stroke_width is not None
              else CURVE_PEN_WIDTH)
         if ui_curve.shape_selected:
-            return QPen(SHAPE_SELECTED_CURVE_COLOR, max(w, SHAPE_SELECTED_CURVE_PEN_WIDTH))
+            return _rounded(SHAPE_SELECTED_CURVE_COLOR, max(w, SHAPE_SELECTED_CURVE_PEN_WIDTH))
         if ui_curve.curve_selected:
-            return QPen(CURVE_SELECTED_PEN_COLOR, max(w, CURVE_SELECTED_PEN_WIDTH))
+            return _rounded(CURVE_SELECTED_PEN_COLOR, max(w, CURVE_SELECTED_PEN_WIDTH))
         if ui_curve.focused:
-            return QPen(HOVER_COLOR_FOCUS, w) if w != CURVE_PEN_WIDTH else self._pen_focus
+            return _rounded(HOVER_COLOR_FOCUS, w) if w != CURVE_PEN_WIDTH else self._pen_focus
         if ui_curve.hovered:
-            return QPen(HOVER_COLOR, w) if w != CURVE_PEN_WIDTH else self._pen_hover
+            return _rounded(HOVER_COLOR, w) if w != CURVE_PEN_WIDTH else self._pen_hover
         if ui_curve.points_hidden:
-            return QPen(HIDDEN_CURVE_COLOR, w) if w != CURVE_PEN_WIDTH else self._pen_hidden
+            return _rounded(HIDDEN_CURVE_COLOR, w) if w != CURVE_PEN_WIDTH else self._pen_hidden
         return ui_curve.pen

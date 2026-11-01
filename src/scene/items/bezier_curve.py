@@ -23,8 +23,12 @@ class BezierCurve(QGraphicsItem):
         self.degree = degree
         self.stroke_width = stroke_width
         self.color = QColor(scene.curve_color)
-        self.pen = QPen(self.color, stroke_width if stroke_width is not None
-        else CURVE_PEN_WIDTH)
+
+        width = stroke_width if stroke_width is not None else CURVE_PEN_WIDTH
+        self.pen = QPen(self.color, width)
+        self.pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        self.pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+
         self.points: list[ControlPoint] = []
         self.committed = False
         self.points_hidden = False
@@ -117,6 +121,8 @@ class BezierCurve(QGraphicsItem):
         self.color = QColor(color)
         width = self.stroke_width if self.stroke_width is not None else CURVE_PEN_WIDTH
         self.pen = QPen(self.color, width)
+        self.pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        self.pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         self.update()
 
     def set_stroke_width(self, width):
