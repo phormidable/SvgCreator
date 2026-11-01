@@ -454,6 +454,21 @@ class MainWindow(QMainWindow):
         name, tooltip = dialog.values()
         self.file_io.save_user_shape(name, tooltip, kind, curves)
 
+    def save_and_export_dialog(self):
+        """Open a file dialog and save both JSON and SVG with the chosen base name."""
+        from PySide6.QtWidgets import QFileDialog
+        start_dir = self.file_io.json_dir or self.file_io.svg_dir or ""
+        filepath, _ = QFileDialog.getSaveFileName(
+            self, "Save and Export", start_dir,
+            "All files (*)")
+        if not filepath:
+            return
+        self.file_io.save_and_export(filepath)
+
+    def save_and_export_to_folders(self):
+        """Save both files to the configured directories."""
+        self.file_io.save_and_export_to_folders()
+
     @staticmethod
     def _describe_curves(curves) -> str:
         lines = []

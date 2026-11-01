@@ -46,6 +46,11 @@ class MainToolBar(QToolBar):
         self._build_grid()
         self.addSeparator()
         self._build_files_menu()
+
+        act = self.addAction("💾💾→")
+        act.setToolTip("Save and Export to configured folders")
+        act.triggered.connect(self.window.save_and_export_to_folders)
+
         self._build_effects_menu()
         self._build_settings()
         self._build_right_group()
@@ -143,46 +148,37 @@ class MainToolBar(QToolBar):
         self._action(menu, "📂 Load", None, w.file_io.load_project, "Ctrl+O")
         self._action(menu, "💾 Save", None, w.file_io.save_project, "Ctrl+S")
         self._action(menu, "💾 Export SVG", None, w.file_io.export_svg)
-        self._action(menu, "📐 Save Shape",
-                     "Save the selected shape, chain, or curve as a reusable preset",
-                     w.save_selected_shape)
+        self._action(menu, "💾💾 Save and Export","Save both JSON and SVG with the same filename",w.save_and_export_dialog)
+        self._action(menu, "📐 Save Shape","Save the selected shape, chain, or curve as a reusable preset",w.save_selected_shape)
         self._add_menu_button("📁 Files", menu)
 
     def _build_effects_menu(self):
         w, scene = self.window, self.scene
         menu = QMenu(self)
-        self._action(menu, "🪞 Mirror X",
-                     "Flip vertically — mirror across the horizontal line through the selection",
-                     lambda: scene.mirror_selection("x"))
-        self._action(menu, "🪞 Mirror Y",
-                     "Flip horizontally — mirror across the vertical line through the selection",
-                     lambda: scene.mirror_selection("y"))
-        self._action(menu, "↔ Center H", "Centre the selection horizontally in the viewbox",
-                     lambda: scene.center_selection("horizontal"))
-        self._action(menu, "↕ Center V", "Centre the selection vertically in the viewbox",
-                     lambda: scene.center_selection("vertical"))
+        self._action(menu, "🪞 Mirror X","Flip vertically — mirror across the horizontal line through the selection", lambda: scene.mirror_selection("x"))
+        self._action(menu, "🪞 Mirror Y","Flip horizontally — mirror across the vertical line through the selection", lambda: scene.mirror_selection("y"))
+        self._action(menu, "↔ Center H","Centre the selection horizontally in the viewbox", lambda: scene.center_selection("horizontal"))
+        self._action(menu, "↕ Center V","Centre the selection vertically in the viewbox", lambda: scene.center_selection("vertical"))
+
         menu.addSeparator()
-        self._action(menu, "📏 Create Line",
-                     "Connect the two selected points with a line (J)",
+
+        self._action(menu, "📏 Create Line","Connect the two selected points with a line (J)",
                      lambda: scene.selection_ops.join_with_line(link=False))
-        self._action(menu, "📏🔗 Create Line and Join",
-                     "Connect and link the two selected points (Ctrl+J)",
+        self._action(menu, "📏🔗 Create Line and Join","Connect and link the two selected points (Ctrl+J)",
                      lambda: scene.selection_ops.join_with_line(link=True))
+
         menu.addSeparator()
-        self.transparent_action = self._action(
-            menu, "👻 Make transparent",
-            "Make the selected shape translucent so you can see behind it",
-            w.on_transparent_toggled)
+
+        self.transparent_action = self._action(menu, "👻 Make transparent","Make the selected shape translucent so you can see behind it",
+                    w.on_transparent_toggled)
         self.transparent_action.setCheckable(True)
-        self._action(menu, "📐 Quantize Selection",
-                     "Move every selected point to the nearest grid line",
-                     w.snap_selection_to_grid)
+        self._action(menu, "📐 Quantize Selection","Move every selected point to the nearest grid line",w.snap_selection_to_grid)
+
         menu.addSeparator()
-        self._action(menu, "🙈 Hide Selection",
-                     "Hide the control points of the selected curve(s) — hover a curve if nothing is selected",
+
+        self._action(menu, "🙈 Hide Selection","Hide the control points of the selected curve(s) — hover a curve if nothing is selected",
                      w.hide_selection)
-        self._action(menu, "👁️ Show all points",
-                     "Restore all hidden curve points", w.show_all_points)
+        self._action(menu, "👁️ Show all points","Restore all hidden curve points", w.show_all_points)
         self._add_menu_button("✨ Effects", menu)
 
     def _build_settings(self):

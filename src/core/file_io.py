@@ -7,14 +7,15 @@ paths, dialogs, and user-facing success/failure messages.
 """
 
 import json
-
-
+import os
+from pathlib import Path
+from datetime import datetime
 from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QFileDialog, QMessageBox, QPlainTextEdit, QVBoxLayout
 from PySide6.QtGui import QFont
 from .settings import USER_SHAPES_PATH
 from scene.scene_io import save_state
 
-import os
+
 
 class FileIO:
     def __init__(self, window):
@@ -25,6 +26,38 @@ class FileIO:
         self.current_file = None
 
     # ------------------------------------------------------------
+    #  Core helpers (reused by all save methods)
+    # ------------------------------------------------------------
+    def _write_json(self, filepath: Path) -> None:
+        """Write the current state to a JSON file."""
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(self.scene.save_state(), f, indent=2)
+        self.current_file = str(filepath)
+        self.window.update_title()
+
+    def _write_svg(self, filepath: Path, bordered: bool) -> None:
+        """Generate and write the SVG to a file."""
+        svg = self.scene.generate_svg(bordered=bordered)
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(svg)
+
+    def _get_bordered_style(self) -> bool | None:
+        """Ask the user about stroke style if needed. Returns True/False/None."""
+        if not self._has_colored_shapes():
+            return False
+        return self._ask_stroke_style()
+
+    def _generate_unique_base_for_both(self, json_dir: Path, svg_dir: Path, base: str) -> str:
+        """Return a unique base name that doesn't conflict in either directory."""
+        candidate = base
+        counter = 2
+        while (json_dir / f"{candidate}.json").exists() or \
+                (svg_dir / f"{candidate}.svg").exists():
+            candidate = f"{base}_{counter}"
+            counter += 1
+        return candidate
+
+    # ------------------------------------------------------------
     #  SVG export / preview
     # ------------------------------------------------------------
     def _has_colored_shapes(self) -> bool:
@@ -33,24 +66,22 @@ class FileIO:
 
     def export_svg(self):
         self.window.log("export_svg")
-        bordered = False
-        if self._has_colored_shapes():
-            bordered = self._ask_stroke_style()
+        bordered = self._get_bordered_style()
         if bordered is None:
-            return  # user cancelled
-
-        # CHANGED: use self.svg_dir as starting directory
-        filepath, _ = QFileDialog.getSaveFileName(self.window, "Save SVG", self.svg_dir, "SVG files (*.svg)")
+            return
+        filepath, _ = QFileDialog.getSaveFileName(
+            self.window, "Save SVG", self.svg_dir, "SVG files (*.svg)")
         if not filepath:
             return
+        path = Path(filepath)
+        if path.suffix.lower() != ".svg":
+            path = path.with_suffix(".svg")
         try:
-            svg = self.scene.generate_svg(bordered=bordered)
-            with open(filepath, "w", encoding="utf-8") as f:
-                f.write(svg)
-            self.svg_dir = os.path.dirname(filepath)
-            self.window.set_status(f"✅ Exported to {filepath}")
+            self._write_svg(path, bordered)
+            self.svg_dir = str(path.parent)
+            self.window.set_status(f"✅ Exported to {path}")
         except Exception as e:
-            QMessageBox.critical(self.window, "Error",f"Could not save file:\n{e}")
+            QMessageBox.critical(self.window, "Error", f"Could not save file:\n{e}")
 
     def _ask_stroke_style(self):
         """Ask whether shaped curves should be stroked with a darker border
@@ -109,21 +140,18 @@ class FileIO:
     # ------------------------------------------------------------
     def save_project(self):
         self.window.log("save_project")
-        # CHANGED: use self.json_dir as starting directory
         filepath, _ = QFileDialog.getSaveFileName(
             self.window, "Save Project", self.json_dir,
             "Bezier Project (*.json);;All files (*)")
         if not filepath:
             return
-        if not filepath.lower().endswith(".json"):
-            filepath += ".json"
+        path = Path(filepath)
+        if path.suffix.lower() != ".json":
+            path = path.with_suffix(".json")
         try:
-            with open(filepath, "w", encoding="utf-8") as f:
-                json.dump(save_state(self.scene), f, indent=2)
-            self.json_dir = os.path.dirname(filepath)
-            self.current_file = filepath  # NEW
-            self.window.update_title()  # NEW
-            self.window.set_status(f"💾 Saved to {filepath}")
+            self._write_json(path)
+            self.json_dir = str(path.parent)
+            self.window.set_status(f"💾 Saved to {path}")
         except Exception as e:
             QMessageBox.critical(self.window, "Error", f"Could not save file:\n{e}")
 
@@ -183,3 +211,83 @@ class FileIO:
             return False
         self.window.set_status(f"💾 Saved '{name}' to {USER_SHAPES_PATH.name}")
         return True
+
+    def save_and_export(self, filepath: str):
+        """Save both JSON and SVG with the same base filename."""
+        path = Path(filepath)
+        base = path.stem
+        directory = path.parent
+
+        bordered = self._get_bordered_style()
+        if bordered is None:
+            return
+
+        json_path = directory / f"{base}.json"
+        svg_path = directory / f"{base}.svg"
+
+        errors = []
+
+        try:
+            self._write_json(json_path)
+        except Exception as e:
+            errors.append(f"JSON: {e}")
+
+        try:
+            self._write_svg(svg_path, bordered)
+        except Exception as e:
+            errors.append(f"SVG: {e}")
+
+        if errors:
+            QMessageBox.warning(self.window, "Partial save",
+                               "Some files could not be saved:\n" + "\n".join(errors))
+        else:
+            self.window.set_status(f"💾 Saved {json_path.name} and {svg_path.name}")
+            self.json_dir = str(directory)
+            self.svg_dir = str(directory)
+
+    def save_and_export_to_folders(self):
+        """Save JSON and SVG to the configured directories."""
+        if not self.json_dir and not self.svg_dir:
+            QMessageBox.warning(self.window, "No directories configured",
+                               "Please set JSON and SVG save directories in Settings.")
+            return
+
+        # Determine base name
+        if self.current_file:
+            base = Path(self.current_file).stem
+        else:
+            base = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+        json_dir = Path(self.json_dir) if self.json_dir else None
+        svg_dir = Path(self.svg_dir) if self.svg_dir else None
+
+        # Generate unique base for both directories
+        unique_base = self._generate_unique_base_for_both(
+            json_dir or Path("."), svg_dir or Path("."), base)
+
+        errors = []
+
+        # Save JSON
+        if json_dir:
+            json_path = json_dir / f"{unique_base}.json"
+            try:
+                self._write_json(json_path)
+            except Exception as e:
+                errors.append(f"JSON: {e}")
+
+        # Save SVG
+        if svg_dir:
+            svg_path = svg_dir / f"{unique_base}.svg"
+            try:
+                bordered = self._get_bordered_style()
+                if bordered is None:
+                    bordered = True  # Default for auto-save
+                self._write_svg(svg_path, bordered)
+            except Exception as e:
+                errors.append(f"SVG: {e}")
+
+        if errors:
+            QMessageBox.warning(self.window, "Partial save",
+                               "Some files could not be saved:\n" + "\n".join(errors))
+        else:
+            self.window.set_status(f"💾 Auto-saved {unique_base}.json and {unique_base}.svg")
