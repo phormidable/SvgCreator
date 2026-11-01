@@ -1,6 +1,5 @@
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
-                                QLabel, QLineEdit, QPushButton, QSpinBox,
-                                QFileDialog, QColorDialog, QDialogButtonBox)
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
+                               QLineEdit, QPushButton, QSpinBox, QFileDialog, QColorDialog, QDialogButtonBox)
 from PySide6.QtGui import QColor
 from PySide6.QtCore import Qt
 
@@ -49,7 +48,7 @@ class SettingsDialog(QDialog):
 
         # ---- Stroke size ----
         self.stroke_spin = QSpinBox()
-        self.stroke_spin.setRange(1, 5000)
+        self.stroke_spin.setRange(1, 500)
         self.stroke_spin.setValue(settings["stroke_width"])
         self.stroke_spin.setSuffix(" units")
         form.addRow("Stroke size:", self.stroke_spin)
@@ -107,9 +106,7 @@ class SettingsDialog(QDialog):
         layout.addLayout(form)
 
         # ---- Buttons ----
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self._validate_and_accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -136,8 +133,7 @@ class SettingsDialog(QDialog):
     def _browse_background(self):
         start = self.bg_edit.text() or ""
         path, _ = QFileDialog.getOpenFileName(
-            self, "Select Background Image", start,
-            "Images (*.png *.jpg *.jpeg *.svg);;All files (*)")
+            self, "Select Background Image", start,"Images (*.png *.jpg *.jpeg *.svg);;All files (*)")
         if path:
             self.bg_edit.setText(path)
 

@@ -16,6 +16,7 @@ from ui.elements.preset_panel import PresetPanel
 from ui.dialogs.save_shape_dialog import SaveShapeDialog
 from ui.dialogs.settings_dialog import SettingsDialog
 from ui.dialogs.shortcuts_dialog import ShortcutsDialog
+from ui.elements.main_toolbar import MainToolBar
 
 POINT_TIP_GAP = 22  # viewport pixels above the point's centre
 
@@ -60,7 +61,7 @@ class MainWindow(QMainWindow):
         right_col.addWidget(self.info_panel, 1)
         main_layout.addLayout(right_col)
         # ---- Toolbar ----
-        self._setup_toolbar()
+        self.toolbar = MainToolBar(self)
 
         # Why a shortcut and not a keyPressEvent branch: Qt intercepts Tab for focus
         # traversal in QWidget::event() before keyPressEvent, so the drawing view would
@@ -105,7 +106,7 @@ class MainWindow(QMainWindow):
         self.scene.hoveredPointChanged.connect(self.show_point_tip)
         self.scene.transformTypedChanged.connect(lambda text: self.statusBar().showMessage( f"Rotate: {text}°" if text else ""))
         self.scene.undoStateChanged.connect(self._refresh_undo_actions)
-        self.drawing_view.zoomChanged.connect(self._sync_zoom_combo)
+        self.drawing_view.zoomChanged.connect(self.toolbar.sync_zoom)
 
         self._refresh_undo_actions()
         # Initial state
@@ -138,12 +139,11 @@ class MainWindow(QMainWindow):
 
     def _refresh_undo_actions(self):
         u = self.scene.undo
-        self.undo_action.setEnabled(u.can_undo())
-        self.redo_action.setEnabled(u.can_redo())
-        self.undo_action.setToolTip(
-            f"Undo: {u.undo_label()}" if u.can_undo() else "Nothing to undo")
-        self.redo_action.setToolTip(
-            f"Redo: {u.redo_label()}" if u.can_redo() else "Nothing to redo")
+        undo, redo = self.toolbar.undo_action, self.toolbar.redo_action
+        undo.setEnabled(u.can_undo())
+        redo.setEnabled(u.can_redo())
+        undo.setToolTip(f"Undo: {u.undo_label()}" if u.can_undo() else "Nothing to undo")
+        redo.setToolTip(f"Redo: {u.redo_label()}" if u.can_redo() else "Nothing to redo")
 
     def _handle_z_key(self, event):
         if not (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
@@ -199,8 +199,8 @@ class MainWindow(QMainWindow):
             K.Key_Y: self._handle_y_key,
             K.Key_Z: self._handle_z_key,
             K.Key_U: always(scene.link_manager.try_break_junction),
-            K.Key_Equal: always(lambda: self._step_zoom(+1)),
-            K.Key_Minus: always(lambda: self._step_zoom(-1)),
+            K.Key_Equal: always(lambda: self.toolbar.step_zoom(+1)),
+            K.Key_Minus: always(lambda: self.toolbar.step_zoom(-1)),
             K.Key_Backspace: always(scene.delete_selection),
             K.Key_Left: lambda e: self._arrow_nudge(-1, 0, e),
             K.Key_Right: lambda e: self._arrow_nudge(+1, 0, e),
@@ -313,223 +313,6 @@ class MainWindow(QMainWindow):
         self.point_tip.move(x, y)
         self.point_tip.show()
         self.point_tip.raise_()
-    # ------------------------------------------------------------
-    #  Toolbar
-    # ------------------------------------------------------------
-    def _setup_toolbar(self):
-        toolbar = self.addToolBar("Tools")
-
-        # ---- Undo / Redo ----
-        self.undo_action = toolbar.addAction("↶")
-        self.undo_action.setToolTip("Undo (Ctrl+Z)")
-        self.undo_action.setEnabled(False)
-        self.undo_action.triggered.connect(self._do_undo)
-
-        self.redo_action = toolbar.addAction("↷")
-        self.redo_action.setToolTip("Redo (Ctrl+Shift+Z / Ctrl+Y)")
-        self.redo_action.setEnabled(False)
-        self.redo_action.triggered.connect(self._do_redo)
-
-        toolbar.addSeparator()
-        # ---- Mode ----
-        toolbar.addWidget(QLabel(" Mode: "))
-        self.mode_combo = QComboBox()
-        self.mode_combo.addItem("Create", "create")
-        self.mode_combo.addItem("Edit", "edit")
-        self.mode_combo.currentIndexChanged.connect(self._on_mode_changed)
-        toolbar.addWidget(self.mode_combo)
-
-        toolbar.addSeparator()
-        toolbar.addWidget(QLabel(" Type: "))
-        self.degree_combo = QComboBox()
-        self.degree_combo.addItem("Line", (1, False))
-        self.degree_combo.addItem("Line Stroke", (1, True))
-        self.degree_combo.addItem("Quadratic", (2, False))
-        self.degree_combo.addItem("Quadratic Stroke", (2, True))
-        self.degree_combo.addItem("Cubic", (3, False))
-        self.degree_combo.addItem("Cubic Stroke", (3, True))
-        self.degree_combo.currentIndexChanged.connect(self._on_degree_changed)
-        # Sync to builder's current style
-        target = 0
-        for i in range(self.degree_combo.count()):
-            d, s = self.degree_combo.itemData(i)
-            matches = (d == self.scene.builder.current_degree
-                       and (STROKE_DEFAULT_WIDTH if s else None)
-                       == self.scene.builder.current_stroke_width)
-            if matches:
-                target = i
-                break
-        self.degree_combo.setCurrentIndex(target)
-        toolbar.addWidget(self.degree_combo)
-
-        toolbar.addSeparator()
-
-        # ---- Zoom ----
-        toolbar.addWidget(QLabel(" Zoom: "))
-        self.zoom_combo = QComboBox()
-        for label, factor in ZOOM_LEVELS:
-            self.zoom_combo.addItem(label, factor)
-        self.zoom_combo.setCurrentIndex(1)
-        self.zoom_combo.currentIndexChanged.connect(self._on_zoom_changed)
-        toolbar.addWidget(self.zoom_combo)
-
-        toolbar.addSeparator()
-
-        # ---- Grid ----
-        self.grid_action = toolbar.addAction("Show Grid")
-        self.grid_action.setCheckable(True)
-        self.grid_action.toggled.connect(self._on_grid_toggled)
-
-        grid_btn = toolbar.widgetForAction(self.grid_action)
-        if grid_btn is not None:
-            grid_btn.setStyleSheet(TOOLBAR_CHECKED_STYLE)
-
-        toolbar.addWidget(QLabel(" Grid size: "))
-        self.grid_combo = QComboBox()
-        for label, spacing in GRID_SIZE_OPTIONS:
-            self.grid_combo.addItem(label, spacing)
-        for i in range(self.grid_combo.count()):
-            if self.grid_combo.itemData(i) == GRID_DEFAULT_SPACING:
-                self.grid_combo.setCurrentIndex(i)
-                break
-        self.grid_combo.currentIndexChanged.connect(self._on_grid_size_changed)
-        toolbar.addWidget(self.grid_combo)
-
-        # Start with the grid shown (for testing). This fires toggled(True) —
-        # make sure it happens *after* the connect above.
-        self.grid_action.setChecked(True)
-
-        self.snap_action = toolbar.addAction("Snap to Grid")
-        self.snap_action.setCheckable(True)
-        self.snap_action.toggled.connect(self.scene.set_snap_enabled)
-
-        # Colour the checked state red. widgetForAction returns the QToolButton
-        # that represents this action on the toolbar.
-        snap_btn = toolbar.widgetForAction(self.snap_action)
-        if snap_btn is not None:
-            snap_btn.setStyleSheet(TOOLBAR_CHECKED_STYLE)
-
-        toolbar.addSeparator()
-
-        # ---- Files menu ----
-        files_btn = QToolButton()
-        files_btn.setText("📁 Files")
-        files_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        files_menu = QMenu(files_btn)
-
-        load_action = files_menu.addAction("📂 Load")
-        load_action.setShortcut("Ctrl+O")
-        load_action.triggered.connect(self.file_io.load_project)
-
-        save_action = files_menu.addAction("💾 Save")
-        save_action.setShortcut("Ctrl+S")
-        save_action.triggered.connect(self.file_io.save_project)
-
-        export_action = files_menu.addAction("💾 Export SVG")
-        export_action.triggered.connect(self.file_io.export_svg)
-
-        save_shape_action = files_menu.addAction("📐 Save Shape")
-        save_shape_action.setToolTip("Save the selected shape, chain, or curve as a reusable preset")
-        save_shape_action.triggered.connect(self.save_selected_shape)
-
-        files_btn.setMenu(files_menu)
-        toolbar.addWidget(files_btn)
-
-        # ---- Effects menu ----
-        effects_btn = QToolButton()
-        effects_btn.setText("✨ Effects")
-        effects_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        effects_menu = QMenu(effects_btn)
-
-        mirror_x_action = effects_menu.addAction("🪞 Mirror X")
-        mirror_x_action.setToolTip("Flip vertically — mirror across the horizontal line through the selection")
-        mirror_x_action.triggered.connect(lambda: self.scene.mirror_selection("x"))
-
-        mirror_y_action = effects_menu.addAction("🪞 Mirror Y")
-        mirror_y_action.setToolTip("Flip horizontally — mirror across the vertical line through the selection")
-        mirror_y_action.triggered.connect(lambda: self.scene.mirror_selection("y"))
-
-        center_h_action = effects_menu.addAction("↔ Center H")
-        center_h_action.setToolTip("Centre the selection horizontally in the viewbox")
-        center_h_action.triggered.connect(lambda: self.scene.center_selection("horizontal"))
-
-        center_v_action = effects_menu.addAction("↕ Center V")
-        center_v_action.setToolTip("Centre the selection vertically in the viewbox")
-        center_v_action.triggered.connect(lambda: self.scene.center_selection("vertical"))
-
-        effects_menu.addSeparator()
-
-        create_line_action = effects_menu.addAction("📏 Create Line")
-        create_line_action.setToolTip("Connect the two selected points with a line (J)")
-        create_line_action.triggered.connect(lambda: self.scene.selection_ops.join_with_line(link=False))
-
-        create_linked_line_action = effects_menu.addAction("📏🔗 Create Line and Join")
-        create_linked_line_action.setToolTip("Connect and link the two selected points (Ctrl+J)")
-        create_linked_line_action.triggered.connect(lambda: self.scene.selection_ops.join_with_line(link=True))
-
-        effects_menu.addSeparator()
-
-        self.transparent_action = effects_menu.addAction("👻 Make transparent")
-        self.transparent_action.setCheckable(True)
-        self.transparent_action.setToolTip("Make the selected shape translucent so you can see behind it")
-        self.transparent_action.triggered.connect(self.on_transparent_toggled)
-
-        snap_action = effects_menu.addAction("📐 Quantize Selection")
-        snap_action.setToolTip("Move every selected point to the nearest grid line")
-        snap_action.triggered.connect(self.snap_selection_to_grid)
-
-        effects_menu.addSeparator()
-
-        hide_action = effects_menu.addAction("🙈 Hide Selection")
-        hide_action.setToolTip("Hide the control points of the selected curve(s) — hover a curve if nothing is selected")
-        hide_action.triggered.connect(self.hide_selection)
-
-        show_all_action = effects_menu.addAction("👁️ Show all points")
-        show_all_action.setToolTip("Restore all hidden curve points")
-        show_all_action.triggered.connect(self.show_all_points)
-
-        effects_btn.setMenu(effects_menu)
-        toolbar.addWidget(effects_btn)
-
-        # ---- Settings button (opens unified dialog) ----
-        settings_btn = QToolButton()
-        settings_btn.setText("⚙️ Settings")
-        settings_btn.setToolTip("Open settings dialog")
-        settings_btn.clicked.connect(self.open_settings_dialog)
-        toolbar.addWidget(settings_btn)
-
-        # ---- Spacer: pushes the next items to the right ----
-        spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        toolbar.addWidget(spacer)
-
-        shortcuts_action = toolbar.addAction("⌨️ Shortcuts")
-        shortcuts_action.setToolTip("Show all keyboard shortcuts")
-        shortcuts_action.triggered.connect(self.show_shortcuts)
-
-        # ---- Right group: Clear All ----
-        clear_action = toolbar.addAction("🗑️ Clear All")
-        clear_action.triggered.connect(self.clear_scene)
-
-    def _test_push(self):
-        self.scene.undo.push("manual push")
-        self.statusBar().showMessage(
-            f"Snapshot pushed. Stack: {self.scene.undo.describe()}")
-
-    def _on_zoom_changed(self, index):
-        factor = self.zoom_combo.itemData(index)
-        self.drawing_view.set_zoom(factor)
-
-    # New method, near _on_zoom_changed:
-    def _sync_zoom_combo(self, factor):
-        """Reflect a zoom the view applied on its own (Ctrl+wheel) in the
-        combo box, without re-firing set_zoom."""
-        for i in range(self.zoom_combo.count()):
-            if self.zoom_combo.itemData(i) == factor:
-                self.zoom_combo.blockSignals(True)
-                self.zoom_combo.setCurrentIndex(i)
-                self.zoom_combo.blockSignals(False)
-                return
 
     def open_settings_dialog(self):
         current_bg = self.scene.background.path or ""
@@ -600,32 +383,10 @@ class MainWindow(QMainWindow):
         else:
             self.statusBar().showMessage("No changes")
 
-    def _on_degree_changed(self, index):
-        data = self.degree_combo.itemData(index)
-        if data is None:
-            return
-        degree, is_stroke = data
-        self.scene.builder.set_curve_style(degree, is_stroke)
 
-    def _on_mode_changed(self, index):
-        self.set_mode(self.mode_combo.itemData(index))
 
-    def _sync_mode_combo(self):
-        """Reflect scene.mode in the combo without re-firing set_mode."""
-        target = 0 if self.scene.mode == "create" else 1
-        if self.mode_combo.currentIndex() == target:
-            return
-        self.mode_combo.blockSignals(True)
-        self.mode_combo.setCurrentIndex(target)
-        self.mode_combo.blockSignals(False)
 
-    def _on_grid_toggled(self, checked: bool):
-        self.grid_action.setText("Hide Grid" if checked else "Show Grid")
-        self.scene.grid_item.setVisible(checked)
 
-    def _on_grid_size_changed(self, index: int):
-        spacing = self.grid_combo.itemData(index)
-        self.scene.grid_item.set_spacing(spacing)
 
     # ------------------------------------------------------------
     #  Mode switching
@@ -633,7 +394,7 @@ class MainWindow(QMainWindow):
     def set_mode(self, mode):
         if self.scene.is_transforming():
             self.statusBar().showMessage("Transformation going on - mode not changed.")
-            self._sync_mode_combo()
+            self.toolbar.sync_mode(self.scene.mode)
             return
 
         self.log(f"Mode → {mode}")
@@ -644,7 +405,7 @@ class MainWindow(QMainWindow):
         self.scene.set_selected_point(None)
         self.scene.clear_hover()
         self.scene.mode = mode
-        self._sync_mode_combo()
+        self.toolbar.sync_mode(self.scene.mode)
         if mode == "create":
             self.statusBar().showMessage("Create mode: left-click to place points. Right-drag to pan.")
         else:
@@ -661,15 +422,6 @@ class MainWindow(QMainWindow):
 
     def refresh_preview_background(self):
         self.preview_widget.set_background(self.scene.background_pixmap)
-
-    def remove_background(self):
-        if self.scene.background.path is None:
-            self.statusBar().showMessage("No background to remove")
-            return
-        self.scene.background.remove()
-        self.refresh_preview_background()
-        self.statusBar().showMessage("Background removed")
-        self.log("Background removed")
 
     # ------------------------------------------------------------
     #  Clear scene
@@ -723,13 +475,6 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(
                 "Nothing to hide — select points or hover a curve")
 
-    def _step_zoom(self, direction: int) -> bool:
-        idx = self.zoom_combo.currentIndex()
-        new_idx = max(0, min(self.zoom_combo.count() - 1, idx + direction))
-        if new_idx != idx:
-            self.zoom_combo.setCurrentIndex(new_idx)
-        return True
-
     def color_selected_shape(self):
         shapes = self.scene.selection.selected_shapes()
         if not shapes:
@@ -751,15 +496,7 @@ class MainWindow(QMainWindow):
         self.log(f"Colored {len(shapes)} shape(s) {color.name()}")
         self.scene.undo.push(f"Color {len(shapes)} shape(s)")
 
-    def pick_curve_color(self):
-        color = QColorDialog.getColor(self.scene.curve_color, self, "Curve Color")
-        if not color.isValid():
-            return
-        if color == self.scene.curve_color:
-            return  # no change
-        self.scene.set_curve_color(color)
-        self.log(f"Curve color → {color.name()}")
-        self.scene.undo.push("Curve color")
+
 
     def on_transparent_toggled(self, checked):
         self.scene.shape_manager.set_transparent(checked)
