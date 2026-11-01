@@ -12,6 +12,7 @@ lookups on the Document. Invariants (maintained by Document operations):
 - No two curves share the same extremity pair.
 """
 
+from PySide6.QtCore import QObject, Signal
 
 class Point:
     _next_id = 1
@@ -76,8 +77,19 @@ class Chain:
     def __repr__(self):
         return f"Chain{self.id}{[c.id for c in self.curves]}"
 
-class Document:
+class Document(QObject):
+    curve_added = Signal(object)
+    curve_deleted = Signal(object)
+
+    # NEW: Signal for point movement
+    point_moved = Signal(object)  # Emits the model Point that moved
+
+    # NEW: Signals for linking
+    points_linked = Signal(object)  # Emits the junction that was created/updated
+    points_unlinked = Signal(object)  # Emits the point that was unlinked
+
     def __init__(self):
+        super().__init__()  # Required for QObject
         self.extremities = []
         self.controls = []
         self.curves = []
@@ -100,6 +112,42 @@ class Document:
                 return c
         return None
 
+    def add_curve(self, degree: int, positions: list[tuple[float, float]]) -> 'Curve':
+        """Create a model curve and its points, update internal lists, and emit signal."""
+        points = [Point(x, y) for x, y in positions]
+        extremities = (points[0], points[-1])
+        controls = points[1:-1]
+        curve = Curve(extremities, controls, degree)
+
+        self.curves.append(curve)
+        self.extremities.extend(extremities)
+        self.controls.extend(controls)
+
+        self.curve_added.emit(curve)
+        return curve
+
+    def remove_curve(self, curve: 'Curve') -> None:
+        """Remove a model curve, clean up its points/junctions, and emit signal."""
+        if curve not in self.curves:
+            return
+
+        self.curves.remove(curve)
+        for pt in curve.extremities:
+            if pt in self.extremities:
+                self.extremities.remove(pt)
+            self.unlink(pt)  # Clean up junctions
+        for pt in curve.controls:
+            if pt in self.controls:
+                self.controls.remove(pt)
+
+        self.curve_deleted.emit(curve)
+
+    def move_point(self, point: 'Point', x: float, y: float) -> None:
+        """Move a point to a new position and emit signal."""
+        point.x = x
+        point.y = y
+        self.point_moved.emit(point)
+
     # ------------------------------------------------------------
     #  Linking
     # ------------------------------------------------------------
@@ -114,18 +162,22 @@ class Document:
             # Merge jb into ja.
             ja.points.extend(jb.points)
             self.junctions.remove(jb)
+            self.points_linked.emit(ja)  # NEW: Emit signal
             return ja
 
         if ja is not None:
             ja.points.append(b)
+            self.points_linked.emit(ja)  # NEW: Emit signal
             return ja
 
         if jb is not None:
             jb.points.append(a)
+            self.points_linked.emit(jb)  # NEW: Emit signal
             return jb
 
         j = Junction([a, b])
         self.junctions.append(j)
+        self.points_linked.emit(j)  # NEW: Emit signal
         return j
 
     def unlink(self, pt):
@@ -135,6 +187,7 @@ class Document:
         j.points.remove(pt)
         if len(j.points) < 2:
             self.junctions.remove(j)
+        self.points_unlinked.emit(pt)  # NEW: Emit signal
 
     # ------------------------------------------------------------
     #  Movement

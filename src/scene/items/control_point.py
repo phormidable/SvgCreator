@@ -93,8 +93,8 @@ class ControlPoint(QGraphicsEllipseItem):
             if scene is not None:
                 mp = scene.registry.model_point_for(self)
                 if mp is not None:
-                    mp.x = value.x()
-                    mp.y = value.y()
+                    # CHANGED: Use the Document mutator instead of direct mutation
+                    scene.document.move_point(mp, value.x(), value.y())
                 scene.link_manager.propagate_move(self, QPointF(value.x(), value.y()))
                 self.curve.on_point_moved()
                 scene.on_point_moved(self)

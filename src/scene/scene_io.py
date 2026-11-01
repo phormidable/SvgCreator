@@ -8,7 +8,7 @@ from collections import defaultdict
 from .curve_geometry import model_curve_svg_string
 
 def generate_svg(scene, bordered: bool = False) -> str:
-    scene.registry.sync()
+
     # 1) Fills: one <path> per colored shape.
     shape_paths = []
     for shape in scene.shape_manager.shapes:
@@ -64,7 +64,7 @@ def generate_svg(scene, bordered: bool = False) -> str:
 
 
 def save_state(scene) -> dict:
-    scene.registry.sync()
+#    scene.registry.sync()
     location = {}
     for ci, curve in enumerate(scene.curves):
         for pi, pt in enumerate(curve.points):
@@ -131,8 +131,20 @@ def load_state(scene, state: dict, quiet: bool = False):
         strokes = state.get("curve_strokes", [])
         for i, points_data in enumerate(curves_data):
             w = strokes[i] if i < len(strokes) else None
-            curve = _build_curve_from_points(scene, points_data, stroke_width=w)
-            scene.curves.append(curve)
+
+            # 1. Build the UI curve (your existing helper)
+            ui_curve = _build_curve_from_points(scene, points_data, stroke_width=w)
+
+            # 2. Create the Model curve via the Document
+            model_curve = scene.document.add_curve(ui_curve.degree, points_data)
+
+            # 3. Explicitly bind UI to Model
+            scene.registry.bind(ui_curve, model_curve)
+            model_points = [model_curve.extremities[0], *model_curve.controls, model_curve.extremities[1]]
+            for ui_pt, model_pt in zip(ui_curve.points, model_points):
+                scene.registry.bind_point(ui_pt, model_pt)
+
+            scene.curves.append(ui_curve)
 
         out_of_bounds = [p for c in curves_data for p in c if not scene.artboard.contains(QPointF(p[0], p[1]))]
         if out_of_bounds:

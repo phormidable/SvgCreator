@@ -39,22 +39,19 @@ class LinkManager:
     #  Linking / unlinking
     # ------------------------------------------------------------
     def link_points(self, a, b):
-        self.scene.registry.sync()
+        """Link two UI control points together."""
         ma = self.scene.registry.model_point_for(a)
         mb = self.scene.registry.model_point_for(b)
         if ma is None or mb is None:
             return
         self.scene.document.link(ma, mb)
-        self._sync_linked_flags()
-        self.scene.shape_manager.refresh()
 
-    def unlink_point(self, point):
-        self.scene.registry.sync()
-        mp = self.scene.registry.model_point_for(point)
-        if mp is not None:
-            self.scene.document.unlink(mp)
-        self._sync_linked_flags()
-        self.scene.shape_manager.refresh()
+    def unlink_point(self, pt):
+        """Unlink a UI control point from its junction."""
+        mp = self.scene.registry.model_point_for(pt)
+        if mp is None:
+            return
+        self.scene.document.unlink(mp)
 
     # ------------------------------------------------------------
     #  Proximity indicator
@@ -121,13 +118,17 @@ class LinkManager:
     def reset(self):
         self.clear_proximity()
         self.scene.document.junctions.clear()
-        self._sync_linked_flags()
+        self.sync_linked_flags()
         self._propagating = False
 
-    def _sync_linked_flags(self):
+    def sync_linked_flags(self):
+        """Update the `linked` visual flag on every UI control point."""
         linked_items = set()
         for j in self.scene.document.junctions:
-            linked_items.update(self.scene.registry.ui_points_for(j.points))
+            if len(j.points) >= 2:
+                linked_items.update(self.scene.registry.ui_points_for(j.points))
+
+        # Iterate over all UI points in the scene (not model points)
         for item in self.scene.registry.ui_points():
             item.set_linked(item in linked_items)
 
@@ -148,7 +149,7 @@ class LinkManager:
     def break_junction(self, point) -> bool:
         """Dissolve the junction containing `point` and fan its members out
         along x: +10, -10, +20, -20, … from the junction's position."""
-        self.scene.registry.sync()
+        #self.scene.registry.sync()
         mp = self.scene.registry.model_point_for(point)
         if mp is None:
             return False
@@ -164,7 +165,7 @@ class LinkManager:
 
         # Dissolve first, so the setPos calls below propagate to nobody.
         self.scene.document.junctions.remove(junction)
-        self._sync_linked_flags()
+        self.sync_linked_flags()
         self.scene.shape_manager.refresh()
 
         for i, pt in enumerate(members):

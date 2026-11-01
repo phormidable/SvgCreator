@@ -78,12 +78,21 @@ class BezierScene(QGraphicsScene):
         self.link_manager = LinkManager(self)
         self.mouse = MouseController(self)
         self.shape_manager = ShapeManager(self)
+
         self.transform = TransformController(self)
         self.presets = PresetController(self)
         self.builder = CurveBuilder(self)
         self.selection_ops = SelectionOps(self)
         self.clipboard = Clipboard(self)
         self.undo = UndoManager(self)
+
+        # NEW: Auto-update topology when the Document changes
+        self.document.curve_added.connect(self.shape_manager.refresh)
+        self.document.curve_deleted.connect(self.shape_manager.refresh)
+
+        # NEW: React to point movement and linking changes
+        self.document.points_linked.connect(self._on_points_linked)
+        self.document.points_unlinked.connect(self._on_points_unlinked)
 
         # ---- NEW: Debounce timer for heavy updates during drags ----
         self._update_timer = QTimer()
@@ -200,6 +209,17 @@ class BezierScene(QGraphicsScene):
 
     def clear_hover(self):
         self.mouse.clear_hover()
+
+    # ------------------------------------------------------------
+    #  NEW: Signal handlers for Document changes
+    # ------------------------------------------------------------
+    def _on_points_linked(self, junction):
+        """Called when points are linked. Update the visual 'linked' flags."""
+        self.link_manager.sync_linked_flags()
+
+    def _on_points_unlinked(self, point):
+        """Called when a point is unlinked. Update the visual 'linked' flags."""
+        self.link_manager.sync_linked_flags()
 
     def on_point_moved(self, point):
         """Called by ControlPoint when its position changed."""

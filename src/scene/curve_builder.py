@@ -64,13 +64,29 @@ class CurveBuilder:
     #  Finalize / discard / clear
     # ------------------------------------------------------------
     def finalize(self):
-        curve = self.pending_curve
+        ui_curve = self.pending_curve
         self.pending_curve = None
-        curve.committed = True
-        for pt in curve.points:
+
+        # 1. Extract positions from the UI curve
+        positions = [(pt.pos().x(), pt.pos().y()) for pt in ui_curve.points]
+
+        # 2. Create the model curve via the Document (Single Source of Truth)
+        model_curve = self.scene.document.add_curve(ui_curve.degree, positions)
+
+        # 3. Bind the UI curve and its points to the model
+        self.scene.registry.bind(ui_curve, model_curve)
+        model_points = [model_curve.extremities[0], *model_curve.controls, model_curve.extremities[1]]
+        for ui_pt, model_pt in zip(ui_curve.points, model_points):
+            self.scene.registry.bind_point(ui_pt, model_pt)
+
+        # 4. Finalize UI state
+        ui_curve.committed = True
+        for pt in ui_curve.points:
             pt.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
-        curve.rebuild_path()
-        self.scene.curves.append(curve)
+        ui_curve.rebuild_path()
+
+        # 5. Add to scene's UI list (for rendering)
+        self.scene.curves.append(ui_curve)
         self.scene.emit_svg()
 
     def discard(self):

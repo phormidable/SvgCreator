@@ -140,7 +140,7 @@ class ShapeManager:
         return None
 
     def refresh(self):
-        self.scene.registry.sync()
+        #self.scene.registry.sync()
         doc = self.scene.document
         before = set(doc.shapes)
         doc.detect_shapes()

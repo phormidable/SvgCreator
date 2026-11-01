@@ -208,8 +208,16 @@ class SelectionOps:
         scene.selection.select_shape(None)
 
         curves = list(to_delete)
+
+        # CHANGED: Tell the Document to remove each curve (emits signal)
         for curve in curves:
-            scene.curves.remove(curve)
+            model_curve = scene.registry.model_curve_for(curve)
+            if model_curve is not None:
+                scene.document.remove_curve(model_curve)
+
+            # Then clean up the UI
+            if curve in scene.curves:
+                scene.curves.remove(curve)
             for pt in curve.points:
                 if pt in scene.selected_points:
                     scene.selected_points.remove(pt)
@@ -218,7 +226,6 @@ class SelectionOps:
         for curve in curves:
             curve.dispose()
 
-        scene.shape_manager.refresh()
         scene.emit_svg()
         n = len(curves)
         scene.messageLogged.emit(
