@@ -13,7 +13,6 @@ None of these track state between calls.
 
 from PySide6.QtCore import QPointF
 
-from .curve_geometry import curve_bbox
 from .items.bezier_curve import BezierCurve
 
 
@@ -142,19 +141,13 @@ class SelectionOps:
 
     def selection_curve_bbox(self):
         """Tight bbox (min_x, min_y, max_x, max_y) of the actual curve
-        geometry for every curve touched by the selection. None if no curve
-        is involved. Unlike a control-polygon bbox, this ignores handles that
-        wander away from the curve."""
-        curves = {pt.curve for pt in self.scene.selected_points
-                  if pt.curve is not None}
+        geometry for every curve touched by the selection."""
+        curves = {pt.curve for pt in self.scene.selected_points     if pt.curve is not None}
         if not curves:
             return None
 
-        boxes = []
-        for curve in curves:
-            pts = [(p.model_pos().x(), p.model_pos().y()) for p in curve.points]
-            boxes.append(curve_bbox(pts, curve.degree))
-
+        # NEW: Use cached bounding box instead of recalculating
+        boxes = [curve.get_tight_bbox() for curve in curves]
         return (min(b[0] for b in boxes), min(b[1] for b in boxes),
                 max(b[2] for b in boxes), max(b[3] for b in boxes))
 

@@ -6,6 +6,7 @@ from PySide6.QtCore import QRectF, Qt
 from core.settings import CURVE_PEN_WIDTH, SHAPE_SELECTED_CURVE_PEN_WIDTH,CURVE_SELECTED_PEN_WIDTH, HOVER_TOLERANCE
 
 from scene.items.control_point import ControlPoint
+from scene.curve_geometry import curve_bbox
 
 from typing import TYPE_CHECKING, cast
 if TYPE_CHECKING:
@@ -30,6 +31,7 @@ class BezierCurve(QGraphicsItem):
         self.pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
 
         self.points: list[ControlPoint] = []
+        self._bbox = None  # NEW: Cache for tight bounding box
         self.committed = False
         self.points_hidden = False
         self._path = QPainterPath()
@@ -136,7 +138,18 @@ class BezierCurve(QGraphicsItem):
         self.prepareGeometryChange()
         self._path, self._hit_path = self._scene.curve_renderer.paths_for(
             self.positions(), self.degree, self.stroke_width)
+        self._bbox = None  # NEW: Invalidate cache when geometry changes
         self.update()
+
+    def get_tight_bbox(self):
+        """Returns (min_x, min_y, max_x, max_y) of the actual curve geometry.
+        Cached to prevent redundant calculations during selection/centering."""
+        if self._bbox is not None:
+            return self._bbox
+
+        pts = [(p.model_pos().x(), p.model_pos().y()) for p in self.points]
+        self._bbox = curve_bbox(pts, self.degree)
+        return self._bbox
 
     def is_near(self, pos):
         if self.points_hidden:
