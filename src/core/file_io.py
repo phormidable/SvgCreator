@@ -31,7 +31,7 @@ class FileIO:
     def _write_json(self, filepath: Path) -> None:
         """Write the current state to a JSON file."""
         with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(self.scene.save_state(), f, indent=2)
+            json.dump(save_state(self.scene), f, indent=2)
         self.current_file = str(filepath)
         self.window.update_title()
 

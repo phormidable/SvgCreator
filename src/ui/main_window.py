@@ -4,18 +4,18 @@ from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QL
 from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QPainter, QColor, QShortcut, QKeySequence
 
-from core.settings import DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
-
 from scene.bezier_scene import BezierScene
+from core.settings import DRAWING_MIN_WIDTH, DRAWING_MIN_HEIGHT, PREVIEW_WIDTH, PREVIEW_HEIGHT, WINDOW_WIDTH, WINDOW_HEIGHT
+from core.file_io import FileIO
+from core.user_settings import UserSettings
 from ui.elements.custom_view import CustomGraphicsView
 from ui.elements.info_panel import InfoPanel
-from core.file_io import FileIO
 from ui.elements.preview_widget import PreviewWidget
 from ui.elements.preset_panel import PresetPanel
+from ui.elements.main_toolbar import MainToolBar
 from ui.dialogs.save_shape_dialog import SaveShapeDialog
 from ui.dialogs.settings_dialog import SettingsDialog
 from ui.dialogs.shortcuts_dialog import ShortcutsDialog
-from ui.elements.main_toolbar import MainToolBar
 
 POINT_TIP_GAP = 22  # viewport pixels above the point's centre
 
@@ -24,7 +24,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Bézier SVG Creator")
         self.resize(WINDOW_WIDTH, WINDOW_HEIGHT)
-
+        self.user_settings = UserSettings()
         # Central widget
         central = QWidget()
         self.setCentralWidget(central)
@@ -111,6 +111,7 @@ class MainWindow(QMainWindow):
         # Initial state
         self.set_mode("create")
         self.scene.emit_svg()
+        self._apply_user_settings()
 
     def update_title(self):
         """Update the window title to show the current filename."""
@@ -119,6 +120,23 @@ class MainWindow(QMainWindow):
             self.setWindowTitle(f"{filename} - SvgCreator")
         else:
             self.setWindowTitle("SvgCreator")
+
+    def _apply_user_settings(self):
+        """Apply loaded user settings to the scene and file_io."""
+        # File paths
+        self.file_io.json_dir = self.user_settings.json_dir
+        self.file_io.svg_dir = self.user_settings.svg_dir
+
+        # Curve color
+        color = QColor(self.user_settings.curve_color)
+        if color.isValid():
+            self.scene.set_curve_color(color)
+
+        # Stroke size
+        self.scene.stroke_width = self.user_settings.stroke_size
+
+        # Canvas size
+        self.scene.set_viewbox(self.user_settings.canvas_width, self.user_settings.canvas_height)
 
     def _do_undo(self):
         # Intercept: undo during an in-flight gesture cancels the gesture,
@@ -339,13 +357,12 @@ class MainWindow(QMainWindow):
         new_values = dialog.values()
         changes = []
 
-        # ---- Canvas size ----
+        # ---- Update scene ----
         if (new_values["canvas_width"] != int(self.scene.viewbox.width())
                 or new_values["canvas_height"] != int(self.scene.viewbox.height())):
             self.scene.set_viewbox(new_values["canvas_width"], new_values["canvas_height"])
             changes.append(f"Canvas {new_values['canvas_width']}×{new_values['canvas_height']}")
 
-        # ---- Stroke width ----
         if new_values["stroke_width"] != self.scene.stroke_width:
             self.scene.stroke_width = new_values["stroke_width"]
             if self.scene.builder.current_stroke_width is not None:
@@ -353,13 +370,11 @@ class MainWindow(QMainWindow):
                     self.scene.builder.current_degree, is_stroke=True)
             changes.append(f"Stroke {new_values['stroke_width']}")
 
-        # ---- Curve color ----
         new_color = QColor(new_values["curve_color"])
         if new_color.isValid() and new_color != self.scene.curve_color:
             self.scene.set_curve_color(new_color)
             changes.append(f"Color {new_color.name()}")
 
-        # ---- Background ----
         old_bg = self.scene.background.path
         new_bg = new_values["background_path"]
         if new_bg != old_bg:
@@ -376,16 +391,25 @@ class MainWindow(QMainWindow):
                     QMessageBox.warning(self, "Background",
                                         f"Could not load:\n{new_bg}")
 
-        # ---- File paths ----
+        # ---- Update file_io ----
         self.file_io.json_dir = new_values["json_dir"]
         self.file_io.svg_dir = new_values["svg_dir"]
+
+        # ---- NEW: Persist to user_settings.json ----
+        self.user_settings.update_all(
+            json_dir=new_values["json_dir"],
+            svg_dir=new_values["svg_dir"],
+            curve_color=new_values["curve_color"],
+            stroke_size=new_values["stroke_width"],
+            canvas_width=new_values["canvas_width"],
+            canvas_height=new_values["canvas_height"],
+        )
 
         # ---- Summary ----
         if changes:
             msg = "Settings updated: " + " | ".join(changes)
             self.statusBar().showMessage(msg)
             self.log(msg)
-            # Push a single undo entry for all changes
             self.scene.undo.push("Settings")
         else:
             self.statusBar().showMessage("No changes")
