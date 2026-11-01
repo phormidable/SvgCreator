@@ -22,6 +22,7 @@ class FileIO:
         self.scene = window.scene
         self.json_dir = ""
         self.svg_dir = ""
+        self.current_file = None
 
     # ------------------------------------------------------------
     #  SVG export / preview
@@ -119,16 +120,16 @@ class FileIO:
         try:
             with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(save_state(self.scene), f, indent=2)
-            # NEW: remember the directory for next time
             self.json_dir = os.path.dirname(filepath)
+            self.current_file = filepath  # NEW
+            self.window.update_title()  # NEW
             self.window.set_status(f"💾 Saved to {filepath}")
         except Exception as e:
             QMessageBox.critical(self.window, "Error", f"Could not save file:\n{e}")
 
     def load_project(self):
         self.window.log("load_project")
-        filepath, _ = QFileDialog.getOpenFileName(
-            self.window, "Load Project", "", "Bezier Project (*.json);;All files (*)")
+        filepath, _ = QFileDialog.getOpenFileName(self.window, "Load Project", self.json_dir,"Bezier Project (*.json);;All files (*)")
         if not filepath:
             return
         try:
@@ -136,6 +137,9 @@ class FileIO:
                 state = json.load(f)
             self.scene.load_state(state)
             self.scene.undo.clear()
+            self.json_dir = os.path.dirname(filepath)
+            self.current_file = filepath  # NEW
+            self.window.update_title()  # NEW
             self.window.set_status(f"📂 Loaded from {filepath}")
         except Exception as e:
             QMessageBox.critical(self.window, "Error", f"Could not load file:\n{e}")

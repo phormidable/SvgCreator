@@ -1,4 +1,5 @@
 # ui/main_window.py
+from pathlib import Path
 from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QColorDialog, QDialog, QMessageBox
 from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QPainter, QColor, QShortcut, QKeySequence
@@ -110,6 +111,14 @@ class MainWindow(QMainWindow):
         # Initial state
         self.set_mode("create")
         self.scene.emit_svg()
+
+    def update_title(self):
+        """Update the window title to show the current filename."""
+        if self.file_io.current_file:
+            filename = Path(self.file_io.current_file).name
+            self.setWindowTitle(f"{filename} - SvgCreator")
+        else:
+            self.setWindowTitle("SvgCreator")
 
     def _do_undo(self):
         # Intercept: undo during an in-flight gesture cancels the gesture,
@@ -423,6 +432,8 @@ class MainWindow(QMainWindow):
     def clear_scene(self):
         self.scene.clear_all()
         self.scene.undo.push("Clear all")
+        self.file_io.current_file = None  # NEW
+        self.update_title()
 
     def show_shortcuts(self):
         ShortcutsDialog(self).exec()
