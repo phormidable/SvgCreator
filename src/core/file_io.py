@@ -12,6 +12,7 @@ import json
 from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QFileDialog, QMessageBox, QPlainTextEdit, QVBoxLayout
 from PySide6.QtGui import QFont
 from .settings import USER_SHAPES_PATH
+from scene.scene_io import save_state
 
 class FileIO:
     def __init__(self, window):
@@ -109,7 +110,7 @@ class FileIO:
             filepath += ".json"
         try:
             with open(filepath, "w", encoding="utf-8") as f:
-                json.dump(self.scene.save_state(), f, indent=2)
+                json.dump(save_state(self.scene), f, indent=2)
             self.window.set_status(f"💾 Saved to {filepath}")
         except Exception as e:
             QMessageBox.critical(self.window, "Error", f"Could not save file:\n{e}")

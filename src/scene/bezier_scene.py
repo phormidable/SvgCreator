@@ -1,9 +1,9 @@
 # scene/bezier_scene.py
-from PySide6.QtCore import Signal, QRectF
+from PySide6.QtCore import Signal, QRectF, QTimer
 from PySide6.QtGui import QPen, QColor
 from PySide6.QtWidgets import (QGraphicsScene, QGraphicsRectItem)
 
-from .scene_io import generate_svg, save_state, load_state
+from .scene_io import generate_svg, load_state
 from core.settings import ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH, DEFAULT_CURVE_COLOR, GRID_DEFAULT_SPACING
 from core.model import Document
 from scene.managers_controllers.link_manager import LinkManager
@@ -26,7 +26,6 @@ from .clipboard import Clipboard
 from scene.managers_controllers.undo_manager import UndoManager
 
 
-
 class BezierScene(QGraphicsScene):
     svgCodeChanged = Signal(str)
     messageLogged = Signal(str)
@@ -45,7 +44,7 @@ class BezierScene(QGraphicsScene):
         self.viewbox = VIEWBOX_RECT
 
         # ---- State ----
-        self.curves = []              # committed BezierCurve objects
+        self.curves = []    # committed BezierCurve objects
         self.mode = "create"
         self.curve_color = QColor(DEFAULT_CURVE_COLOR)
         self.selection = Selection(self)
@@ -86,6 +85,14 @@ class BezierScene(QGraphicsScene):
         self.clipboard = Clipboard(self)
         self.undo = UndoManager(self)
 
+        # ---- NEW: Debounce timer for heavy updates during drags ----
+        self._update_timer = QTimer()
+        self._update_timer.setSingleShot(True)
+        self._update_timer.setInterval(100)  # 100ms debounce
+        self._update_timer.timeout.connect(self._apply_pending_updates)
+        self._pending_svg = False
+        self._pending_fills = False
+
     # ------------------------------------------------------------
     #  Read-only views on Selection
     # ------------------------------------------------------------
@@ -124,14 +131,6 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     #  Public delegates (main_window / custom_view API)
     # ------------------------------------------------------------
-    #def start_rotation(self) -> bool:
-     #   return self.transform.start_rotation()
-
-    #def start_scaling(self) -> bool:
-     #   return self.transform.start_scaling()
-
-    #def start_move(self) -> bool:
-     #   return self.transform.start_move()
 
     def load_background_image(self, filepath):
         return self.background.load(filepath)
@@ -142,55 +141,22 @@ class BezierScene(QGraphicsScene):
     def is_transforming(self) -> bool:
         return self.transform.is_transforming()
 
-    def arm_preset(self, name: str) -> bool:
-        return self.presets.arm_preset(name)
-
-    def cancel_preset(self) -> bool:
-        return self.presets.cancel_preset()
-
-    def on_shift_released(self):
-        return self.presets.on_shift_released()
-
     def ui_curves(self, shape):
         return self.registry.ui_curves(shape)
-
-    #def set_degree(self, degree: int):
-     #   self.builder.set_degree(degree)
-
-    #def discard_current_points(self):
-     #   self.builder.discard()
-
-    #def cancel_pending_curve(self) -> bool:
-     #   return self.builder.cancel_pending_curve()
-
-    #def set_grid_visible(self, visible: bool):
-     #   self.grid_item.setVisible(visible)
-
-    #def set_grid_spacing(self, spacing: int):
-     #   self.grid_item.set_spacing(spacing)
 
     def set_snap_enabled(self, enabled: bool):
         self.grid_item.set_snap_enabled(enabled)
         if not enabled:
             self.snap_indicator.hide_indicator()
 
-    #def handle_transform_key(self, event) -> bool:
-     #   return self.transform.handle_key(event)
-
     def set_selected_point(self, point):
         self.selection.set_point(point)
-
-    #def toggle_selection(self, point):
-     #   self.selection.toggle_point(point)
 
     def clear_selection(self):
         self.selection.clear()
 
     def select_curve_under_hover(self, add: bool = False) -> bool:
         return self.selection_ops.select_curve_under_hover(add=add)
-
-    #def select_in_rect(self, rect, add: bool = False) -> int:
-     #   return self.selection.select_in_rect(rect, add=add)
 
     # ------------------------------------------------------------
     #  Save / load / SVG
@@ -201,9 +167,6 @@ class BezierScene(QGraphicsScene):
     def emit_svg(self):
         # Preview mirrors the drawing area, so it always uses borders.
         self.svgCodeChanged.emit(generate_svg(self, bordered=True))
-
-    def save_state(self) -> dict:
-        return save_state(self)
 
     def load_state(self, state: dict):
         load_state(self, state)
@@ -243,8 +206,7 @@ class BezierScene(QGraphicsScene):
         self.mouse.on_point_moved(point)
 
     def on_curve_changed(self):
-        self.emit_svg()
-        self.shape_manager.update_fills()
+        self.request_scene_update(update_svg=True, update_fills=True)
 
     def mirror_selection(self, axis: str) -> bool:
         return self.selection_ops.mirror_selection(axis)
@@ -287,6 +249,24 @@ class BezierScene(QGraphicsScene):
         self.background.refit()
         self.emit_svg()
 
+
+    def request_scene_update(self, update_svg: bool = True, update_fills: bool = True):
+        """Call this during rapid changes (e.g., mouse drags) to debounce
+        heavy operations and prevent event-loop starvation or segfaults."""
+        if update_svg:
+            self._pending_svg = True
+        if update_fills:
+            self._pending_fills = True
+        self._update_timer.start()
+
+    def _apply_pending_updates(self):
+        """Executed 100ms after the last rapid change."""
+        if self._pending_svg:
+            self._pending_svg = False
+            self.emit_svg()
+        if self._pending_fills:
+            self._pending_fills = False
+            self.shape_manager.update_fills()
 
     # ------------------------------------------------------------
     #  Clear everything

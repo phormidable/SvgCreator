@@ -97,9 +97,9 @@ class MainWindow(QMainWindow):
         self.drawing_view.mouseMoved.connect(self.scene.on_mouse_moved)
         self.scene.transformModeChanged.connect(self.drawing_view.set_transform_mode)
         self.drawing_view.transformLeftClick.connect(self.scene.end_transform)
-        self.preset_panel.presetRequested.connect(self.scene.arm_preset)
+        self.preset_panel.presetRequested.connect(self.scene.presets.arm_preset)
         self.scene.presetStateChanged.connect(self.preset_panel.sync_state)
-        self.drawing_view.shiftReleased.connect(self.scene.on_shift_released)
+        self.drawing_view.shiftReleased.connect(self.scene.presets.on_shift_released)
         self.preview_widget.showSvgRequested.connect(self.file_io.show_svg_code_dialog)
         self.scene.hoveredPointChanged.connect(self.show_point_tip)
         self.scene.transformTypedChanged.connect(lambda text: self.statusBar().showMessage( f"Rotate: {text}°" if text else ""))
@@ -212,7 +212,7 @@ class MainWindow(QMainWindow):
         if self.scene.is_transforming():
             self.scene.end_transform(commit=False)
             return True
-        if self.scene.cancel_preset():
+        if self.scene.presets.cancel_preset():
             return True
         self.scene.mouse.abort_interaction()
         self.scene.clear_selection()
