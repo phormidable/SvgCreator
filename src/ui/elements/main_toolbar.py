@@ -46,11 +46,6 @@ class MainToolBar(QToolBar):
         self._build_grid()
         self.addSeparator()
         self._build_files_menu()
-
-        act = self.addAction("💾💾→")
-        act.setToolTip("Save and Export to configured folders")
-        act.triggered.connect(self.window.save_and_export_to_folders)
-
         self._build_effects_menu()
         self._build_settings()
         self._build_right_group()
@@ -190,6 +185,10 @@ class MainToolBar(QToolBar):
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.addWidget(spacer)
+
+        act = self.addAction("Save and Export to user folders")
+        act.setToolTip("Save and Export to configured folders")
+        act.triggered.connect(self.window.save_and_export_to_folders)
 
         act = self.addAction("⌨️ Shortcuts")
         act.setToolTip("Show all keyboard shortcuts")
