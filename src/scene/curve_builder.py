@@ -6,7 +6,6 @@ from PySide6.QtCore import QPointF
 from PySide6.QtWidgets import QGraphicsItem
 
 from scene.items.bezier_curve import BezierCurve
-from core.settings import STROKE_DEFAULT_WIDTH
 
 class CurveBuilder:
     def __init__(self, scene):

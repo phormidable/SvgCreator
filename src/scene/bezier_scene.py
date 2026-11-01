@@ -215,11 +215,11 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     #  NEW: Signal handlers for Document changes
     # ------------------------------------------------------------
-    def _on_points_linked(self, junction):
+    def _on_points_linked(self,):
         """Called when points are linked. Update the visual 'linked' flags."""
         self.link_manager.sync_linked_flags()
 
-    def _on_points_unlinked(self, point):
+    def _on_points_unlinked(self):
         """Called when a point is unlinked. Update the visual 'linked' flags."""
         self.link_manager.sync_linked_flags()
 

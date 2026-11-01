@@ -1,5 +1,6 @@
 # ui/main_window.py
-from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QColorDialog, QComboBox, QSizePolicy, QMenu, QToolButton, QDialog
+from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QColorDialog,
+                               QComboBox, QSizePolicy, QMenu, QToolButton, QDialog, QMessageBox)
 from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QPainter, QColor, QShortcut, QKeySequence
 
@@ -12,11 +13,9 @@ from ui.elements.info_panel import InfoPanel
 from core.file_io import FileIO
 from ui.elements.preview_widget import PreviewWidget
 from ui.elements.preset_panel import PresetPanel
-from ui.dialogs.shortcuts_dialog import ShortcutsDialog
 from ui.dialogs.save_shape_dialog import SaveShapeDialog
-from ui.dialogs.canvas_size_dialog import CanvasSizeDialog
-from ui.dialogs.file_paths_dialog import FilePathsDialog
-from ui.dialogs.stroke_width_dialog import StrokeWidthDialog
+from ui.dialogs.settings_dialog import SettingsDialog
+from ui.dialogs.shortcuts_dialog import ShortcutsDialog
 
 POINT_TIP_GAP = 22  # viewport pixels above the point's centre
 
@@ -411,13 +410,6 @@ class MainWindow(QMainWindow):
             snap_btn.setStyleSheet(TOOLBAR_CHECKED_STYLE)
 
         toolbar.addSeparator()
-        canvas_action = toolbar.addAction("📐 Canvas Size")
-        canvas_action.setToolTip("Set the exported SVG's width and height")
-        canvas_action.triggered.connect(self.set_canvas_size)
-
-        stroke_action = toolbar.addAction("✏️ Stroke Width")
-        stroke_action.setToolTip("Set the default stroke width for new stroke curves")
-        stroke_action.triggered.connect(self.configure_stroke_width)
 
         # ---- Files menu ----
         files_btn = QToolButton()
@@ -499,33 +491,11 @@ class MainWindow(QMainWindow):
         effects_btn.setMenu(effects_menu)
         toolbar.addWidget(effects_btn)
 
-        # ---- Settings menu ----
+        # ---- Settings button (opens unified dialog) ----
         settings_btn = QToolButton()
         settings_btn.setText("⚙️ Settings")
-        settings_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        settings_menu = QMenu(settings_btn)
-
-        settings_menu.addSeparator()
-
-        curve_color_action = settings_menu.addAction("🎨 Curve Color")
-        curve_color_action.setToolTip("Set the default colour for new and unshaped curves")
-        curve_color_action.triggered.connect(self.pick_curve_color)
-
-        settings_menu.addSeparator()
-
-        add_bg_action = settings_menu.addAction("🖼️ Add Background")
-        add_bg_action.setToolTip("Load a reference image behind the curves")
-        add_bg_action.triggered.connect(self.file_io.load_background_image)
-
-        remove_bg_action = settings_menu.addAction("🚫 Remove Background")
-        remove_bg_action.setToolTip("Remove the current background image")
-        remove_bg_action.triggered.connect(self.remove_background)
-
-        file_paths_action = settings_menu.addAction("📂 File Paths")
-        file_paths_action.setToolTip("Set default save directories for JSON and SVG files")
-        file_paths_action.triggered.connect(self.configure_file_paths)
-
-        settings_btn.setMenu(settings_menu)
+        settings_btn.setToolTip("Open settings dialog")
+        settings_btn.clicked.connect(self.open_settings_dialog)
         toolbar.addWidget(settings_btn)
 
         # ---- Spacer: pushes the next items to the right ----
@@ -561,37 +531,74 @@ class MainWindow(QMainWindow):
                 self.zoom_combo.blockSignals(False)
                 return
 
-    def configure_file_paths(self):
-        dialog = FilePathsDialog(
-            self.file_io.json_dir, self.file_io.svg_dir, self)
+    def open_settings_dialog(self):
+        current_bg = self.scene.background.path or ""
+        settings = {
+            "canvas_width": int(self.scene.viewbox.width()),
+            "canvas_height": int(self.scene.viewbox.height()),
+            "stroke_width": self.scene.stroke_width,
+            "curve_color": self.scene.curve_color,
+            "background_path": current_bg,
+            "json_dir": self.file_io.json_dir,
+            "svg_dir": self.file_io.svg_dir,
+        }
+        dialog = SettingsDialog(settings, self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        json_dir, svg_dir = dialog.values()
-        self.file_io.json_dir = json_dir
-        self.file_io.svg_dir = svg_dir
-        parts = []
-        if json_dir:
-            parts.append(f"JSON → {json_dir}")
-        if svg_dir:
-            parts.append(f"SVG → {svg_dir}")
-        self.statusBar().showMessage("File paths updated: " + " | ".join(parts)
-                                     if parts else "File paths cleared")
 
-    def configure_stroke_width(self):
-        dialog = StrokeWidthDialog(self.scene.stroke_width, self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        new_width = dialog.value()
-        if new_width == self.scene.stroke_width:
-            return
-        self.scene.stroke_width = new_width
-        # If the currently selected curve style is a "stroke" variant,
-        # update the builder so the next curve uses the new width.
-        if self.scene.builder.current_stroke_width is not None:
-            self.scene.builder.set_curve_style(
-                self.scene.builder.current_degree, is_stroke=True)
-        self.statusBar().showMessage(f"Stroke width → {new_width}")
-        self.log(f"Stroke width → {new_width}")
+        new_values = dialog.values()
+        changes = []
+
+        # ---- Canvas size ----
+        if (new_values["canvas_width"] != int(self.scene.viewbox.width())
+                or new_values["canvas_height"] != int(self.scene.viewbox.height())):
+            self.scene.set_viewbox(new_values["canvas_width"], new_values["canvas_height"])
+            changes.append(f"Canvas {new_values['canvas_width']}×{new_values['canvas_height']}")
+
+        # ---- Stroke width ----
+        if new_values["stroke_width"] != self.scene.stroke_width:
+            self.scene.stroke_width = new_values["stroke_width"]
+            if self.scene.builder.current_stroke_width is not None:
+                self.scene.builder.set_curve_style(
+                    self.scene.builder.current_degree, is_stroke=True)
+            changes.append(f"Stroke {new_values['stroke_width']}")
+
+        # ---- Curve color ----
+        new_color = QColor(new_values["curve_color"])
+        if new_color.isValid() and new_color != self.scene.curve_color:
+            self.scene.set_curve_color(new_color)
+            changes.append(f"Color {new_color.name()}")
+
+        # ---- Background ----
+        old_bg = self.scene.background.path
+        new_bg = new_values["background_path"]
+        if new_bg != old_bg:
+            if new_bg is None:
+                if old_bg is not None:
+                    self.scene.background.remove()
+                    self.refresh_preview_background()
+                    changes.append("Background removed")
+            else:
+                if self.scene.load_background_image(new_bg):
+                    self.refresh_preview_background()
+                    changes.append("Background loaded")
+                else:
+                    QMessageBox.warning(self, "Background",
+                                        f"Could not load:\n{new_bg}")
+
+        # ---- File paths ----
+        self.file_io.json_dir = new_values["json_dir"]
+        self.file_io.svg_dir = new_values["svg_dir"]
+
+        # ---- Summary ----
+        if changes:
+            msg = "Settings updated: " + " | ".join(changes)
+            self.statusBar().showMessage(msg)
+            self.log(msg)
+            # Push a single undo entry for all changes
+            self.scene.undo.push("Settings")
+        else:
+            self.statusBar().showMessage("No changes")
 
     def _on_degree_changed(self, index):
         data = self.degree_combo.itemData(index)
@@ -753,18 +760,6 @@ class MainWindow(QMainWindow):
         self.scene.set_curve_color(color)
         self.log(f"Curve color → {color.name()}")
         self.scene.undo.push("Curve color")
-
-    def set_canvas_size(self):
-        current = self.scene.viewbox
-        dialog = CanvasSizeDialog(current.width(), current.height(), self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        w, h = dialog.values()
-        if w == int(current.width()) and h == int(current.height()):
-            return
-        self.scene.set_viewbox(w, h)
-        self.scene.undo.push(f"Canvas {w}×{h}")
-        self.statusBar().showMessage(f"Canvas size → {w}×{h}")
 
     def on_transparent_toggled(self, checked):
         self.scene.shape_manager.set_transparent(checked)
