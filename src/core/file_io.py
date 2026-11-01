@@ -12,12 +12,14 @@ import json
 from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QFileDialog, QMessageBox, QPlainTextEdit, QVBoxLayout
 from PySide6.QtGui import QFont
 from .settings import USER_SHAPES_PATH
-from scene.scene_io import save_state
+import os
 
 class FileIO:
     def __init__(self, window):
         self.window = window
         self.scene = window.scene
+        self.json_dir = ""
+        self.svg_dir = ""
 
     # ------------------------------------------------------------
     #  SVG export / preview
@@ -34,13 +36,15 @@ class FileIO:
         if bordered is None:
             return  # user cancelled
 
-        filepath, _ = QFileDialog.getSaveFileName(self.window, "Save SVG", "", "SVG files (*.svg)")
+        # CHANGED: use self.svg_dir as starting directory
+        filepath, _ = QFileDialog.getSaveFileName(self.window, "Save SVG", self.svg_dir, "SVG files (*.svg)")
         if not filepath:
             return
         try:
             svg = self.scene.generate_svg(bordered=bordered)
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(svg)
+            self.svg_dir = os.path.dirname(filepath)
             self.window.set_status(f"✅ Exported to {filepath}")
         except Exception as e:
             QMessageBox.critical(self.window, "Error",f"Could not save file:\n{e}")
@@ -102,15 +106,19 @@ class FileIO:
     # ------------------------------------------------------------
     def save_project(self):
         self.window.log("save_project")
+        # CHANGED: use self.json_dir as starting directory
         filepath, _ = QFileDialog.getSaveFileName(
-            self.window, "Save Project", "", "Bezier Project (*.json);;All files (*)")
+            self.window, "Save Project", self.json_dir,
+            "Bezier Project (*.json);;All files (*)")
         if not filepath:
             return
         if not filepath.lower().endswith(".json"):
             filepath += ".json"
         try:
             with open(filepath, "w", encoding="utf-8") as f:
-                json.dump(save_state(self.scene), f, indent=2)
+                json.dump(self.scene.save_state(), f, indent=2)
+            # NEW: remember the directory for next time
+            self.json_dir = os.path.dirname(filepath)
             self.window.set_status(f"💾 Saved to {filepath}")
         except Exception as e:
             QMessageBox.critical(self.window, "Error", f"Could not save file:\n{e}")

@@ -4,7 +4,8 @@ from PySide6.QtGui import QPen, QColor
 from PySide6.QtWidgets import (QGraphicsScene, QGraphicsRectItem)
 
 from .scene_io import generate_svg, load_state
-from core.settings import ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR, VIEWBOX_BORDER_WIDTH, DEFAULT_CURVE_COLOR, GRID_DEFAULT_SPACING
+from core.settings import (ARTBOARD_RECT, VIEWBOX_RECT, VIEWBOX_BACKGROUND_COLOR, VIEWBOX_BORDER_COLOR,
+                           VIEWBOX_BORDER_WIDTH, DEFAULT_CURVE_COLOR, GRID_DEFAULT_SPACING, STROKE_DEFAULT_WIDTH)
 from core.model import Document
 from scene.managers_controllers.link_manager import LinkManager
 from .items.bezier_curve import BezierCurve
@@ -42,6 +43,7 @@ class BezierScene(QGraphicsScene):
         # ---- Static geometry ----
         self.artboard = ARTBOARD_RECT
         self.viewbox = VIEWBOX_RECT
+        self.stroke_width = STROKE_DEFAULT_WIDTH   # NEW: configurable stroke width
 
         # ---- State ----
         self.curves = []    # committed BezierCurve objects

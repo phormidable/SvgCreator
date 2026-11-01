@@ -28,7 +28,8 @@ class CurveBuilder:
         self.scene.messageLogged.emit(f"Curve type → {label}")
 
     def set_curve_style(self, degree: int, is_stroke: bool):
-        new_width = STROKE_DEFAULT_WIDTH if is_stroke else None
+        # CHANGED: use scene.stroke_width instead of the constant
+        new_width = self.scene.stroke_width if is_stroke else None
         if degree not in (1, 2, 3):
             return
         if degree == self.current_degree and new_width == self.current_stroke_width:

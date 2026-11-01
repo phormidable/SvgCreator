@@ -15,6 +15,8 @@ from ui.elements.preset_panel import PresetPanel
 from ui.dialogs.shortcuts_dialog import ShortcutsDialog
 from ui.dialogs.save_shape_dialog import SaveShapeDialog
 from ui.dialogs.canvas_size_dialog import CanvasSizeDialog
+from ui.dialogs.file_paths_dialog import FilePathsDialog
+from ui.dialogs.stroke_width_dialog import StrokeWidthDialog
 
 POINT_TIP_GAP = 22  # viewport pixels above the point's centre
 
@@ -413,6 +415,10 @@ class MainWindow(QMainWindow):
         canvas_action.setToolTip("Set the exported SVG's width and height")
         canvas_action.triggered.connect(self.set_canvas_size)
 
+        stroke_action = toolbar.addAction("✏️ Stroke Width")
+        stroke_action.setToolTip("Set the default stroke width for new stroke curves")
+        stroke_action.triggered.connect(self.configure_stroke_width)
+
         # ---- Files menu ----
         files_btn = QToolButton()
         files_btn.setText("📁 Files")
@@ -515,6 +521,10 @@ class MainWindow(QMainWindow):
         remove_bg_action.setToolTip("Remove the current background image")
         remove_bg_action.triggered.connect(self.remove_background)
 
+        file_paths_action = settings_menu.addAction("📂 File Paths")
+        file_paths_action.setToolTip("Set default save directories for JSON and SVG files")
+        file_paths_action.triggered.connect(self.configure_file_paths)
+
         settings_btn.setMenu(settings_menu)
         toolbar.addWidget(settings_btn)
 
@@ -550,6 +560,38 @@ class MainWindow(QMainWindow):
                 self.zoom_combo.setCurrentIndex(i)
                 self.zoom_combo.blockSignals(False)
                 return
+
+    def configure_file_paths(self):
+        dialog = FilePathsDialog(
+            self.file_io.json_dir, self.file_io.svg_dir, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        json_dir, svg_dir = dialog.values()
+        self.file_io.json_dir = json_dir
+        self.file_io.svg_dir = svg_dir
+        parts = []
+        if json_dir:
+            parts.append(f"JSON → {json_dir}")
+        if svg_dir:
+            parts.append(f"SVG → {svg_dir}")
+        self.statusBar().showMessage("File paths updated: " + " | ".join(parts)
+                                     if parts else "File paths cleared")
+
+    def configure_stroke_width(self):
+        dialog = StrokeWidthDialog(self.scene.stroke_width, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        new_width = dialog.value()
+        if new_width == self.scene.stroke_width:
+            return
+        self.scene.stroke_width = new_width
+        # If the currently selected curve style is a "stroke" variant,
+        # update the builder so the next curve uses the new width.
+        if self.scene.builder.current_stroke_width is not None:
+            self.scene.builder.set_curve_style(
+                self.scene.builder.current_degree, is_stroke=True)
+        self.statusBar().showMessage(f"Stroke width → {new_width}")
+        self.log(f"Stroke width → {new_width}")
 
     def _on_degree_changed(self, index):
         data = self.degree_combo.itemData(index)
