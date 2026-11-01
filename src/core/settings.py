@@ -72,7 +72,6 @@ SNAP_INDICATOR_COLOR = QColor("red")
 SNAP_INDICATOR_Z = 900        # above curves, below the link indicator (z=1000)
 
 # ---- Export defaults ----
-SVG_STROKE_COLOR = "black"
 SVG_STROKE_WIDTH = 2
 SVG_FILL = "none"
 
