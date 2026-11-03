@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QSizePolicy,
                                QLineEdit, QPushButton, QSpinBox, QFileDialog, QColorDialog, QDialogButtonBox)
 from PySide6.QtGui import QColor
 from PySide6.QtCore import Qt
@@ -48,20 +48,43 @@ class SettingsDialog(QDialog):
 
         # ---- Stroke width ----
         self.stroke_start_spin = QSpinBox()
-        self.stroke_start_spin.setRange(1, 5000)
+        self.stroke_start_spin.setRange(1, 500)
         self.stroke_start_spin.setValue(settings["stroke_start_width"])
         self.stroke_start_spin.setSuffix(" units")
 
         self.stroke_end_spin = QSpinBox()
-        self.stroke_end_spin.setRange(1, 5000)
+        self.stroke_end_spin.setRange(1, 500)
         self.stroke_end_spin.setValue(settings["stroke_end_width"])
         self.stroke_end_spin.setSuffix(" units")
 
+        # Swap button
+        self.swap_stroke_btn = QPushButton("⇄")
+        self.swap_stroke_btn.setToolTip("Swap start and end stroke widths")
+        self.swap_stroke_btn.setFixedSize(32, 28)
+        self.swap_stroke_btn.setStyleSheet(
+            "QPushButton { font-size: 16px; font-weight: bold; margin: 0px; }"
+            "QPushButton:hover { background-color: #d0d0d0; }"
+        )
+        self.swap_stroke_btn.clicked.connect(self._swap_stroke_widths)
+
+        # Create compact labels
+        begin_label = QLabel("Beginning:")
+        begin_label.setContentsMargins(0, 0, 0, 0)
+
+        end_label = QLabel("End:")
+        end_label.setContentsMargins(0, 0, 0, 0)
+
+        # Create layout with flexible spacers around the swap button
         stroke_layout = QHBoxLayout()
-        stroke_layout.addWidget(QLabel("Beginning:"))
+        stroke_layout.setContentsMargins(0, 0, 0, 0)
+        stroke_layout.setSpacing(8)
+
+        stroke_layout.addWidget(begin_label)
         stroke_layout.addWidget(self.stroke_start_spin)
-        stroke_layout.addSpacing(20)
-        stroke_layout.addWidget(QLabel("End:"))
+        stroke_layout.addStretch(1)  # Flexible space: between first spinbox and button
+        stroke_layout.addWidget(self.swap_stroke_btn)
+        stroke_layout.addStretch(1)  # Flexible space: between button and "End:" label
+        stroke_layout.addWidget(end_label)
         stroke_layout.addWidget(self.stroke_end_spin)
 
         form.addRow("Stroke Width:", stroke_layout)
@@ -133,6 +156,13 @@ class SettingsDialog(QDialog):
                 f"background-color: {color.name()}; "
                 f"color: {'white' if color.lightness() < 128 else 'black'};"
             )
+
+    def _swap_stroke_widths(self):
+        """Swap the values of the start and end stroke width spinboxes."""
+        start_val = self.stroke_start_spin.value()
+        end_val = self.stroke_end_spin.value()
+        self.stroke_start_spin.setValue(end_val)
+        self.stroke_end_spin.setValue(start_val)
 
     def _pick_color(self):
         current = QColor(self.color_edit.text())
