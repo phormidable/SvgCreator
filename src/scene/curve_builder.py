@@ -50,6 +50,11 @@ class CurveBuilder:
 
     def build_from_payload(self, center: QPointF, degree: int, points: list, start_width=None, end_width=None):
         """Build a curve from a payload of relative points. Used by clipboard paste."""
+        # Only use stroke widths if we're currently in stroke mode
+        if self.current_start_width is None:
+            start_width = None
+            end_width = None
+
         curve = BezierCurve(self.scene, degree=degree, start_width=start_width, end_width=end_width)
         for dx, dy in points:
             curve.add_point(QPointF(center.x() + dx, center.y() + dy))
@@ -69,6 +74,11 @@ class CurveBuilder:
         return curve
 
     def build_from_offsets(self, center, offsets, degree, start_width=None, end_width=None):
+        # Only use stroke widths if we're currently in stroke mode
+        if self.current_start_width is None:
+            start_width = None
+            end_width = None
+
         curve = BezierCurve(self.scene, degree=degree, start_width=start_width, end_width=end_width)
         for dx, dy in offsets:
             curve.add_point(QPointF(center.x() + dx, center.y() + dy))

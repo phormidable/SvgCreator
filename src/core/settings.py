@@ -29,8 +29,8 @@ DRAWING_MIN_HEIGHT = 700
 # kept square via PreviewWidget.heightForWidth(). So PREVIEW_WIDTH is
 # effectively both the column width and the minimum side of the square
 # viewport — changing it below 300 would break the intent, not the layout.
-PREVIEW_WIDTH = 626
-PREVIEW_HEIGHT = 670
+PREVIEW_WIDTH = 600 #626
+PREVIEW_HEIGHT = 600 # 670
 
 PRESET_PANEL_HEIGHT = 120
 CONSOLE_HEIGHT = 100
