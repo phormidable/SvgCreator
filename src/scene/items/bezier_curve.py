@@ -147,16 +147,15 @@ class BezierCurve(QGraphicsItem):
         self.rebuild_path()
 
     def rebuild_path(self):
-        print(f"DEBUG rebuild_path: start_width={self.start_width}, end_width={self.end_width}")
         self.prepareGeometryChange()
 
-        # If variable width, generate a filled polygon envelope for the Qt preview
+        # If variable width and we have at least 2 points, generate a filled polygon envelope
         if (self.start_width is not None and self.end_width is not None and
-                self.start_width != self.end_width):
+                self.start_width != self.end_width and len(self.points) >= 2):
             self._path = self._build_variable_width_path()
             self._hit_path = self._path  # Use the same path for hit testing
         else:
-            # Uniform width: use the standard stroke rendering
+            # Uniform width OR not enough points yet: use the standard stroke rendering
             preview_width = self.start_width if self.start_width is not None else CURVE_PEN_WIDTH
             self._path, self._hit_path = self._scene.curve_renderer.paths_for(
                 self.positions(), self.degree, preview_width)

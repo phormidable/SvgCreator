@@ -132,10 +132,6 @@ class MainWindow(QMainWindow):
         if color.isValid():
             self.scene.set_curve_color(color)
 
-        # Stroke size
-        #self.stroke_start_width = self.user_settings.stroke_start_width
-        #self.stroke_end_width = self.user_settings.stroke_end_width
-
         # NEW: Apply stroke widths from user settings to the scene
         self.scene.stroke_start_width = self.user_settings.stroke_start_width
         self.scene.stroke_end_width = self.user_settings.stroke_end_width
