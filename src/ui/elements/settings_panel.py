@@ -1,6 +1,5 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                               QSpinBox, QPushButton, QColorDialog, QFormLayout,
-                               QSizePolicy)
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox,
+                               QPushButton, QColorDialog, QFormLayout, QSizePolicy, QCheckBox)
 from PySide6.QtGui import QColor
 from PySide6.QtCore import Qt
 
@@ -33,13 +32,13 @@ class SettingsPanel(QWidget):
 
         # ---- Stroke Width ----
         self.stroke_start_spin = QSpinBox()
-        self.stroke_start_spin.setRange(1, 5000)
+        self.stroke_start_spin.setRange(1, 500)
         self.stroke_start_spin.setSuffix(" units")
         self.stroke_start_spin.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.stroke_start_spin.valueChanged.connect(self._on_start_width_changed)
 
         self.stroke_end_spin = QSpinBox()
-        self.stroke_end_spin.setRange(1, 5000)
+        self.stroke_end_spin.setRange(1, 500)
         self.stroke_end_spin.setSuffix(" units")
         self.stroke_end_spin.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.stroke_end_spin.valueChanged.connect(self._on_end_width_changed)
@@ -52,6 +51,13 @@ class SettingsPanel(QWidget):
             "QPushButton:hover { background-color: #d0d0d0; }"
         )
         self.swap_btn.clicked.connect(self._swap_stroke_widths)
+
+        # NEW: Checkbox to enable/disable variable width
+        self.variable_width_cb = QCheckBox()
+        self.variable_width_cb.setToolTip("Enable variable stroke width (different start/end)")
+        self.variable_width_cb.setChecked(True)  # Enabled by default
+        self.variable_width_cb.stateChanged.connect(self._on_variable_width_toggled)
+
 
         begin_label = QLabel("Beginning:")
         begin_label.setContentsMargins(0, 0, 0, 0)
@@ -66,6 +72,7 @@ class SettingsPanel(QWidget):
         stroke_layout.addStretch(1)
         stroke_layout.addWidget(self.swap_btn)
         stroke_layout.addStretch(1)
+        stroke_layout.addWidget(self.variable_width_cb)
         stroke_layout.addWidget(end_label)
         stroke_layout.addWidget(self.stroke_end_spin)
 
@@ -88,10 +95,19 @@ class SettingsPanel(QWidget):
         """Update UI widgets from current user_settings values (no signals fired)."""
         self.stroke_start_spin.blockSignals(True)
         self.stroke_end_spin.blockSignals(True)
+        self.variable_width_cb.blockSignals(True)
+
         self.stroke_start_spin.setValue(self.user_settings.stroke_start_width)
         self.stroke_end_spin.setValue(self.user_settings.stroke_end_width)
+
+        # Checkbox is checked if start != end
+        is_variable = self.user_settings.stroke_start_width != self.user_settings.stroke_end_width
+        self.variable_width_cb.setChecked(is_variable)
+        self.stroke_end_spin.setEnabled(is_variable)
+
         self.stroke_start_spin.blockSignals(False)
         self.stroke_end_spin.blockSignals(False)
+        self.variable_width_cb.blockSignals(False)
         self._update_color_button()
 
     def _update_color_button(self):
@@ -132,6 +148,17 @@ class SettingsPanel(QWidget):
             self.user_settings.curve_color = color.name()
             self.scene.set_curve_color(color)
             self._update_color_button()
+
+    def _on_variable_width_toggled(self, state):
+        """Enable/disable the end spinbox based on checkbox state."""
+        is_enabled = state == Qt.CheckState.Checked.value
+        self.stroke_end_spin.setEnabled(is_enabled)
+
+        if not is_enabled:
+            # When disabled, force end width to match start width
+            self.stroke_end_spin.setValue(self.stroke_start_spin.value())
+            # Trigger the update
+            self._on_end_width_changed(self.stroke_end_spin.value())
 
     # ------------------------------------------------------------
     #  Public API
