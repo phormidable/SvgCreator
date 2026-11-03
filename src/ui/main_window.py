@@ -464,7 +464,7 @@ class MainWindow(QMainWindow):
         self.refresh_preview_background()
 
     def refresh_preview_background(self):
-        self.preview_widget.set_background(self.scene.background_pixmap)
+        self.preview_widget.set_background(self.scene.background.pixmap)
 
     # ------------------------------------------------------------
     #  Clear scene

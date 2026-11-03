@@ -94,8 +94,8 @@ class BezierScene(QGraphicsScene):
         self.document.curve_deleted.connect(self.shape_manager.refresh)
 
         # NEW: React to point movement and linking changes
-        self.document.points_linked.connect(self._on_points_linked)
-        self.document.points_unlinked.connect(self._on_points_unlinked)
+        self.document.points_linked.connect(self._on_topology_changed)
+        self.document.points_unlinked.connect(self._on_topology_changed)
 
         # ---- NEW: Debounce timer for heavy updates during drags ----
         self._update_timer = QTimer()
@@ -135,10 +135,6 @@ class BezierScene(QGraphicsScene):
     @property
     def background_image_path(self):
         return self.background.path
-
-    @property
-    def background_pixmap(self):
-        return self.background.pixmap
 
     # ------------------------------------------------------------
     #  Public delegates (main_window / custom_view API)
@@ -216,14 +212,8 @@ class BezierScene(QGraphicsScene):
     # ------------------------------------------------------------
     #  NEW: Signal handlers for Document changes
     # ------------------------------------------------------------
-    def _on_points_linked(self, _junction):
-        """Called when points are linked. Update the visual 'linked' flags."""
-        self.link_manager.sync_linked_flags()
-        self.shape_manager.refresh()
-        self.emit_svg()
-
-    def _on_points_unlinked(self, _point):
-        """Called when a point is unlinked. Update the visual 'linked' flags."""
+    def _on_topology_changed(self, _obj):
+        """Called when points are linked or unlinked. Refresh topology and visuals."""
         self.link_manager.sync_linked_flags()
         self.shape_manager.refresh()
         self.emit_svg()
