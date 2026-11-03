@@ -150,8 +150,14 @@ class MainToolBar(QToolBar):
     def _build_effects_menu(self):
         w, scene = self.window, self.scene
         menu = QMenu(self)
-        self._action(menu, "🪞 Mirror X","Flip vertically — mirror across the horizontal line through the selection", lambda: scene.mirror_selection("x"))
-        self._action(menu, "🪞 Mirror Y","Flip horizontally — mirror across the vertical line through the selection", lambda: scene.mirror_selection("y"))
+        self._action(menu, "🪞 Mirror X: Shape","Flip vertically — centered on the selection", lambda: scene.mirror_selection("x", mode="shape"))
+        self._action(menu, "🪞 Mirror Y: Shape","Flip horizontally — centered on the selection", lambda: scene.mirror_selection("y", mode="shape"))
+
+        self._action(menu, "🪞 Mirror X: Scene","Flip vertically — centered on the scene", lambda: scene.mirror_selection("x", mode="scene"))
+        self._action(menu, "🪞 Mirror Y: Scene","Flip horizontally — centered on the scene", lambda: scene.mirror_selection("y", mode="scene"))
+
+        menu.addSeparator()
+
         self._action(menu, "↔ Center H","Centre the selection horizontally in the viewbox", lambda: scene.center_selection("horizontal"))
         self._action(menu, "↕ Center V","Centre the selection vertically in the viewbox", lambda: scene.center_selection("vertical"))
 

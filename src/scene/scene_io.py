@@ -43,7 +43,6 @@ def _bezier_derivative(t, p0, p1, p2=None, p3=None):
 
 def variable_width_svg_path(mc, start_width, end_width, samples=24, cap_samples=8):
     """Generate an SVG path string for a variable-width stroke envelope with rounded caps."""
-    print(f"DEBUG SVG: start_width={start_width}, end_width={end_width}")
     pts = [mc.extremities[0], mc.controls[0] if mc.degree >= 2 else None,
            mc.controls[1] if mc.degree == 3 else None, mc.extremities[1]]
     pts = [p for p in pts if p is not None]

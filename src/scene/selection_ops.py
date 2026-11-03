@@ -62,17 +62,28 @@ class SelectionOps:
     # ------------------------------------------------------------
     #  Mirror / centre
     # ------------------------------------------------------------
-    def mirror_selection(self, axis: str) -> bool:
+    def mirror_selection(self, axis: str, mode: str = "shape") -> bool:
         """Reflect the selection across the horizontal line (axis='x') or
-        vertical line (axis='y') through the barycentre of its points."""
+        vertical line (axis='y') through either the barycentre of its points
+        (mode='shape') or the center of the viewbox (mode='scene')."""
         scene = self.scene
         if not scene.selected_points:
             scene.messageLogged.emit("Nothing to mirror — select a curve (A or click) or a shape (S) first")
             return False
 
         base_pts = set(scene.selected_points)
-        px = sum(p.pos().x() for p in base_pts) / len(base_pts)
-        py = sum(p.pos().y() for p in base_pts) / len(base_pts)
+
+        # Determine the mirror center based on mode
+        if mode == "scene":
+            # Use the center of the viewbox
+            px = scene.viewbox.center().x()
+            py = scene.viewbox.center().y()
+            center_desc = "scene center"
+        else:
+            # Use the barycenter of the selected points
+            px = sum(p.pos().x() for p in base_pts) / len(base_pts)
+            py = sum(p.pos().y() for p in base_pts) / len(base_pts)
+            center_desc = "shape barycenter"
 
         # Include linked siblings so they stay coincident.
         targets = scene.link_manager.with_linked(base_pts)
@@ -94,10 +105,10 @@ class SelectionOps:
                 return True
 
         scene.messageLogged.emit(
-            f"Mirrored across {axis.upper()} axis around ({px:.1f}, {py:.1f})")
+            f"Mirrored across {axis.upper()} axis around {center_desc} ({px:.1f}, {py:.1f})")
         if scene.transform.is_transforming():
             scene.transform.reanchor_transform()
-        scene.undo.push(f"Mirror {axis.upper()}")
+        scene.undo.push(f"Mirror {axis.upper()} ({mode})")
         return True
 
     def center_selection(self, axis: str) -> bool:

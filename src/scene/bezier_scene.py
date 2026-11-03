@@ -225,8 +225,8 @@ class BezierScene(QGraphicsScene):
     def on_curve_changed(self):
         self.request_scene_update(update_svg=True, update_fills=True)
 
-    def mirror_selection(self, axis: str) -> bool:
-        return self.selection_ops.mirror_selection(axis)
+    def mirror_selection(self, axis: str, mode: str = "shape") -> bool:
+        return self.selection_ops.mirror_selection(axis, mode)
 
     def center_selection(self, axis: str) -> bool:
         return self.selection_ops.center_selection(axis)
