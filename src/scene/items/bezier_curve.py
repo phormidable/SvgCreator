@@ -98,9 +98,18 @@ class BezierCurve(QGraphicsItem):
         if scene is None:
             return
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.setPen(self._scene.curve_renderer.pen_for(self))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawPath(self._path)
+
+        # If variable width, fill the envelope path
+        if (self.start_width is not None and self.end_width is not None and
+                self.start_width != self.end_width):
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(self.color)
+            painter.drawPath(self._path)
+        else:
+            # Uniform width: use standard stroke rendering
+            painter.setPen(self._scene.curve_renderer.pen_for(self))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawPath(self._path)
 
     # ---------------------------------------------------------------
     #  Construction
@@ -139,12 +148,92 @@ class BezierCurve(QGraphicsItem):
 
     def rebuild_path(self):
         self.prepareGeometryChange()
-        # For the Qt preview, use start_width (or fallback to default pen width)
-        preview_width = self.start_width if self.start_width is not None else CURVE_PEN_WIDTH
-        self._path, self._hit_path = self._scene.curve_renderer.paths_for(
-            self.positions(), self.degree, preview_width)
+
+        # If variable width, generate a filled polygon envelope for the Qt preview
+        if (self.start_width is not None and self.end_width is not None and
+                self.start_width != self.end_width):
+            self._path = self._build_variable_width_path()
+            self._hit_path = self._path  # Use the same path for hit testing
+        else:
+            # Uniform width: use the standard stroke rendering
+            preview_width = self.start_width if self.start_width is not None else CURVE_PEN_WIDTH
+            self._path, self._hit_path = self._scene.curve_renderer.paths_for(
+                self.positions(), self.degree, preview_width)
+
         self._bbox = None
         self.update()
+
+    def _build_variable_width_path(self):
+        """Generate a QPainterPath representing the variable-width envelope."""
+        import math
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QPainterPath
+
+        positions = self.positions()
+        pts = [(p.x(), p.y()) for p in positions]
+
+        # Sample the curve and compute left/right offset points
+        samples = 24
+        left_pts, right_pts = [], []
+
+        for i in range(samples + 1):
+            t = i / samples
+            x, y = self._bezier_point(t, pts)
+            dx, dy = self._bezier_derivative(t, pts)
+            length = math.hypot(dx, dy)
+            nx, ny = (-dy / length, dx / length) if length > 0 else (0.0, 1.0)
+            width = self.start_width + (self.end_width - self.start_width) * t
+            half_width = width / 2.0
+            left_pts.append((x + nx * half_width, y + ny * half_width))
+            right_pts.append((x - nx * half_width, y - ny * half_width))
+
+        # Build the closed polygon path
+        path = QPainterPath()
+        path.moveTo(left_pts[0][0], left_pts[0][1])
+        for pt in left_pts[1:]:
+            path.lineTo(pt[0], pt[1])
+        for pt in reversed(right_pts):
+            path.lineTo(pt[0], pt[1])
+        path.closeSubpath()
+
+        return path
+
+    def _bezier_point(self, t, pts):
+        """Evaluate Bezier curve at parameter t."""
+        if len(pts) == 4:  # Cubic
+            p0, p1, p2, p3 = pts
+            mt = 1 - t
+            x = (mt ** 3) * p0[0] + 3 * (mt ** 2) * t * p1[0] + 3 * mt * (t ** 2) * p2[0] + (t ** 3) * p3[0]
+            y = (mt ** 3) * p0[1] + 3 * (mt ** 2) * t * p1[1] + 3 * mt * (t ** 2) * p2[1] + (t ** 3) * p3[1]
+            return x, y
+        elif len(pts) == 3:  # Quadratic
+            p0, p1, p2 = pts
+            mt = 1 - t
+            x = (mt ** 2) * p0[0] + 2 * mt * t * p1[0] + (t ** 2) * p2[0]
+            y = (mt ** 2) * p0[1] + 2 * mt * t * p1[1] + (t ** 2) * p2[1]
+            return x, y
+        else:  # Linear
+            p0, p1 = pts
+            mt = 1 - t
+            return mt * p0[0] + t * p1[0], mt * p0[1] + t * p1[1]
+
+    def _bezier_derivative(self, t, pts):
+        """Evaluate Bezier curve derivative at parameter t."""
+        if len(pts) == 4:  # Cubic
+            p0, p1, p2, p3 = pts
+            mt = 1 - t
+            dx = -3 * (mt ** 2) * p0[0] + 3 * (mt ** 2 - 2 * mt * t) * p1[0] + 3 * (2 * mt * t - t ** 2) * p2[0] + 3 * (t ** 2) * p3[0]
+            dy = -3 * (mt ** 2) * p0[1] + 3 * (mt ** 2 - 2 * mt * t) * p1[1] + 3 * (2 * mt * t - t ** 2) * p2[1] + 3 * (t ** 2) * p3[1]
+            return dx, dy
+        elif len(pts) == 3:  # Quadratic
+            p0, p1, p2 = pts
+            mt = 1 - t
+            dx = -2 * mt * p0[0] + 2 * (mt - t) * p1[0] + 2 * t * p2[0]
+            dy = -2 * mt * p0[1] + 2 * (mt - t) * p1[1] + 2 * t * p2[1]
+            return dx, dy
+        else:  # Linear
+            p0, p1 = pts
+            return p1[0] - p0[0], p1[1] - p0[1]
 
     def get_tight_bbox(self):
         """Returns (min_x, min_y, max_x, max_y) of the actual curve geometry.
