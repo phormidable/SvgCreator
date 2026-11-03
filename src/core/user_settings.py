@@ -37,7 +37,8 @@ class UserSettings:
                 self._json_dir = data.get("json_dir", "")
                 self._svg_dir = data.get("svg_dir", "")
                 self._curve_color = data.get("curve_color", "#5a5a5a")
-                self._stroke_size = data.get("stroke_size", 250)
+                self._stroke_start_width = data.get("stroke_start_width", 250)
+                self._stroke_end_width = data.get("stroke_end_width", 250)
                 self._canvas_width = data.get("canvas_width", 1024)
                 self._canvas_height = data.get("canvas_height", 1024)
             except Exception as e:
@@ -90,14 +91,6 @@ class UserSettings:
         self._curve_color = (value or "#5a5a5a").strip()
         self._save()
 
-    @property
-    def stroke_size(self) -> int:
-        return self._stroke_size
-
-    @stroke_size.setter
-    def stroke_size(self, value: int):
-        self._stroke_size = max(1, min(5000, int(value)))
-        self._save()
 
     @property
     def canvas_width(self) -> int:
