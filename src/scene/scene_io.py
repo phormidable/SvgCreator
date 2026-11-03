@@ -176,7 +176,9 @@ def save_state(scene) -> dict:
     if hidden:
         state["points_hidden"] = hidden
 
-    state["curve_strokes"] = [c.start_width for c in scene.curves]
+
+    state["curve_start_widths"] = [c.start_width for c in scene.curves]
+    state["curve_end_widths"] = [c.end_width for c in scene.curves]
 
     shape_colors = []
     for shape in scene.shape_manager.shapes:
@@ -215,15 +217,18 @@ def load_state(scene, state: dict, quiet: bool = False):
         if color_str:
             scene.set_curve_color(QColor(color_str))
 
-        strokes = state.get("curve_strokes", [])
-        for i, points_data in enumerate(curves_data):
-            w = strokes[i] if i < len(strokes) else None
+        start_widths = state.get("curve_start_widths", [])
+        end_widths = state.get("curve_end_widths", [])
 
-            # 1. Build the UI curve (your existing helper)
-            ui_curve = _build_curve_from_points(scene, points_data, stroke_width=w)
+        for i, points_data in enumerate(curves_data):
+            sw = start_widths[i] if i < len(start_widths) else None
+            ew = end_widths[i] if i < len(end_widths) else None
+
+            # 1. Build the UI curve
+            ui_curve = _build_curve_from_points(scene, points_data, start_width=sw, end_width=ew)
 
             # 2. Create the Model curve via the Document
-            model_curve = scene.document.add_curve(ui_curve.degree, points_data)
+            model_curve = scene.document.add_curve(ui_curve.degree, points_data, start_width=sw, end_width=ew)
 
             # 3. Explicitly bind UI to Model
             scene.registry.bind(ui_curve, model_curve)
@@ -299,11 +304,11 @@ def _restore_links(scene, links_data):
             scene.link_manager.link_points(points[i], points[i + 1])
 
 
-def _build_curve_from_points(scene, points_data, stroke_width=None) -> BezierCurve:
+def _build_curve_from_points(scene, points_data, start_width=None, end_width=None) -> BezierCurve:
     if not isinstance(points_data, list) or len(points_data) not in (2, 3, 4):
         raise ValueError(f"Expected 2, 3 or 4 points per curve, got {points_data!r}")
     degree = len(points_data) - 1
-    curve = BezierCurve(scene, degree=degree, stroke_width=stroke_width)
+    curve = BezierCurve(scene, degree=degree, start_width=start_width, end_width=end_width)
     curve.committed = True
     for i, coords in enumerate(points_data):
         try:

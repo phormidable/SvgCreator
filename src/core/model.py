@@ -113,12 +113,14 @@ class Document(QObject):
                 return c
         return None
 
-    def add_curve(self, degree: int, positions: list[tuple[float, float]]) -> 'Curve':
+    def add_curve(self, degree: int, positions: list[tuple[float, float]], start_width=None, end_width=None) -> 'Curve':
         """Create a model curve and its points, update internal lists, and emit signal."""
         points = [Point(x, y) for x, y in positions]
         extremities = (points[0], points[-1])
         controls = points[1:-1]
-        curve = Curve(extremities, controls, degree)
+
+        # NEW: Pass widths to the Curve model
+        curve = Curve(extremities, controls, degree, start_width, end_width)
 
         self.curves.append(curve)
         self.extremities.extend(extremities)

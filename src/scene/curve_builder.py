@@ -48,10 +48,29 @@ class CurveBuilder:
         suffix = " stroke" if is_stroke else ""
         self.scene.messageLogged.emit(f"Curve type → {name}{suffix}")
 
-    def build_from_payload(self, center: QPointF, degree: int, points: list, stroke_width=None):
+    def build_from_payload(self, center: QPointF, degree: int, points: list, start_width=None, end_width=None):
         """Build a curve from a payload of relative points. Used by clipboard paste."""
-        curve = BezierCurve(self.scene, degree=degree, stroke_width=stroke_width)
+        curve = BezierCurve(self.scene, degree=degree, start_width=start_width, end_width=end_width)
         for dx, dy in points:
+            curve.add_point(QPointF(center.x() + dx, center.y() + dy))
+        self.pending_curve = curve
+        self.finalize()
+        return curve
+
+    def build_line_between(self, p1: QPointF, p2: QPointF):
+        """Create and commit a degree-1 line between two positions."""
+        # Note: Lines drawn this way are uniform (non-stroke) by default.
+        # If you want them to be stroke curves, pass the scene's stroke widths here.
+        curve = BezierCurve(self.scene, degree=1)
+        curve.add_point(QPointF(p1))
+        curve.add_point(QPointF(p2))
+        self.pending_curve = curve
+        self.finalize()
+        return curve
+
+    def build_from_offsets(self, center, offsets, degree, start_width=None, end_width=None):
+        curve = BezierCurve(self.scene, degree=degree, start_width=start_width, end_width=end_width)
+        for dx, dy in offsets:
             curve.add_point(QPointF(center.x() + dx, center.y() + dy))
         self.pending_curve = curve
         self.finalize()
@@ -86,8 +105,13 @@ class CurveBuilder:
         # 1. Extract positions from the UI curve
         positions = [(pt.pos().x(), pt.pos().y()) for pt in ui_curve.points]
 
-        # 2. Create the model curve via the Document (Single Source of Truth)
-        model_curve = self.scene.document.add_curve(ui_curve.degree, positions)
+        # 2. Create the model curve via the Document (NEW: pass the widths!)
+        model_curve = self.scene.document.add_curve(
+            ui_curve.degree,
+            positions,
+            start_width=ui_curve.start_width,
+            end_width=ui_curve.end_width
+        )
 
         # 3. Bind the UI curve and its points to the model
         self.scene.registry.bind(ui_curve, model_curve)
@@ -113,15 +137,6 @@ class CurveBuilder:
         self.scene.emit_svg()
         self.scene.messageLogged.emit("Incomplete curve discarded")
 
-    def build_line_between(self, p1: QPointF, p2: QPointF):
-        """Create and commit a degree-1 line between two positions. Returns
-        the curve. Caller is responsible for linking (or not) and undo push."""
-        curve = BezierCurve(self.scene, degree=1)
-        curve.add_point(QPointF(p1))
-        curve.add_point(QPointF(p2))
-        self.pending_curve = curve
-        self.finalize()
-        return curve
 
     def clear(self):
         """Dispose the pending curve silently. Used by clear_all."""
@@ -138,10 +153,3 @@ class CurveBuilder:
     # ------------------------------------------------------------
     #  Preset helper
     # ------------------------------------------------------------
-    def build_from_offsets(self, center, offsets, degree, stroke_width=None):
-        curve = BezierCurve(self.scene, degree=degree, stroke_width=stroke_width)
-        for dx, dy in offsets:
-            curve.add_point(QPointF(center.x() + dx, center.y() + dy))
-        self.pending_curve = curve
-        self.finalize()
-        return curve
