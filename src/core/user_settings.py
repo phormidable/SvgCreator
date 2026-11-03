@@ -22,7 +22,8 @@ class UserSettings:
         self._json_dir = ""
         self._svg_dir = ""
         self._curve_color = "#5a5a5a"  # Default gray
-        self._stroke_size = 250
+        self._stroke_start_width = 250  # Changed from _stroke_size
+        self._stroke_end_width = 250  # New
         self._canvas_width = 1024
         self._canvas_height = 1024
         self._load()
@@ -49,7 +50,8 @@ class UserSettings:
                 "json_dir": self._json_dir,
                 "svg_dir": self._svg_dir,
                 "curve_color": self._curve_color,
-                "stroke_size": self._stroke_size,
+                "stroke_start_width": self._stroke_start_width,
+                "stroke_end_width": self._stroke_end_width,
                 "canvas_width": self._canvas_width,
                 "canvas_height": self._canvas_height,
             }
@@ -115,13 +117,31 @@ class UserSettings:
         self._canvas_height = max(100, min(2000, int(value)))
         self._save()
 
+    @property
+    def stroke_start_width(self) -> int:
+        return self._stroke_start_width
+
+    @stroke_start_width.setter
+    def stroke_start_width(self, value: int):
+        self._stroke_start_width = max(1, min(5000, int(value)))
+        self._save()
+
+    @property
+    def stroke_end_width(self) -> int:
+        return self._stroke_end_width
+
+    @stroke_end_width.setter
+    def stroke_end_width(self, value: int):
+        self._stroke_end_width = max(1, min(5000, int(value)))
+        self._save()
+
     def update_all(self, json_dir: str, svg_dir: str, curve_color: str,
-                   stroke_size: int, canvas_width: int, canvas_height: int):
-        """Update all settings at once (single save operation)."""
+                   stroke_start_width: int, stroke_end_width: int, canvas_width: int, canvas_height: int):
         self._json_dir = (json_dir or "").strip()
         self._svg_dir = (svg_dir or "").strip()
         self._curve_color = (curve_color or "#5a5a5a").strip()
-        self._stroke_size = max(1, min(5000, int(stroke_size)))
+        self._stroke_start_width = max(1, min(5000, int(stroke_start_width)))
+        self._stroke_end_width = max(1, min(5000, int(stroke_end_width)))
         self._canvas_width = max(100, min(2000, int(canvas_width)))
         self._canvas_height = max(100, min(2000, int(canvas_height)))
         self._save()

@@ -108,7 +108,7 @@ class MainToolBar(QToolBar):
     def _build_type(self):
         self.addWidget(QLabel(" Type: "))
         builder = self.scene.builder
-        wanted = (builder.current_degree, builder.current_stroke_width is not None)
+        wanted = (builder.current_degree, builder.current_start_width is not None)
         initial = next((i for i, (_, style) in enumerate(TYPE_ITEMS)
                         if style == wanted), 0)
         self.degree_combo = self._combo(TYPE_ITEMS, self._on_degree_changed, initial)

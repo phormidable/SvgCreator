@@ -56,7 +56,7 @@ class Clipboard:
         # Curve payloads, positions relative to the centre.
         curve_payloads = [{
             "degree": c.degree,
-            "stroke_width": c.stroke_width,
+            "stroke_width": c.start_width,
             "points": [(p.model_pos().x() - cx, p.model_pos().y() - cy)
                        for p in c.points],
         } for c in curves]

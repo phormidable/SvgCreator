@@ -7,6 +7,72 @@ from scene.items.bezier_curve import BezierCurve
 from collections import defaultdict
 from .curve_geometry import model_curve_svg_string
 
+import math
+
+
+def _bezier_point(t, p0, p1, p2=None, p3=None):
+    if p3 is not None:  # Cubic
+        mt = 1 - t
+        x = (mt ** 3) * p0[0] + 3 * (mt ** 2) * t * p1[0] + 3 * mt * (t ** 2) * p2[0] + (t ** 3) * p3[0]
+        y = (mt ** 3) * p0[1] + 3 * (mt ** 2) * t * p1[1] + 3 * mt * (t ** 2) * p2[1] + (t ** 3) * p3[1]
+        return x, y
+    elif p2 is not None:  # Quadratic
+        mt = 1 - t
+        x = (mt ** 2) * p0[0] + 2 * mt * t * p1[0] + (t ** 2) * p2[0]
+        y = (mt ** 2) * p0[1] + 2 * mt * t * p1[1] + (t ** 2) * p2[1]
+        return x, y
+    else:  # Linear
+        mt = 1 - t
+        return mt * p0[0] + t * p1[0], mt * p0[1] + t * p1[1]
+
+
+def _bezier_derivative(t, p0, p1, p2=None, p3=None):
+    if p3 is not None:  # Cubic
+        mt = 1 - t
+        dx = -3 * (mt ** 2) * p0[0] + 3 * (mt ** 2 - 2 * mt * t) * p1[0] + 3 * (2 * mt * t - t ** 2) * p2[0] + 3 * (t ** 2) * p3[0]
+        dy = -3 * (mt ** 2) * p0[1] + 3 * (mt ** 2 - 2 * mt * t) * p1[1] + 3 * (2 * mt * t - t ** 2) * p2[1] + 3 * (t ** 2) * p3[1]
+        return dx, dy
+    elif p2 is not None:  # Quadratic
+        mt = 1 - t
+        dx = -2 * mt * p0[0] + 2 * (mt - t) * p1[0] + 2 * t * p2[0]
+        dy = -2 * mt * p0[1] + 2 * (mt - t) * p1[1] + 2 * t * p2[1]
+        return dx, dy
+    else:  # Linear
+        return p1[0] - p0[0], p1[1] - p0[1]
+
+
+def variable_width_svg_path(mc, start_width, end_width, samples=24):
+    """Generate an SVG path string for a variable-width stroke envelope."""
+    pts = [mc.extremities[0], mc.controls[0] if mc.degree >= 2 else None,
+           mc.controls[1] if mc.degree == 3 else None, mc.extremities[1]]
+    pts = [p for p in pts if p is not None]
+
+    p_coords = [(p.x, p.y) for p in pts]
+    left_pts, right_pts = [], []
+
+    for i in range(samples + 1):
+        t = i / samples
+        x, y = _bezier_point(t, *p_coords)
+        dx, dy = _bezier_derivative(t, *p_coords)
+
+        length = math.hypot(dx, dy)
+        nx, ny = (-dy / length, dx / length) if length > 0 else (0.0, 1.0)
+
+        width = start_width + (end_width - start_width) * t
+        half_width = width / 2.0
+
+        left_pts.append((x + nx * half_width, y + ny * half_width))
+        right_pts.append((x - nx * half_width, y - ny * half_width))
+
+    d = f"M {left_pts[0][0]:.2f},{left_pts[0][1]:.2f}"
+    for pt in left_pts[1:]:
+        d += f" L {pt[0]:.2f},{pt[1]:.2f}"
+    for pt in reversed(right_pts):
+        d += f" L {pt[0]:.2f},{pt[1]:.2f}"
+    d += " Z"
+    return d
+
+
 def generate_svg(scene, bordered: bool = False) -> str:
 
     # 1) Fills: one <path> per colored shape.
@@ -31,24 +97,45 @@ def generate_svg(scene, bordered: bool = False) -> str:
         for curve in scene.ui_curves(shape):
             curve_color[curve] = stroke
 
-    by_key: dict[tuple[str, float], list[str]] = defaultdict(list)
+    by_stroke_key: dict[tuple[str, float], list[str]] = defaultdict(list)
+    by_envelope_key: dict[str, list[str]] = defaultdict(list)
+
     for curve in scene.curves:
         mc = scene.registry.model_curve_for(curve)
         if mc is None:
             continue
-        d = model_curve_svg_string(mc)
-        if d:
-            color = curve_color.get(curve, curve.color.name())
-            width = (curve.stroke_width if curve.stroke_width is not None
-                     else SVG_STROKE_WIDTH)
-            by_key[(color, width)].append(d)
+
+        color = curve_color.get(curve, curve.color.name())
+
+        if mc.start_width is not None and mc.end_width is not None:
+            if mc.start_width == mc.end_width:
+                # Uniform width: use standard, efficient SVG stroke
+                d = model_curve_svg_string(mc)
+                if d:
+                    by_stroke_key[(color, mc.start_width)].append(d)
+            else:
+                # Variable width: generate filled envelope polygon
+                d = variable_width_svg_path(mc, mc.start_width, mc.end_width)
+                if d:
+                    by_envelope_key[color].append(d)
+        else:
+            # Fallback for non-stroke curves
+            d = model_curve_svg_string(mc)
+            if d:
+                by_stroke_key[(color, SVG_STROKE_WIDTH)].append(d)
 
     stroke_paths = []
-    for (color, width), ds in by_key.items():
+    # Render uniform strokes
+    for (color, width), ds in by_stroke_key.items():
         stroke_paths.append(
             f'<path d="{" ".join(ds)}" fill="{SVG_FILL}" '
             f'stroke="{color}" stroke-width="{width}" '
             f'stroke-linecap="round" stroke-linejoin="round"/>')
+
+    # Render variable-width envelopes
+    for color, ds in by_envelope_key.items():
+        stroke_paths.append(
+            f'<path d="{" ".join(ds)}" fill="{color}" stroke="none"/>')
 
     vb = scene.viewbox
     header = (
@@ -89,7 +176,7 @@ def save_state(scene) -> dict:
     if hidden:
         state["points_hidden"] = hidden
 
-    state["curve_strokes"] = [c.stroke_width for c in scene.curves]
+    state["curve_strokes"] = [c.start_width for c in scene.curves]
 
     shape_colors = []
     for shape in scene.shape_manager.shapes:

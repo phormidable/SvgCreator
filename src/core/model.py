@@ -13,7 +13,7 @@ lookups on the Document. Invariants (maintained by Document operations):
 """
 
 from PySide6.QtCore import QObject, Signal
-
+from core.settings import STROKE_DEFAULT_WIDTH
 class Point:
     _next_id = 1
 
@@ -42,12 +42,14 @@ class Junction:
 class Curve:
     _next_id = 1
 
-    def __init__(self, extremities, controls, degree):
+    def __init__(self, extremities, controls, degree, start_width=None, end_width=None):
         self.id = Curve._next_id
         Curve._next_id += 1
-        self.extremities = tuple(extremities)   # (P0, P1)
-        self.controls = list(controls)          # 0, 1 or 2 points
+        self.extremities = tuple(extremities)
+        self.controls = list(controls)
         self.degree = degree
+        self.start_width = start_width
+        self.end_width = end_width
 
 
     def __repr__(self):

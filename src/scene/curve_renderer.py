@@ -58,7 +58,7 @@ class CurveRenderer:
     #  Pens
     # ------------------------------------------------------------
     def pen_for(self, ui_curve) -> QPen:
-        w = (ui_curve.stroke_width if ui_curve.stroke_width is not None
+        w = (ui_curve.start_width if ui_curve.start_width is not None
              else CURVE_PEN_WIDTH)
         if ui_curve.shape_selected:
             return make_round_pen(SHAPE_SELECTED_CURVE_COLOR, max(w, SHAPE_SELECTED_CURVE_PEN_WIDTH))

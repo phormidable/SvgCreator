@@ -14,7 +14,8 @@ class CurveBuilder:
         self.scene = scene
         self.current_degree = 2
         self.pending_curve = None
-        self.current_stroke_width = None
+        self.current_start_width = None
+        self.current_end_width = None
 
     # ------------------------------------------------------------
     #  Degree
@@ -25,19 +26,20 @@ class CurveBuilder:
         self.set_curve_style(degree, is_stroke=False)
 
     def set_curve_style(self, degree: int, is_stroke: bool):
-        """Set the curve degree and optional stroke width.
-
-        This is the unified method — set_degree delegates here.
-        """
         if degree not in degree_labels:
             return
 
-        new_width = self.scene.stroke_width if is_stroke else None
-        if degree == self.current_degree and new_width == self.current_stroke_width:
+        new_start = self.scene.stroke_start_width if is_stroke else None
+        new_end = self.scene.stroke_end_width if is_stroke else None
+
+        if (degree == self.current_degree and
+                new_start == self.current_start_width and
+                new_end == self.current_end_width):
             return
 
         self.current_degree = degree
-        self.current_stroke_width = new_width
+        self.current_start_width = new_start
+        self.current_end_width = new_end
 
         if self.pending_curve is not None:
             self.discard()
@@ -64,7 +66,8 @@ class CurveBuilder:
             self.pending_curve = BezierCurve(
                 self.scene,
                 degree=self.current_degree,
-                stroke_width=self.current_stroke_width,
+                start_width=self.current_start_width,
+                end_width=self.current_end_width,
             )
         self.pending_curve.add_point(pos)
         if self.pending_curve.is_complete():

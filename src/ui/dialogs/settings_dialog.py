@@ -46,12 +46,25 @@ class SettingsDialog(QDialog):
         canvas_row.addStretch()
         form.addRow("Canvas size:", canvas_row)
 
-        # ---- Stroke size ----
-        self.stroke_spin = QSpinBox()
-        self.stroke_spin.setRange(1, 500)
-        self.stroke_spin.setValue(settings["stroke_width"])
-        self.stroke_spin.setSuffix(" units")
-        form.addRow("Stroke size:", self.stroke_spin)
+        # ---- Stroke width ----
+        self.stroke_start_spin = QSpinBox()
+        self.stroke_start_spin.setRange(1, 5000)
+        self.stroke_start_spin.setValue(settings["stroke_start_width"])
+        self.stroke_start_spin.setSuffix(" units")
+
+        self.stroke_end_spin = QSpinBox()
+        self.stroke_end_spin.setRange(1, 5000)
+        self.stroke_end_spin.setValue(settings["stroke_end_width"])
+        self.stroke_end_spin.setSuffix(" units")
+
+        stroke_layout = QHBoxLayout()
+        stroke_layout.addWidget(QLabel("Beginning:"))
+        stroke_layout.addWidget(self.stroke_start_spin)
+        stroke_layout.addSpacing(20)
+        stroke_layout.addWidget(QLabel("End:"))
+        stroke_layout.addWidget(self.stroke_end_spin)
+
+        form.addRow("Stroke Width:", stroke_layout)
 
         # ---- Curve color ----
         color_row = QHBoxLayout()
@@ -159,7 +172,8 @@ class SettingsDialog(QDialog):
         return {
             "canvas_width": self.canvas_w.value(),
             "canvas_height": self.canvas_h.value(),
-            "stroke_width": self.stroke_spin.value(),
+            "stroke_start_width": self.stroke_start_spin.value(),
+            "stroke_end_width": self.stroke_end_spin.value(),
             "curve_color": self.color_edit.text().strip(),
             "background_path": self.bg_edit.text().strip() or None,
             "json_dir": self.json_edit.text().strip(),

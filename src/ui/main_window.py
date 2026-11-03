@@ -133,7 +133,7 @@ class MainWindow(QMainWindow):
             self.scene.set_curve_color(color)
 
         # Stroke size
-        self.scene.stroke_width = self.user_settings.stroke_size
+        self.scene.start_width = self.user_settings.stroke_size
 
         # Canvas size
         self.scene.set_viewbox(self.user_settings.canvas_width, self.user_settings.canvas_height)
@@ -344,7 +344,8 @@ class MainWindow(QMainWindow):
         settings = {
             "canvas_width": int(self.scene.viewbox.width()),
             "canvas_height": int(self.scene.viewbox.height()),
-            "stroke_width": self.scene.stroke_width,
+            "stroke_start_width": self.user_settings.stroke_start_width,  # ← NEW
+            "stroke_end_width": self.user_settings.stroke_end_width,
             "curve_color": self.scene.curve_color,
             "background_path": current_bg,
             "json_dir": self.file_io.json_dir,
@@ -363,12 +364,12 @@ class MainWindow(QMainWindow):
             self.scene.set_viewbox(new_values["canvas_width"], new_values["canvas_height"])
             changes.append(f"Canvas {new_values['canvas_width']}×{new_values['canvas_height']}")
 
-        if new_values["stroke_width"] != self.scene.stroke_width:
-            self.scene.stroke_width = new_values["stroke_width"]
-            if self.scene.builder.current_stroke_width is not None:
+        if new_values["stroke_start_width"] != self.scene.start_width:
+            self.scene.start_width = new_values["stroke_start_width"]
+            if self.scene.builder.current_start_width is not None:
                 self.scene.builder.set_curve_style(
                     self.scene.builder.current_degree, is_stroke=True)
-            changes.append(f"Stroke {new_values['stroke_width']}")
+            changes.append(f"Stroke {new_values['stroke_start_width']}")
 
         new_color = QColor(new_values["curve_color"])
         if new_color.isValid() and new_color != self.scene.curve_color:
@@ -400,7 +401,8 @@ class MainWindow(QMainWindow):
             json_dir=new_values["json_dir"],
             svg_dir=new_values["svg_dir"],
             curve_color=new_values["curve_color"],
-            stroke_size=new_values["stroke_width"],
+            stroke_start_width=new_values["stroke_start_width"],  # ← NEW
+            stroke_end_width=new_values["stroke_end_width"],
             canvas_width=new_values["canvas_width"],
             canvas_height=new_values["canvas_height"],
         )

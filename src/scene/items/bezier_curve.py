@@ -17,16 +17,19 @@ if TYPE_CHECKING:
 class BezierCurve(QGraphicsItem):
     _next_id = 1
 
-    def __init__(self, scene, degree: int = 3, stroke_width: int | None = None):
+    def __init__(self, scene, degree: int = 3, start_width: int | None = None, end_width: int | None = None):
         super().__init__()
         self.id = BezierCurve._next_id
         BezierCurve._next_id += 1
         self.name = f"Curve {self.id}"
         self.degree = degree
-        self.stroke_width = stroke_width
+        self.start_width = start_width
+        self.end_width = end_width
         self.color = QColor(scene.curve_color)
 
-        self.pen = make_round_pen(self.color, stroke_width if stroke_width is not None else CURVE_PEN_WIDTH)
+        # Use start_width for the Qt preview pen, fallback to default if not a stroke curve
+        preview_width = start_width if start_width is not None else CURVE_PEN_WIDTH
+        self.pen = make_round_pen(self.color, preview_width)
 
         self.points: list[ControlPoint] = []
         self._bbox = None  # NEW: Cache for tight bounding box
@@ -119,24 +122,28 @@ class BezierCurve(QGraphicsItem):
 
     def set_color(self, color):
         self.color = QColor(color)
-        width = self.stroke_width if self.stroke_width is not None else CURVE_PEN_WIDTH
+        width = self.start_width if self.start_width is not None else CURVE_PEN_WIDTH
         self.pen = QPen(self.color, width)
         self.pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         self.pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         self.update()
 
-    def set_stroke_width(self, width):
-        if self.stroke_width == width:
+
+    def set_widths(self, start_width, end_width):
+        if self.start_width == start_width and self.end_width == end_width:
             return
-        self.stroke_width = width
+        self.start_width = start_width
+        self.end_width = end_width
         self.set_color(self.color)  # rebuild pen at new width
-        self.rebuild_path()  # hit path depends on width
+        self.rebuild_path()
 
     def rebuild_path(self):
         self.prepareGeometryChange()
+        # For the Qt preview, use start_width (or fallback to default pen width)
+        preview_width = self.start_width if self.start_width is not None else CURVE_PEN_WIDTH
         self._path, self._hit_path = self._scene.curve_renderer.paths_for(
-            self.positions(), self.degree, self.stroke_width)
-        self._bbox = None  # NEW: Invalidate cache when geometry changes
+            self.positions(), self.degree, preview_width)
+        self._bbox = None
         self.update()
 
     def get_tight_bbox(self):
