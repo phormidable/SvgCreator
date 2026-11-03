@@ -7,6 +7,8 @@ from PySide6.QtWidgets import QGraphicsItem
 
 from scene.items.bezier_curve import BezierCurve
 
+degree_labels = {1: "line", 2: "quadratic", 3: "cubic"}
+
 class CurveBuilder:
     def __init__(self, scene):
         self.scene = scene
@@ -14,32 +16,44 @@ class CurveBuilder:
         self.pending_curve = None
         self.current_stroke_width = None
 
-        # ------------------------------------------------------------
+    # ------------------------------------------------------------
     #  Degree
     # ------------------------------------------------------------
+
     def set_degree(self, degree: int):
-        if degree not in (1, 2, 3) or degree == self.current_degree:
-            return
-        self.current_degree = degree
-        if self.pending_curve is not None:
-            self.discard()
-        label = {1: "line", 2: "quadratic", 3: "cubic"}[degree]
-        self.scene.messageLogged.emit(f"Curve type → {label}")
+        """Set the curve degree without stroke width (filled curves)."""
+        self.set_curve_style(degree, is_stroke=False)
 
     def set_curve_style(self, degree: int, is_stroke: bool):
-        # CHANGED: use scene.stroke_width instead of the constant
-        new_width = self.scene.stroke_width if is_stroke else None
-        if degree not in (1, 2, 3):
+        """Set the curve degree and optional stroke width.
+
+        This is the unified method — set_degree delegates here.
+        """
+        if degree not in degree_labels:
             return
+
+        new_width = self.scene.stroke_width if is_stroke else None
         if degree == self.current_degree and new_width == self.current_stroke_width:
             return
+
         self.current_degree = degree
         self.current_stroke_width = new_width
+
         if self.pending_curve is not None:
             self.discard()
-        name = {1: "line", 2: "quadratic", 3: "cubic"}[degree]
+
+        name = degree_labels[degree]
         suffix = " stroke" if is_stroke else ""
         self.scene.messageLogged.emit(f"Curve type → {name}{suffix}")
+
+    def build_from_payload(self, center: QPointF, degree: int, points: list, stroke_width=None):
+        """Build a curve from a payload of relative points. Used by clipboard paste."""
+        curve = BezierCurve(self.scene, degree=degree, stroke_width=stroke_width)
+        for dx, dy in points:
+            curve.add_point(QPointF(center.x() + dx, center.y() + dy))
+        self.pending_curve = curve
+        self.finalize()
+        return curve
 
     # ------------------------------------------------------------
     #  Create-mode click
@@ -55,8 +69,7 @@ class CurveBuilder:
         self.pending_curve.add_point(pos)
         if self.pending_curve.is_complete():
             self.finalize()
-            self.scene.messageLogged.emit("Curve created")
-            self.scene.undo.push("Create curve")
+            self.scene.log_and_undo("Curve created", "Create curve")
 
 
 

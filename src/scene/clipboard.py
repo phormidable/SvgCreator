@@ -104,13 +104,7 @@ class Clipboard:
         # ---- 1. Build new curves. ----
         new_curves = []
         for cp in self._payload["curves"]:
-            c = BezierCurve(scene, degree=cp["degree"], stroke_width=cp.get("stroke_width"))
-            for dx, dy in cp["points"]:
-                c.add_point(QPointF(center.x() + dx, center.y() + dy))
-            c.committed = True
-            for pt in c.points:
-                pt.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
-            scene.curves.append(c)
+            c = scene.builder.build_from_payload(center, cp["degree"], cp["points"], cp.get("stroke_width"))
             new_curves.append(c)
 
         # ---- 2. Restore internal links. ----
@@ -133,6 +127,5 @@ class Clipboard:
         scene.selection.add_points([pt for c in new_curves for pt in c.points])
 
         scene.emit_svg()
-        scene.messageLogged.emit(f"Pasted {len(new_curves)} curve(s)")
-        scene.undo.push(f"Paste ({len(new_curves)})")
+        scene.log_and_undo(f"Pasted {len(new_curves)} curve(s)", f"Paste ({len(new_curves)})")
         return len(new_curves)

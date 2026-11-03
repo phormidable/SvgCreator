@@ -67,8 +67,7 @@ class SelectionOps:
         vertical line (axis='y') through the barycentre of its points."""
         scene = self.scene
         if not scene.selected_points:
-            scene.messageLogged.emit(
-                "Nothing to mirror — select a curve (A or click) or a shape (S) first")
+            scene.messageLogged.emit("Nothing to mirror — select a curve (A or click) or a shape (S) first")
             return False
 
         base_pts = set(scene.selected_points)
@@ -104,8 +103,7 @@ class SelectionOps:
     def center_selection(self, axis: str) -> bool:
         scene = self.scene
         if not scene.selected_points:
-            scene.messageLogged.emit(
-                "Nothing to centre — select a curve (A or click) or a shape (S) first")
+            scene.messageLogged.emit("Nothing to centre — select a curve (A or click) or a shape (S) first")
             return False
 
         bbox = self.selection_curve_bbox()
@@ -171,8 +169,7 @@ class SelectionOps:
         for c in curves:
             c.set_points_hidden(True)
         if n:
-            scene.messageLogged.emit(f"Points hidden on {n} curve(s)")
-            scene.undo.push(f"Hide points ({n})")
+            scene.log_and_undo(f"Points hidden on {n} curve(s)", f"Hide points ({n})")
         return n > 0
 
     def show_all_points(self) -> int:
@@ -183,8 +180,7 @@ class SelectionOps:
                 curve.set_points_hidden(False)
                 n += 1
         if n:
-            scene.messageLogged.emit(f"Restored points on {n} curve(s)")
-            scene.undo.push(f"Show all points ({n})")
+            self.scene.log_and_undo(f"Restored points on {n} curve(s)", f"Show all points ({n})")
         return n
 
     # ------------------------------------------------------------
@@ -228,9 +224,7 @@ class SelectionOps:
 
         scene.emit_svg()
         n = len(curves)
-        scene.messageLogged.emit(
-            f"Deleted {curves[0].name}" if n == 1 else f"Deleted {n} curves")
-        scene.undo.push(f"Delete ({n})")
+        scene.log_and_undo(f"Deleted {curves[0].name}" if n == 1 else f"Deleted {n} curves", f"Delete ({n})")
         return n
 
     def join_with_line(self, link: bool) -> bool:
@@ -259,11 +253,9 @@ class SelectionOps:
         if link:
             scene.link_manager.link_points(curve.points[0], p1)
             scene.link_manager.link_points(curve.points[1], p2)
-            scene.messageLogged.emit("Connected with linked line")
-            scene.undo.push("New linked line")
+            scene.log_and_undo("Connected with linked line", "New linked line")
         else:
-            scene.messageLogged.emit("Connected with line")
-            scene.undo.push("New line")
+            scene.log_and_undo("Connected with line", "New line")
 
         scene.clear_selection()
         scene.selection.add_points(curve.points)

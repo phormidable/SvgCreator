@@ -7,6 +7,7 @@ from core.settings import CURVE_PEN_WIDTH, SHAPE_SELECTED_CURVE_PEN_WIDTH,CURVE_
 
 from scene.items.control_point import ControlPoint
 from scene.curve_geometry import curve_bbox
+from scene.helpers import make_round_pen
 
 from typing import TYPE_CHECKING, cast
 if TYPE_CHECKING:
@@ -25,10 +26,7 @@ class BezierCurve(QGraphicsItem):
         self.stroke_width = stroke_width
         self.color = QColor(scene.curve_color)
 
-        width = stroke_width if stroke_width is not None else CURVE_PEN_WIDTH
-        self.pen = QPen(self.color, width)
-        self.pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        self.pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        self.pen = make_round_pen(self.color, stroke_width if stroke_width is not None else CURVE_PEN_WIDTH)
 
         self.points: list[ControlPoint] = []
         self._bbox = None  # NEW: Cache for tight bounding box

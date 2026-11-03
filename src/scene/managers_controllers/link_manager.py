@@ -173,9 +173,7 @@ class LinkManager:
             sign = 1 if i % 2 == 0 else -1
             pt.setPos(x + sign * offset, y)
 
-        self.scene.messageLogged.emit(
-            f"Broke junction — freed {len(members)} point(s)")
-        self.scene.undo.push(f"Break junction ({len(members)})")
+        self.scene.log_and_undo(f"Broke junction — freed {len(members)} point(s)", f"Break junction ({len(members)})")
         return True
 
     def propagate_move(self, source, pos):

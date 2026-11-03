@@ -290,6 +290,14 @@ class BezierScene(QGraphicsScene):
             self._pending_fills = False
             self.shape_manager.update_fills()
 
+    def log_and_undo(self, message: str, undo_label: str = None):
+        """Log a message and push to undo history.
+
+        If undo_label is None, uses the message as the label.
+        """
+        self.messageLogged.emit(message)
+        self.undo.push(undo_label or message)
+
     # ------------------------------------------------------------
     #  Clear everything
     # ------------------------------------------------------------
