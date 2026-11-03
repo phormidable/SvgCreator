@@ -1,5 +1,5 @@
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QSizePolicy,
-                               QLineEdit, QPushButton, QSpinBox, QFileDialog, QColorDialog, QDialogButtonBox)
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
+                               QLineEdit, QPushButton, QSpinBox, QFileDialog, QDialogButtonBox)
 from PySide6.QtGui import QColor
 from PySide6.QtCore import Qt
 
@@ -19,7 +19,7 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Settings")
         self.setModal(True)
-        self.resize(550, 320)
+        self.resize(600, 220)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(15, 15, 15, 15)
@@ -45,65 +45,6 @@ class SettingsDialog(QDialog):
         canvas_row.addWidget(self.canvas_h)
         canvas_row.addStretch()
         form.addRow("Canvas size:", canvas_row)
-
-        # ---- Stroke width ----
-        self.stroke_start_spin = QSpinBox()
-        self.stroke_start_spin.setRange(1, 500)
-        self.stroke_start_spin.setValue(settings["stroke_start_width"])
-        self.stroke_start_spin.setSuffix(" units")
-
-        self.stroke_end_spin = QSpinBox()
-        self.stroke_end_spin.setRange(1, 500)
-        self.stroke_end_spin.setValue(settings["stroke_end_width"])
-        self.stroke_end_spin.setSuffix(" units")
-
-        # Swap button
-        self.swap_stroke_btn = QPushButton("⇄")
-        self.swap_stroke_btn.setToolTip("Swap start and end stroke widths")
-        self.swap_stroke_btn.setFixedSize(32, 28)
-        self.swap_stroke_btn.setStyleSheet(
-            "QPushButton { font-size: 16px; font-weight: bold; margin: 0px; }"
-            "QPushButton:hover { background-color: #d0d0d0; }"
-        )
-        self.swap_stroke_btn.clicked.connect(self._swap_stroke_widths)
-
-        # Create compact labels
-        begin_label = QLabel("Beginning:")
-        begin_label.setContentsMargins(0, 0, 0, 0)
-
-        end_label = QLabel("End:")
-        end_label.setContentsMargins(0, 0, 0, 0)
-
-        # Create layout with flexible spacers around the swap button
-        stroke_layout = QHBoxLayout()
-        stroke_layout.setContentsMargins(0, 0, 0, 0)
-        stroke_layout.setSpacing(8)
-
-        stroke_layout.addWidget(begin_label)
-        stroke_layout.addWidget(self.stroke_start_spin)
-        stroke_layout.addStretch(1)  # Flexible space: between first spinbox and button
-        stroke_layout.addWidget(self.swap_stroke_btn)
-        stroke_layout.addStretch(1)  # Flexible space: between button and "End:" label
-        stroke_layout.addWidget(end_label)
-        stroke_layout.addWidget(self.stroke_end_spin)
-
-        form.addRow("Stroke Width:", stroke_layout)
-
-        # ---- Curve color ----
-        color_row = QHBoxLayout()
-        initial_color = settings["curve_color"]
-        if isinstance(initial_color, str):
-            initial_color = QColor(initial_color)
-        self.color_edit = QLineEdit(initial_color.name())
-        self.color_edit.setPlaceholderText("#RRGGBB")
-        self.color_edit.setMaximumWidth(120)
-        self._update_color_swatch(initial_color)
-        self.color_pick_btn = QPushButton("Pick…")
-        self.color_pick_btn.clicked.connect(self._pick_color)
-        color_row.addWidget(self.color_edit)
-        color_row.addWidget(self.color_pick_btn)
-        color_row.addStretch()
-        form.addRow("Curve color:", color_row)
 
         # ---- Background ----
         bg_row = QHBoxLayout()
@@ -150,28 +91,6 @@ class SettingsDialog(QDialog):
     # ------------------------------------------------------------
     #  Helpers
     # ------------------------------------------------------------
-    def _update_color_swatch(self, color: QColor):
-        if color.isValid():
-            self.color_edit.setStyleSheet(
-                f"background-color: {color.name()}; "
-                f"color: {'white' if color.lightness() < 128 else 'black'};"
-            )
-
-    def _swap_stroke_widths(self):
-        """Swap the values of the start and end stroke width spinboxes."""
-        start_val = self.stroke_start_spin.value()
-        end_val = self.stroke_end_spin.value()
-        self.stroke_start_spin.setValue(end_val)
-        self.stroke_end_spin.setValue(start_val)
-
-    def _pick_color(self):
-        current = QColor(self.color_edit.text())
-        if not current.isValid():
-            current = QColor(90, 90, 90)
-        color = QColorDialog.getColor(current, self, "Curve Color")
-        if color.isValid():
-            self.color_edit.setText(color.name())
-            self._update_color_swatch(color)
 
     def _browse_background(self):
         start = self.bg_edit.text() or ""
@@ -202,9 +121,6 @@ class SettingsDialog(QDialog):
         return {
             "canvas_width": self.canvas_w.value(),
             "canvas_height": self.canvas_h.value(),
-            "stroke_start_width": self.stroke_start_spin.value(),
-            "stroke_end_width": self.stroke_end_spin.value(),
-            "curve_color": self.color_edit.text().strip(),
             "background_path": self.bg_edit.text().strip() or None,
             "json_dir": self.json_edit.text().strip(),
             "svg_dir": self.svg_edit.text().strip(),

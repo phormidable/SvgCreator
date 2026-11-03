@@ -58,15 +58,16 @@ class MainWindow(QMainWindow):
         self.right_tabs = QTabWidget()
         self.right_tabs.setMinimumHeight(150)  # Minimum height to keep it visible
 
-        # Tab 1: Settings (empty for now)
-        settings_tab = QTabWidgetPage()
-        settings_layout = QVBoxLayout(settings_tab)
-        settings_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        settings_label = QLabel("Settings panel\n(coming soon)")
-        settings_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        settings_label.setStyleSheet("color: gray; font-style: italic;")
-        settings_layout.addWidget(settings_label)
-        self.right_tabs.addTab(settings_tab, "Settings")
+        # NEW: Tab widget for Settings and Presets
+        from PySide6.QtWidgets import QTabWidget, QWidget as QTabWidgetPage
+        from ui.elements.settings_panel import SettingsPanel  # NEW
+
+        self.right_tabs = QTabWidget()
+        self.right_tabs.setMinimumHeight(150)
+
+        # Tab 1: Settings (live-updating panel)
+        self.settings_panel = SettingsPanel(self)  # NEW
+        self.right_tabs.addTab(self.settings_panel, "Settings")
 
         # Tab 2: Presets (existing panel)
         self.preset_panel = PresetPanel()
@@ -369,13 +370,11 @@ class MainWindow(QMainWindow):
         settings = {
             "canvas_width": int(self.scene.viewbox.width()),
             "canvas_height": int(self.scene.viewbox.height()),
-            "stroke_start_width": self.user_settings.stroke_start_width,  # ← NEW
-            "stroke_end_width": self.user_settings.stroke_end_width,
-            "curve_color": self.scene.curve_color,
             "background_path": current_bg,
             "json_dir": self.file_io.json_dir,
             "svg_dir": self.file_io.svg_dir,
         }
+        self.settings_panel.refresh_from_settings()
         dialog = SettingsDialog(settings, self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
@@ -388,26 +387,6 @@ class MainWindow(QMainWindow):
                 or new_values["canvas_height"] != int(self.scene.viewbox.height())):
             self.scene.set_viewbox(new_values["canvas_width"], new_values["canvas_height"])
             changes.append(f"Canvas {new_values['canvas_width']}×{new_values['canvas_height']}")
-
-        if new_values["stroke_start_width"] != self.scene.stroke_start_width:
-            self.scene.stroke_start_width = new_values["stroke_start_width"]  # Fixed typo: was self.scene.start_width
-            changes.append(f"Stroke start {new_values['stroke_start_width']}")
-
-        if new_values["stroke_end_width"] != self.scene.stroke_end_width:
-            self.scene.stroke_end_width = new_values["stroke_end_width"]  # NEW: Add this block
-            changes.append(f"Stroke end {new_values['stroke_end_width']}")
-
-            # If either width changed and we're in stroke mode, refresh the builder
-        if (new_values["stroke_start_width"] != self.scene.stroke_start_width or
-                new_values["stroke_end_width"] != self.scene.stroke_end_width):
-            if self.scene.builder.current_start_width is not None:
-                self.scene.builder.set_curve_style(
-                    self.scene.builder.current_degree, is_stroke=True)
-
-        new_color = QColor(new_values["curve_color"])
-        if new_color.isValid() and new_color != self.scene.curve_color:
-            self.scene.set_curve_color(new_color)
-            changes.append(f"Color {new_color.name()}")
 
         old_bg = self.scene.background.path
         new_bg = new_values["background_path"]
@@ -433,9 +412,6 @@ class MainWindow(QMainWindow):
         self.user_settings.update_all(
             json_dir=new_values["json_dir"],
             svg_dir=new_values["svg_dir"],
-            curve_color=new_values["curve_color"],
-            stroke_start_width=new_values["stroke_start_width"],  # ← NEW
-            stroke_end_width=new_values["stroke_end_width"],
             canvas_width=new_values["canvas_width"],
             canvas_height=new_values["canvas_height"],
         )
