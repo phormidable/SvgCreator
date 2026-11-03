@@ -45,7 +45,7 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.drawing_view, 1)  # stretch = 1, take all the room
         self.file_io = FileIO(self)
 
-        # ---- Right column: preview on top, info below ----
+        # ---- Right column: preview on top, tabs in middle, info below ----
         right_col = QVBoxLayout()
         right_col.setSpacing(5)
 
@@ -53,12 +53,31 @@ class MainWindow(QMainWindow):
         self.preview_widget.setFixedSize(PREVIEW_WIDTH, PREVIEW_HEIGHT)
         right_col.addWidget(self.preview_widget)
 
+        # NEW: Tab widget for Settings and Presets
+        from PySide6.QtWidgets import QTabWidget, QWidget as QTabWidgetPage
+        self.right_tabs = QTabWidget()
+        self.right_tabs.setMinimumHeight(150)  # Minimum height to keep it visible
+
+        # Tab 1: Settings (empty for now)
+        settings_tab = QTabWidgetPage()
+        settings_layout = QVBoxLayout(settings_tab)
+        settings_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        settings_label = QLabel("Settings panel\n(coming soon)")
+        settings_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        settings_label.setStyleSheet("color: gray; font-style: italic;")
+        settings_layout.addWidget(settings_label)
+        self.right_tabs.addTab(settings_tab, "Settings")
+
+        # Tab 2: Presets (existing panel)
         self.preset_panel = PresetPanel()
-        right_col.addWidget(self.preset_panel)
+        self.right_tabs.addTab(self.preset_panel, "Presets")
+
+        right_col.addWidget(self.right_tabs, 1)  # stretch = 1, takes remaining space
 
         self.info_panel = InfoPanel(self.scene)
         right_col.addWidget(self.info_panel, 1)
         main_layout.addLayout(right_col)
+
         # ---- Toolbar ----
         self.toolbar = MainToolBar(self)
 

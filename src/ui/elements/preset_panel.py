@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (QButtonGroup, QGridLayout, QGroupBox, QHBoxLayout
 from PySide6.QtCore import Signal
 
 from core.presets import PRESETS
-from core.settings import PRESET_PANEL_HEIGHT, TOOLBAR_CHECKED_STYLE
+from core.settings import TOOLBAR_CHECKED_STYLE
 
 
 class PresetPanel(QGroupBox):
@@ -22,8 +22,6 @@ class PresetPanel(QGroupBox):
         self._preset_buttons: dict[str, QToolButton] = {}
         self._category_buttons: dict[str, QToolButton] = {}
         self._current_category: str | None = None
-
-        self.setFixedHeight(PRESET_PANEL_HEIGHT)
 
         outer = QVBoxLayout(self)
         outer.setSpacing(2)

@@ -9,17 +9,17 @@ class InfoPanel(QGroupBox):
     def __init__(self, scene, parent=None):
         super().__init__(parent)
         self.scene = scene
+        self.setFixedHeight(CONSOLE_HEIGHT)
 
         outer = QVBoxLayout()
-        outer.setSpacing(6)
-
+        outer.setContentsMargins(0,0,0,0)
 
         self.console = QPlainTextEdit()
         self.console.setReadOnly(True)
         self.console.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.console.setMaximumBlockCount(500)
         self.console.setPlaceholderText("Events will appear here…")
-        self.console.setFixedHeight(CONSOLE_HEIGHT)
+
         outer.addWidget(self.console)
 
         self.setLayout(outer)
