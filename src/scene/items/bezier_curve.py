@@ -147,6 +147,7 @@ class BezierCurve(QGraphicsItem):
         self.rebuild_path()
 
     def rebuild_path(self):
+        print(f"DEBUG rebuild_path: start_width={self.start_width}, end_width={self.end_width}")
         self.prepareGeometryChange()
 
         # If variable width, generate a filled polygon envelope for the Qt preview
@@ -164,7 +165,7 @@ class BezierCurve(QGraphicsItem):
         self.update()
 
     def _build_variable_width_path(self):
-        """Generate a QPainterPath representing the variable-width envelope."""
+        """Generate a QPainterPath representing the variable-width envelope with rounded caps."""
         import math
         from PySide6.QtCore import QPointF
         from PySide6.QtGui import QPainterPath
@@ -174,6 +175,7 @@ class BezierCurve(QGraphicsItem):
 
         # Sample the curve and compute left/right offset points
         samples = 24
+        cap_samples = 8
         left_pts, right_pts = [], []
 
         for i in range(samples + 1):
@@ -187,12 +189,82 @@ class BezierCurve(QGraphicsItem):
             left_pts.append((x + nx * half_width, y + ny * half_width))
             right_pts.append((x - nx * half_width, y - ny * half_width))
 
-        # Build the closed polygon path
+        # Compute tangent directions at start and end for cap orientation
+        dx_start, dy_start = self._bezier_derivative(0, pts)
+        len_start = math.hypot(dx_start, dy_start)
+        tx_start, ty_start = (dx_start / len_start, dy_start / len_start) if len_start > 0 else (1.0, 0.0)
+
+        dx_end, dy_end = self._bezier_derivative(1, pts)
+        len_end = math.hypot(dx_end, dy_end)
+        tx_end, ty_end = (dx_end / len_end, dy_end / len_end) if len_end > 0 else (1.0, 0.0)
+
+        def angle_diff(a, b):
+            return (b - a) % (2 * math.pi)
+
+        # Start cap: semicircle from right_pts[0] to left_pts[0]
+        cx_start, cy_start = pts[0]
+        angle_right_start = math.atan2(right_pts[0][1] - cy_start, right_pts[0][0] - cx_start)
+        angle_left_start = math.atan2(left_pts[0][1] - cy_start, left_pts[0][0] - cx_start)
+        angle_out_start = math.atan2(-ty_start, -tx_start)
+
+        ccw_right_to_left = angle_diff(angle_right_start, angle_left_start)
+        ccw_right_to_out = angle_diff(angle_right_start, angle_out_start)
+
+        cap_points_start = []
+        if ccw_right_to_out < ccw_right_to_left:
+            total_angle = ccw_right_to_left
+            for i in range(cap_samples + 1):
+                frac = i / cap_samples
+                angle = angle_right_start + total_angle * frac
+                px = cx_start + (self.start_width / 2) * math.cos(angle)
+                py = cy_start + (self.start_width / 2) * math.sin(angle)
+                cap_points_start.append((px, py))
+        else:
+            total_angle = angle_diff(angle_left_start, angle_right_start)
+            for i in range(cap_samples + 1):
+                frac = i / cap_samples
+                angle = angle_right_start - total_angle * frac
+                px = cx_start + (self.start_width / 2) * math.cos(angle)
+                py = cy_start + (self.start_width / 2) * math.sin(angle)
+                cap_points_start.append((px, py))
+
+        # End cap: semicircle from left_pts[-1] to right_pts[-1]
+        cx_end, cy_end = pts[-1]
+        angle_left_end = math.atan2(left_pts[-1][1] - cy_end, left_pts[-1][0] - cx_end)
+        angle_right_end = math.atan2(right_pts[-1][1] - cy_end, right_pts[-1][0] - cx_end)
+        angle_out_end = math.atan2(ty_end, tx_end)
+
+        ccw_left_to_right = angle_diff(angle_left_end, angle_right_end)
+        ccw_left_to_out = angle_diff(angle_left_end, angle_out_end)
+
+        cap_points_end = []
+        if ccw_left_to_out < ccw_left_to_right:
+            total_angle = ccw_left_to_right
+            for i in range(cap_samples + 1):
+                frac = i / cap_samples
+                angle = angle_left_end + total_angle * frac
+                px = cx_end + (self.end_width / 2) * math.cos(angle)
+                py = cy_end + (self.end_width / 2) * math.sin(angle)
+                cap_points_end.append((px, py))
+        else:
+            total_angle = angle_diff(angle_right_end, angle_left_end)
+            for i in range(cap_samples + 1):
+                frac = i / cap_samples
+                angle = angle_left_end - total_angle * frac
+                px = cx_end + (self.end_width / 2) * math.cos(angle)
+                py = cy_end + (self.end_width / 2) * math.sin(angle)
+                cap_points_end.append((px, py))
+
+        # Build the closed polygon path: left side -> end cap -> right side (reversed) -> start cap
         path = QPainterPath()
         path.moveTo(left_pts[0][0], left_pts[0][1])
         for pt in left_pts[1:]:
             path.lineTo(pt[0], pt[1])
+        for pt in cap_points_end:
+            path.lineTo(pt[0], pt[1])
         for pt in reversed(right_pts):
+            path.lineTo(pt[0], pt[1])
+        for pt in cap_points_start:
             path.lineTo(pt[0], pt[1])
         path.closeSubpath()
 

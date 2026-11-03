@@ -133,8 +133,17 @@ class MainWindow(QMainWindow):
             self.scene.set_curve_color(color)
 
         # Stroke size
-        self.stroke_start_width = self.user_settings.stroke_start_width
-        self.stroke_end_width = self.user_settings.stroke_end_width
+        #self.stroke_start_width = self.user_settings.stroke_start_width
+        #self.stroke_end_width = self.user_settings.stroke_end_width
+
+        # NEW: Apply stroke widths from user settings to the scene
+        self.scene.stroke_start_width = self.user_settings.stroke_start_width
+        self.scene.stroke_end_width = self.user_settings.stroke_end_width
+
+        # NEW: If the builder is already in stroke mode, refresh it with the new widths
+        if self.scene.builder.current_start_width is not None:
+            self.scene.builder.set_curve_style(
+                self.scene.builder.current_degree, is_stroke=True)
 
         # Canvas size
         self.scene.set_viewbox(self.user_settings.canvas_width, self.user_settings.canvas_height)
