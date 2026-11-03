@@ -133,7 +133,8 @@ class MainWindow(QMainWindow):
             self.scene.set_curve_color(color)
 
         # Stroke size
-        self.scene.start_width = self.user_settings.stroke_size
+        self.stroke_start_width = self.user_settings.stroke_start_width
+        self.stroke_end_width = self.user_settings.stroke_end_width
 
         # Canvas size
         self.scene.set_viewbox(self.user_settings.canvas_width, self.user_settings.canvas_height)
@@ -364,12 +365,20 @@ class MainWindow(QMainWindow):
             self.scene.set_viewbox(new_values["canvas_width"], new_values["canvas_height"])
             changes.append(f"Canvas {new_values['canvas_width']}×{new_values['canvas_height']}")
 
-        if new_values["stroke_start_width"] != self.scene.start_width:
-            self.scene.start_width = new_values["stroke_start_width"]
+        if new_values["stroke_start_width"] != self.scene.stroke_start_width:
+            self.scene.stroke_start_width = new_values["stroke_start_width"]  # Fixed typo: was self.scene.start_width
+            changes.append(f"Stroke start {new_values['stroke_start_width']}")
+
+        if new_values["stroke_end_width"] != self.scene.stroke_end_width:
+            self.scene.stroke_end_width = new_values["stroke_end_width"]  # NEW: Add this block
+            changes.append(f"Stroke end {new_values['stroke_end_width']}")
+
+            # If either width changed and we're in stroke mode, refresh the builder
+        if (new_values["stroke_start_width"] != self.scene.stroke_start_width or
+                new_values["stroke_end_width"] != self.scene.stroke_end_width):
             if self.scene.builder.current_start_width is not None:
                 self.scene.builder.set_curve_style(
                     self.scene.builder.current_degree, is_stroke=True)
-            changes.append(f"Stroke {new_values['stroke_start_width']}")
 
         new_color = QColor(new_values["curve_color"])
         if new_color.isValid() and new_color != self.scene.curve_color:

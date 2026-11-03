@@ -13,7 +13,6 @@ lookups on the Document. Invariants (maintained by Document operations):
 """
 
 from PySide6.QtCore import QObject, Signal
-from core.settings import STROKE_DEFAULT_WIDTH
 class Point:
     _next_id = 1
 
