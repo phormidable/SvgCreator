@@ -181,7 +181,7 @@ class BezierCurve(QGraphicsItem):
             return self._bbox
 
         pts = [(p.model_pos().x(), p.model_pos().y()) for p in self.points]
-        self._bbox = curve_bbox(pts, self.degree)
+        self._bbox = curve_bbox(pts)
         return self._bbox
 
     def is_near(self, pos):

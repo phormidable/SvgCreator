@@ -6,6 +6,8 @@ Points and with QPointF.
 """
 
 from core.settings import SVG_PRECISION
+from core.bezier_math import bezier_point
+
 
 def svg_string_from_points(pts, degree: int) -> str:
     p = SVG_PRECISION
@@ -23,6 +25,7 @@ def svg_string_from_points(pts, degree: int) -> str:
             f"{x2:.{p}f},{y2:.{p}f} "
             f"{x3:.{p}f},{y3:.{p}f}")
 
+
 def curve_points(curve):
     """P0, [C1, [C2]], P1 as model Points, in geometric order."""
     return [curve.extremities[0], *curve.controls, curve.extremities[1]]
@@ -32,31 +35,29 @@ def model_curve_svg_string(curve) -> str:
     pts = [(p.x, p.y) for p in curve_points(curve)]
     return svg_string_from_points(pts, curve.degree)
 
-# scene/curve_geometry.py
-"""...existing docstring..."""
 
-
-def curve_bbox(points, degree):
+def curve_bbox(points):
     """Tight bounding box of the actual Bezier curve — endpoints plus the
     interior extrema where B'(t) = 0 on either axis.
 
-    points: [(x, y), ...] in geometric order. degree 2 or 3.
+    points: [(x, y), ...] in geometric order. Degree is inferred from len(points) - 1.
     Returns (min_x, min_y, max_x, max_y).
     """
     pts = [(float(x), float(y)) for x, y in points]
     xs = [pts[0][0], pts[-1][0]]
     ys = [pts[0][1], pts[-1][1]]
 
-    for t in _extrema_ts(pts, degree):
-        x, y = _evaluate(pts, degree, t)
+    for t in _extrema_ts(pts):
+        x, y = bezier_point(t, pts)
         xs.append(x)
         ys.append(y)
 
     return min(xs), min(ys), max(xs), max(ys)
 
 
-def _extrema_ts(pts, degree):
+def _extrema_ts(pts):
     """Parameter values in (0, 1) where B'(t) = 0 along either axis."""
+    degree = len(pts) - 1
     if degree <= 1:
         return set()
     result = set()
@@ -90,19 +91,3 @@ def _solve_quadratic(a, b, c):
         return []
     sq = disc ** 0.5
     return [(-b + sq) / (2 * a), (-b - sq) / (2 * a)]
-
-
-def _evaluate(pts, degree, t):
-    """Point on the Bezier at parameter t."""
-    u = 1.0 - t
-    if degree == 1:
-        (x0, y0), (x1, y1) = pts
-        return u * x0 + t * x1, u * y0 + t * y1
-    if degree == 2:
-        (x0, y0), (x1, y1), (x2, y2) = pts
-        return (u * u * x0 + 2 * u * t * x1 + t * t * x2,
-                u * u * y0 + 2 * u * t * y1 + t * t * y2)
-    (x0, y0), (x1, y1), (x2, y2), (x3, y3) = pts
-    uu, tt = u * u, t * t
-    return (uu * u * x0 + 3 * uu * t * x1 + 3 * u * tt * x2 + tt * t * x3,
-            uu * u * y0 + 3 * uu * t * y1 + 3 * u * tt * y2 + tt * t * y3)
