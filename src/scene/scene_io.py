@@ -4,140 +4,26 @@ from PySide6.QtGui import QColor
 
 from core.settings import SVG_FILL, SVG_STROKE_WIDTH, SHAPE_BORDER_DARKEN
 from scene.items.bezier_curve import BezierCurve
-from collections import defaultdict
+
 from .curve_geometry import model_curve_svg_string
 
-import math
+from src.core.bezier_math import (
+    compute_variable_width_envelope,
+    envelope_to_svg_path,
+)
 
-
-def _bezier_point(t, p0, p1, p2=None, p3=None):
-    if p3 is not None:  # Cubic
-        mt = 1 - t
-        x = (mt ** 3) * p0[0] + 3 * (mt ** 2) * t * p1[0] + 3 * mt * (t ** 2) * p2[0] + (t ** 3) * p3[0]
-        y = (mt ** 3) * p0[1] + 3 * (mt ** 2) * t * p1[1] + 3 * mt * (t ** 2) * p2[1] + (t ** 3) * p3[1]
-        return x, y
-    elif p2 is not None:  # Quadratic
-        mt = 1 - t
-        x = (mt ** 2) * p0[0] + 2 * mt * t * p1[0] + (t ** 2) * p2[0]
-        y = (mt ** 2) * p0[1] + 2 * mt * t * p1[1] + (t ** 2) * p2[1]
-        return x, y
-    else:  # Linear
-        mt = 1 - t
-        return mt * p0[0] + t * p1[0], mt * p0[1] + t * p1[1]
-
-
-def _bezier_derivative(t, p0, p1, p2=None, p3=None):
-    if p3 is not None:  # Cubic
-        mt = 1 - t
-        dx = -3 * (mt ** 2) * p0[0] + 3 * (mt ** 2 - 2 * mt * t) * p1[0] + 3 * (2 * mt * t - t ** 2) * p2[0] + 3 * (t ** 2) * p3[0]
-        dy = -3 * (mt ** 2) * p0[1] + 3 * (mt ** 2 - 2 * mt * t) * p1[1] + 3 * (2 * mt * t - t ** 2) * p2[1] + 3 * (t ** 2) * p3[1]
-        return dx, dy
-    elif p2 is not None:  # Quadratic
-        mt = 1 - t
-        dx = -2 * mt * p0[0] + 2 * (mt - t) * p1[0] + 2 * t * p2[0]
-        dy = -2 * mt * p0[1] + 2 * (mt - t) * p1[1] + 2 * t * p2[1]
-        return dx, dy
-    else:  # Linear
-        return p1[0] - p0[0], p1[1] - p0[1]
-
-
-def variable_width_svg_path(mc, start_width, end_width, samples=24, cap_samples=8):
+def variable_width_svg_path(mc, start_width, end_width):
     """Generate an SVG path string for a variable-width stroke envelope with rounded caps."""
-    pts = [mc.extremities[0], mc.controls[0] if mc.degree >= 2 else None,
-           mc.controls[1] if mc.degree == 3 else None, mc.extremities[1]]
-    pts = [p for p in pts if p is not None]
+    pts = [mc.extremities[0]]
+    if mc.degree >= 2:
+        pts.append(mc.controls[0])
+    if mc.degree == 3:
+        pts.append(mc.controls[1])
+    pts.append(mc.extremities[1])
     p_coords = [(p.x, p.y) for p in pts]
-    left_pts, right_pts = [], []
 
-    for i in range(samples + 1):
-        t = i / samples
-        x, y = _bezier_point(t, *p_coords)
-        dx, dy = _bezier_derivative(t, *p_coords)
-        length = math.hypot(dx, dy)
-        nx, ny = (-dy / length, dx / length) if length > 0 else (0.0, 1.0)
-        width = start_width + (end_width - start_width) * t
-        half_width = width / 2.0
-        left_pts.append((x + nx * half_width, y + ny * half_width))
-        right_pts.append((x - nx * half_width, y - ny * half_width))
-
-    # Compute tangent directions at start and end for cap orientation
-    dx_start, dy_start = _bezier_derivative(0, *p_coords)
-    len_start = math.hypot(dx_start, dy_start)
-    tx_start, ty_start = (dx_start / len_start, dy_start / len_start) if len_start > 0 else (1.0, 0.0)
-
-    dx_end, dy_end = _bezier_derivative(1, *p_coords)
-    len_end = math.hypot(dx_end, dy_end)
-    tx_end, ty_end = (dx_end / len_end, dy_end / len_end) if len_end > 0 else (1.0, 0.0)
-
-    def angle_diff(a, b):
-        return (b - a) % (2 * math.pi)
-
-    # Start cap: semicircle from right_pts[0] to left_pts[0], bulging outward (-tangent direction)
-    cx_start, cy_start = p_coords[0]
-    angle_right_start = math.atan2(right_pts[0][1] - cy_start, right_pts[0][0] - cx_start)
-    angle_left_start = math.atan2(left_pts[0][1] - cy_start, left_pts[0][0] - cx_start)
-    angle_out_start = math.atan2(-ty_start, -tx_start)
-
-    ccw_right_to_left = angle_diff(angle_right_start, angle_left_start)
-    ccw_right_to_out = angle_diff(angle_right_start, angle_out_start)
-
-    cap_points_start = []
-    if ccw_right_to_out < ccw_right_to_left:
-        total_angle = ccw_right_to_left
-        for i in range(cap_samples + 1):
-            frac = i / cap_samples
-            angle = angle_right_start + total_angle * frac
-            px = cx_start + (start_width / 2) * math.cos(angle)
-            py = cy_start + (start_width / 2) * math.sin(angle)
-            cap_points_start.append((px, py))
-    else:
-        total_angle = angle_diff(angle_left_start, angle_right_start)
-        for i in range(cap_samples + 1):
-            frac = i / cap_samples
-            angle = angle_right_start - total_angle * frac
-            px = cx_start + (start_width / 2) * math.cos(angle)
-            py = cy_start + (start_width / 2) * math.sin(angle)
-            cap_points_start.append((px, py))
-
-    # End cap: semicircle from left_pts[-1] to right_pts[-1], bulging outward (+tangent direction)
-    cx_end, cy_end = p_coords[-1]
-    angle_left_end = math.atan2(left_pts[-1][1] - cy_end, left_pts[-1][0] - cx_end)
-    angle_right_end = math.atan2(right_pts[-1][1] - cy_end, right_pts[-1][0] - cx_end)
-    angle_out_end = math.atan2(ty_end, tx_end)
-
-    ccw_left_to_right = angle_diff(angle_left_end, angle_right_end)
-    ccw_left_to_out = angle_diff(angle_left_end, angle_out_end)
-
-    cap_points_end = []
-    if ccw_left_to_out < ccw_left_to_right:
-        total_angle = ccw_left_to_right
-        for i in range(cap_samples + 1):
-            frac = i / cap_samples
-            angle = angle_left_end + total_angle * frac
-            px = cx_end + (end_width / 2) * math.cos(angle)
-            py = cy_end + (end_width / 2) * math.sin(angle)
-            cap_points_end.append((px, py))
-    else:
-        total_angle = angle_diff(angle_right_end, angle_left_end)
-        for i in range(cap_samples + 1):
-            frac = i / cap_samples
-            angle = angle_left_end - total_angle * frac
-            px = cx_end + (end_width / 2) * math.cos(angle)
-            py = cy_end + (end_width / 2) * math.sin(angle)
-            cap_points_end.append((px, py))
-
-    # Build the closed path: left side -> end cap -> right side (reversed) -> start cap
-    d = f"M {left_pts[0][0]:.2f},{left_pts[0][1]:.2f}"
-    for pt in left_pts[1:]:
-        d += f" L {pt[0]:.2f},{pt[1]:.2f}"
-    for pt in cap_points_end:
-        d += f" L {pt[0]:.2f},{pt[1]:.2f}"
-    for pt in reversed(right_pts):
-        d += f" L {pt[0]:.2f},{pt[1]:.2f}"
-    for pt in cap_points_start:
-        d += f" L {pt[0]:.2f},{pt[1]:.2f}"
-    d += " Z"
-    return d
+    envelope = compute_variable_width_envelope(p_coords, start_width, end_width)
+    return envelope_to_svg_path(envelope)
 
 
 def generate_svg(scene, bordered: bool = False) -> str:
