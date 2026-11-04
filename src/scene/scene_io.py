@@ -141,7 +141,7 @@ def save_state(scene) -> dict:
                          for p in curve.points]
                         for curve in scene.curves],
              "curve_color": scene.curve_color.name(),
-             "version": 3,
+             "version": 4,
              "viewbox": [round(scene.viewbox.width(), 2),
                          round(scene.viewbox.height(), 2)]}
 
@@ -153,6 +153,7 @@ def save_state(scene) -> dict:
 
     state["curve_start_widths"] = [c.start_width for c in scene.curves]
     state["curve_end_widths"] = [c.end_width for c in scene.curves]
+    state["curve_z_values"] = [c.zValue() for c in scene.curves]
 
     shape_colors = []
     for shape in scene.shape_manager.shapes:
@@ -193,13 +194,16 @@ def load_state(scene, state: dict, quiet: bool = False):
 
         start_widths = state.get("curve_start_widths", [])
         end_widths = state.get("curve_end_widths", [])
+        z_values = state.get("curve_z_values", [])
 
         for i, points_data in enumerate(curves_data):
             sw = start_widths[i] if i < len(start_widths) else None
             ew = end_widths[i] if i < len(end_widths) else None
+            z = z_values[i] if i < len(z_values) else -1
 
             # 1. Build the UI curve
             ui_curve = _build_curve_from_points(scene, points_data, start_width=sw, end_width=ew)
+            ui_curve.setZValue(z)
 
             # 2. Create the Model curve via the Document
             model_curve = scene.document.add_curve(ui_curve.degree, points_data, start_width=sw, end_width=ew)
@@ -231,6 +235,7 @@ def load_state(scene, state: dict, quiet: bool = False):
         bg = state.get("background")
         if bg:
             scene.load_background_image(bg)
+        scene.shape_manager.update_shape_z_values()
     finally:
         scene.blockSignals(False)
 
