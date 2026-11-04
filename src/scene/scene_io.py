@@ -141,69 +141,91 @@ def variable_width_svg_path(mc, start_width, end_width, samples=24, cap_samples=
 
 
 def generate_svg(scene, bordered: bool = False) -> str:
+    """Generate SVG with proper Z-ordering for both shapes and curves."""
 
-    # 1) Fills: one <path> per colored shape.
-    shape_paths = []
+    # Collect all renderable items with their Z-values
+    # Each item is a tuple: (z_value, svg_string)
+    items = []
+
+    # 1) Shape fills
     for shape in scene.shape_manager.shapes:
         if shape.color is None:
             continue
         d = scene.shape_manager.shape_svg_path_string(shape)
-        if d:
-            shape_paths.append(f'<path d="{d}" fill="{shape.color.name()}" stroke="none"/>')
-
-    # 2) Strokes: group curves by their effective stroke color. A curve
-    #    inside a colored shape is stroked with that shape's color
-    curve_color = {}
-    for shape in scene.shape_manager.shapes:
-        if shape.color is None:
+        if not d:
             continue
-        if bordered:
-            stroke = shape.color.darker(SHAPE_BORDER_DARKEN).name()
+
+        # Compute effective Z: minimum Z of constituent curves
+        ui_curves = list(scene.ui_curves(shape))
+        if ui_curves:
+            z = min(c.zValue() for c in ui_curves)
         else:
-            stroke = shape.color.name()
-        for curve in scene.ui_curves(shape):
-            curve_color[curve] = stroke
+            z = 0
 
-    by_stroke_key: dict[tuple[str, float], list[str]] = defaultdict(list)
-    by_envelope_key: dict[str, list[str]] = defaultdict(list)
+        # Determine color (with optional border darkening)
+        if bordered:
+            fill_color = shape.color.darker(SHAPE_BORDER_DARKEN).name()
+        else:
+            fill_color = shape.color.name()
 
+        items.append((z, f'<path d="{d}" fill="{fill_color}" stroke="none"/>'))
+
+    # 2) Curve strokes (rendered individually to preserve Z-order)
     for curve in scene.curves:
         mc = scene.registry.model_curve_for(curve)
         if mc is None:
             continue
 
-        color = curve_color.get(curve, curve.color.name())
+        z = curve.zValue()
+
+        # Determine stroke color (curves in colored shapes use the shape's color)
+        stroke_color = curve.color.name()
+        for shape in scene.shape_manager.shapes:
+            if shape.color is not None and curve in scene.ui_curves(shape):
+                if bordered:
+                    stroke_color = shape.color.darker(SHAPE_BORDER_DARKEN).name()
+                else:
+                    stroke_color = shape.color.name()
+                break
+
+        # Generate the stroke SVG based on width type
+        stroke_svg = None
 
         if mc.start_width is not None and mc.end_width is not None:
             if mc.start_width == mc.end_width:
-                # Uniform width: use standard, efficient SVG stroke
+                # Uniform width: standard SVG stroke
                 d = model_curve_svg_string(mc)
                 if d:
-                    by_stroke_key[(color, mc.start_width)].append(d)
+                    stroke_svg = (
+                        f'<path d="{d}" fill="{SVG_FILL}" '
+                        f'stroke="{stroke_color}" stroke-width="{mc.start_width}" '
+                        f'stroke-linecap="round" stroke-linejoin="round"/>'
+                    )
             else:
-                # Variable width: generate filled envelope polygon
+                # Variable width: filled envelope
                 d = variable_width_svg_path(mc, mc.start_width, mc.end_width)
                 if d:
-                    by_envelope_key[color].append(d)
+                    stroke_svg = f'<path d="{d}" fill="{stroke_color}" stroke="none"/>'
         else:
             # Fallback for non-stroke curves
             d = model_curve_svg_string(mc)
             if d:
-                by_stroke_key[(color, SVG_STROKE_WIDTH)].append(d)
+                stroke_svg = (
+                    f'<path d="{d}" fill="{SVG_FILL}" '
+                    f'stroke="{stroke_color}" stroke-width="{SVG_STROKE_WIDTH}" '
+                    f'stroke-linecap="round" stroke-linejoin="round"/>'
+                )
 
-    stroke_paths = []
-    # Render uniform strokes
-    for (color, width), ds in by_stroke_key.items():
-        stroke_paths.append(
-            f'<path d="{" ".join(ds)}" fill="{SVG_FILL}" '
-            f'stroke="{color}" stroke-width="{width}" '
-            f'stroke-linecap="round" stroke-linejoin="round"/>')
+        if stroke_svg:
+            items.append((z, stroke_svg))
 
-    # Render variable-width envelopes
-    for color, ds in by_envelope_key.items():
-        stroke_paths.append(
-            f'<path d="{" ".join(ds)}" fill="{color}" stroke="none"/>')
+    # 3) Sort all items by Z-value (lowest first = drawn first = appears behind)
+    items.sort(key=lambda x: x[0])
 
+    # 4) Build the SVG body
+    body = "".join(svg for _, svg in items)
+
+    # 5) Add the SVG header
     vb = scene.viewbox
     header = (
         f'<svg xmlns="http://www.w3.org/2000/svg" '
@@ -211,7 +233,6 @@ def generate_svg(scene, bordered: bool = False) -> str:
         f'{vb.width():.2f} {vb.height():.2f}" '
         f'width="{vb.width():.2f}" height="{vb.height():.2f}">')
 
-    body = "".join(shape_paths) + "".join(stroke_paths)
     if not body:
         return header + '</svg>'
     return header + body + '</svg>'

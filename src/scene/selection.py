@@ -8,10 +8,13 @@ set_hover, …). Actions that read from the scene to *decide* what to
 select — hover-driven selection, rect selection, select-all, chain and
 shape resolution, the save-shape payload — live in SelectionOps.
 """
+from PySide6.QtCore import Signal, QObject
 
+class Selection(QObject):
+    selectionChanged = Signal()
 
-class Selection:
     def __init__(self, scene):
+        super().__init__()
         self.scene = scene
         self.points: list = []           # ControlPoint, in selection order
         self.shapes: set = set()         # UI Shape objects
@@ -66,11 +69,13 @@ class Selection:
         self.points.append(pt)
         pt.update()
         pt.curve.update()
+        self.selectionChanged.emit()
 
     def clear(self):
         """Clear both point and shape selection."""
         self.clear_points()
         self.select_shape(None)
+        self.selectionChanged.emit()
 
     def toggle_point(self, pt):
         if pt in self.points:

@@ -239,6 +239,7 @@ class BezierScene(QGraphicsScene):
 
     def delete_selection(self) -> int:
         return self.selection_ops.delete_selection()
+        return self.selection_ops.delete_selection()
 
     def hide_points(self) -> bool:
         return self.selection_ops.hide_points()

@@ -250,6 +250,21 @@ class ShapeManager:
         parts.append("Z")
         return " ".join(parts)
 
+    def update_shape_z_values(self):
+        """Update the Z-value of all shape fills based on their constituent curves."""
+        for shape in self.shapes:
+            item = self._fills.get(shape)
+            if item is None:
+                continue
+
+            ui_curves = list(self.scene.ui_curves(shape))
+            if not ui_curves:
+                continue
+
+            # Set Z to minimum of constituent curves
+            min_z = min(c.zValue() for c in ui_curves)
+            item.setZValue(min_z)
+
     def _rebuild_fill(self, shape):
         if shape.color is None:
             return
@@ -262,10 +277,17 @@ class ShapeManager:
         if item is None:
             item = QGraphicsPathItem()
             item.setPen(QPen(Qt.PenStyle.NoPen))
-            item.setZValue(SHAPE_FILL_Z)
             item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
             self.scene.addItem(item)
             self._fills[shape] = item
+
+        # NEW: Use the minimum Z of constituent curves instead of hardcoded SHAPE_FILL_Z
+        ui_curves = list(self.scene.ui_curves(shape))
+        if ui_curves:
+            min_z = min(c.zValue() for c in ui_curves)
+        else:
+            min_z = SHAPE_FILL_Z
+        item.setZValue(min_z)
 
         item.setBrush(QBrush(shape.color))
         item.setPath(path)
@@ -291,5 +313,13 @@ class ShapeManager:
             border = self._border_color(shape)
             for curve in self.scene.ui_curves(shape):
                 curve.set_color(border)
+
+        # NEW: Set initial Z-value for the fill
+        item = self._fills.get(shape)
+        if item is not None:
+            ui_curves = list(self.scene.ui_curves(shape))
+            if ui_curves:
+                min_z = min(c.zValue() for c in ui_curves)
+                item.setZValue(min_z)
 
         self.scene.emit_svg()

@@ -17,8 +17,9 @@ class SettingsPanel(QWidget):
         self.user_settings = window.user_settings
         self._build_ui()
         self._sync_from_settings()
+        self._connect_selection_signals()
 
-    # ------------------------------------------------------------
+        # ------------------------------------------------------------
     #  UI construction
     # ------------------------------------------------------------
     def _build_ui(self):
@@ -84,6 +85,18 @@ class SettingsPanel(QWidget):
         self.color_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.color_btn.clicked.connect(self._on_color_clicked)
         form.addRow("Curve Color:", self.color_btn)
+
+        # ---- NEW: Selection Z-order ----
+        self.z_spin = QSpinBox()
+        self.z_spin.setRange(-100, 100)
+        self.z_spin.setSuffix("")
+        self.z_spin.setToolTip(
+            "Z-order of the selected curve/shape/chain.\n"
+            "Higher values appear on top of lower values.")
+        self.z_spin.setEnabled(False)  # Disabled until something is selected
+        self.z_spin.valueChanged.connect(self._on_z_changed)
+
+        form.addRow("Selection Z:", self.z_spin)
 
         layout.addLayout(form)
         layout.addStretch(1)  # Push content to top
@@ -166,3 +179,65 @@ class SettingsPanel(QWidget):
     def refresh_from_settings(self):
         """Call this when external code changes user_settings (e.g., main dialog)."""
         self._sync_from_settings()
+
+    def _connect_selection_signals(self):
+        """Listen for selection changes to update the Z spinbox."""
+        sel = self.scene.selection
+        # Connect to signals that indicate selection changed
+        # (adjust signal names to match your Selection class)
+        if hasattr(sel, 'selectionChanged'):
+            sel.selectionChanged.connect(self._on_selection_changed)
+        # Also refresh when curves are added/removed
+        self.scene.document.curve_added.connect(self._on_selection_changed)
+        self.scene.document.curve_deleted.connect(self._on_selection_changed)
+        # Initial sync
+        self._on_selection_changed()
+
+    def _on_selection_changed(self, *_args):
+        """Update the Z spinbox to reflect the current selection."""
+        selected_curves = self._get_selected_curves()
+        if not selected_curves:
+            self.z_spin.blockSignals(True)
+            self.z_spin.setEnabled(False)
+            self.z_spin.setValue(0)
+            self.z_spin.blockSignals(False)
+            return
+
+        # If all selected curves have the same Z, show it
+        z_values = {int(c.zValue()) for c in selected_curves}
+        self.z_spin.blockSignals(True)
+        if len(z_values) == 1:
+            self.z_spin.setValue(z_values.pop())
+            self.z_spin.setEnabled(True)
+        else:
+            # Mixed Z values — show the first one but keep enabled
+            self.z_spin.setValue(int(selected_curves[0].zValue()))
+            self.z_spin.setEnabled(True)
+        self.z_spin.blockSignals(False)
+
+    def _get_selected_curves(self):
+        """Return the list of curves affected by the current selection."""
+        curves = set()
+        # Collect curves from all selected points
+        for pt in self.scene.selected_points:
+            if pt.curve is not None:
+                curves.add(pt.curve)
+        # Also include the hovered curve if any
+        if self.scene.selection.hovered_curve is not None:
+            curves.add(self.scene.selection.hovered_curve)
+        return list(curves)
+
+    def _on_z_changed(self, value):
+        """Apply the new Z value to all selected curves and update shape fills."""
+        selected_curves = self._get_selected_curves()
+        if not selected_curves:
+            return
+
+        for c in selected_curves:
+            c.setZValue(value)
+            c.update()
+
+        # Update shape fill Z-values to match
+        self.scene.shape_manager.update_shape_z_values()
+
+        self.scene.emit_svg()
